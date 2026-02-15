@@ -3,3 +3,4 @@ data/
 uploads/
 client/dist/
 *.db
+.env

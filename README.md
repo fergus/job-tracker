@@ -4,17 +4,40 @@ A single-page web app for tracking job applications through a pipeline — from 
 
 ## Quick Start
 
-Requirements: [Docker](https://docs.docker.com/get-docker/) and Docker Compose.
+Requirements: [Docker](https://docs.docker.com/get-docker/) and Docker Compose, and a [PocketID](https://github.com/pocket-id/pocket-id) instance for authentication.
+
+**1. Clone and configure:**
 
 ```bash
 git clone <this-repo>
 cd job-tracker
-docker compose up --build
+cp .env.example .env
 ```
 
-Open **http://localhost:3000** in your browser.
+**2. Set up PocketID:**
 
-That's it. The app builds and runs in a single container.
+In your PocketID admin panel, create a new OIDC client:
+- **Redirect URI:** `https://your-domain.com/oauth2/callback`
+- Note the **Client ID** and **Client Secret**
+
+**3. Edit `.env`** with your values:
+
+```env
+OIDC_ISSUER_URL=https://your-pocketid-instance.example.com
+OIDC_CLIENT_ID=your-client-id
+OIDC_CLIENT_SECRET=your-client-secret
+PUBLIC_URL=https://your-domain.com
+COOKIE_SECRET=   # generate with: openssl rand -base64 32 | tr -- '+/' '-_'
+LISTEN_PORT=3000
+```
+
+**4. Start:**
+
+```bash
+docker compose up --build -d
+```
+
+Open your `PUBLIC_URL` in a browser. You'll be redirected to PocketID to log in.
 
 ## Updating
 
@@ -55,11 +78,16 @@ cp -r uploads/ uploads-backup/
 
 ## Configuration
 
-The server runs on port 3000 by default. To change the exposed port, edit `docker-compose.yml`:
+The server runs on port 3000 by default. To change the exposed port, set `LISTEN_PORT` in your `.env`:
 
-```yaml
-ports:
-  - "8080:3000"  # access on port 8080 instead
+```env
+LISTEN_PORT=8080
+```
+
+To run without HTTPS (e.g. local dev), set:
+
+```env
+COOKIE_SECURE=false
 ```
 
 ## Tech Stack
