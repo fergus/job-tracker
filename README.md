@@ -1,5 +1,7 @@
 # Job Application Tracker
 
+[![Build](https://github.com/fergus/job-tracker/actions/workflows/build.yml/badge.svg)](https://github.com/fergus/job-tracker/actions/workflows/build.yml)
+
 A single-page web app for tracking job applications through a pipeline — from initial interest through to offer and acceptance. Kanban board with drag-and-drop, table view, file uploads for CVs and cover letters, notes, and date tracking per stage.
 
 ## Quick Start
