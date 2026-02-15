@@ -76,16 +76,28 @@
           </div>
         </div>
 
-        <!-- Interview Notes -->
-        <div v-if="application.interview_notes">
-          <h3 class="text-sm font-semibold text-gray-700 mb-1">Interview Notes</h3>
-          <p class="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 rounded-lg p-3">{{ application.interview_notes }}</p>
-        </div>
-
-        <!-- Prep Work -->
-        <div v-if="application.prep_work">
-          <h3 class="text-sm font-semibold text-gray-700 mb-1">Prep Work</h3>
-          <p class="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 rounded-lg p-3">{{ application.prep_work }}</p>
+        <!-- Stage Notes -->
+        <div>
+          <h3 class="text-sm font-semibold text-gray-700 mb-3">Stage Notes</h3>
+          <div v-for="stage in noteStages" :key="stage" class="mb-4">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{{ stage }}</p>
+            <div v-for="note in notesByStage[stage] || []" :key="note.id" class="flex items-start justify-between bg-gray-50 rounded-lg p-2 mb-1">
+              <div>
+                <p class="text-sm text-gray-700">{{ note.content }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">{{ formatDateTime(note.created_at) }}</p>
+              </div>
+              <button @click="removeNote(note.id)" class="text-gray-300 hover:text-red-500 text-sm ml-2 flex-shrink-0">&times;</button>
+            </div>
+            <div class="flex gap-2 mt-1">
+              <input
+                v-model="newNoteText[stage]"
+                @keydown.enter="addNote(stage)"
+                placeholder="Add a note..."
+                class="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
+              <button @click="addNote(stage)" class="text-sm text-blue-600 hover:text-blue-700 font-medium px-2">Add</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -105,13 +117,14 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter } from '../api'
+import { computed, reactive } from 'vue'
+import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, deleteNote } from '../api'
 
 const props = defineProps({ application: Object })
-const emit = defineEmits(['close', 'edit', 'delete', 'status-change', 'cv-uploaded', 'cover-letter-uploaded'])
+const emit = defineEmits(['close', 'edit', 'delete', 'status-change', 'cv-uploaded', 'cover-letter-uploaded', 'notes-changed'])
 
 const statuses = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
+const noteStages = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
 
 const dates = [
   { key: 'created_at', label: 'Created' },
@@ -125,9 +138,47 @@ const dates = [
 const cvUrl = computed(() => getCVUrl(props.application.id))
 const coverLetterUrl = computed(() => getCoverLetterUrl(props.application.id))
 
+const newNoteText = reactive({})
+for (const s of noteStages) newNoteText[s] = ''
+
+const notesByStage = computed(() => {
+  const grouped = {}
+  for (const note of (props.application.notes || [])) {
+    (grouped[note.stage] ||= []).push(note)
+  }
+  return grouped
+})
+
 function formatDate(iso) {
   if (!iso) return '-'
   return new Date(iso).toLocaleDateString()
+}
+
+function formatDateTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+async function addNote(stage) {
+  const content = newNoteText[stage]?.trim()
+  if (!content) return
+  try {
+    await createNote(props.application.id, { stage, content })
+    newNoteText[stage] = ''
+    emit('notes-changed')
+  } catch (err) {
+    alert('Error adding note: ' + (err.response?.data?.error || err.message))
+  }
+}
+
+async function removeNote(noteId) {
+  try {
+    await deleteNote(props.application.id, noteId)
+    emit('notes-changed')
+  } catch (err) {
+    alert('Error deleting note: ' + (err.response?.data?.error || err.message))
+  }
 }
 
 async function onCVUpload(e) {

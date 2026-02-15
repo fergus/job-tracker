@@ -51,6 +51,14 @@ export function getCoverLetterUrl(id) {
   return `/api/applications/${id}/cover-letter`
 }
 
+export function createNote(appId, { stage, content }) {
+  return api.post(`/applications/${appId}/notes`, { stage, content }).then(r => r.data)
+}
+
+export function deleteNote(appId, noteId) {
+  return api.delete(`/applications/${appId}/notes/${noteId}`).then(r => r.data)
+}
+
 export function deleteApplication(id) {
   return api.delete(`/applications/${id}`).then(r => r.data)
 }

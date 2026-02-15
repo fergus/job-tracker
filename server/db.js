@@ -35,4 +35,15 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS stage_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id INTEGER NOT NULL,
+    stage TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+  )
+`);
+
 module.exports = db;

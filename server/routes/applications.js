@@ -29,6 +29,18 @@ const STATUS_DATE_MAP = {
   rejected: 'closed_at'
 };
 
+function attachNotes(rows) {
+  const ids = rows.map(r => r.id);
+  if (ids.length === 0) return rows;
+  const placeholders = ids.map(() => '?').join(',');
+  const notes = db.prepare(`SELECT * FROM stage_notes WHERE application_id IN (${placeholders}) ORDER BY created_at ASC`).all(...ids);
+  const notesByApp = {};
+  for (const n of notes) {
+    (notesByApp[n.application_id] ||= []).push(n);
+  }
+  return rows.map(r => ({ ...r, notes: notesByApp[r.id] || [] }));
+}
+
 // List all applications
 router.get('/', (req, res) => {
   const { status } = req.query;
@@ -38,14 +50,14 @@ router.get('/', (req, res) => {
   } else {
     rows = db.prepare('SELECT * FROM applications ORDER BY updated_at DESC').all();
   }
-  res.json(rows);
+  res.json(attachNotes(rows));
 });
 
 // Get single application
 router.get('/:id', (req, res) => {
   const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json(row);
+  res.json(attachNotes([row])[0]);
 });
 
 // Create application (multipart for CV + cover letter)
@@ -228,6 +240,33 @@ router.delete('/:id', (req, res) => {
   }
 
   db.prepare('DELETE FROM applications WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// Create a stage note
+router.post('/:id/notes', (req, res) => {
+  const existing = db.prepare('SELECT id FROM applications WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const { stage, content } = req.body;
+  if (!stage || !content) {
+    return res.status(400).json({ error: 'stage and content are required' });
+  }
+
+  const now = new Date().toISOString();
+  const result = db.prepare('INSERT INTO stage_notes (application_id, stage, content, created_at) VALUES (?, ?, ?, ?)')
+    .run(req.params.id, stage, content, now);
+
+  const note = db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(note);
+});
+
+// Delete a stage note
+router.delete('/:id/notes/:noteId', (req, res) => {
+  const note = db.prepare('SELECT * FROM stage_notes WHERE id = ? AND application_id = ?').get(req.params.noteId, req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+
+  db.prepare('DELETE FROM stage_notes WHERE id = ?').run(req.params.noteId);
   res.json({ success: true });
 });
 
