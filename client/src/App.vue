@@ -59,6 +59,7 @@
       @status-change="handleStatusChange"
       @cv-uploaded="handleFileUploaded"
       @cover-letter-uploaded="handleFileUploaded"
+      @notes-changed="handleNotesChanged"
     />
   </div>
 </template>
@@ -116,6 +117,13 @@ async function handleStatusChange(id, status) {
 
 function handleFileUploaded() {
   loadApplications()
+}
+
+async function handleNotesChanged() {
+  await loadApplications()
+  if (selectedApp.value) {
+    selectedApp.value = applications.value.find(a => a.id === selectedApp.value.id) || null
+  }
 }
 
 onMounted(loadApplications)

@@ -52,16 +52,6 @@
           </div>
         </div>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Interview Notes</label>
-          <textarea v-model="form.interview_notes" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"></textarea>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Prep Work</label>
-          <textarea v-model="form.prep_work" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"></textarea>
-        </div>
-
       </div>
         <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
           <button type="button" @click="$emit('close')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancel</button>
@@ -95,8 +85,6 @@ const form = reactive({
   job_description: props.application?.job_description || '',
   job_posting_url: props.application?.job_posting_url || '',
   company_website_url: props.application?.company_website_url || '',
-  interview_notes: props.application?.interview_notes || '',
-  prep_work: props.application?.prep_work || '',
 })
 
 function onCVChange(e) {
@@ -117,8 +105,6 @@ async function submit() {
         job_description: form.job_description,
         job_posting_url: form.job_posting_url,
         company_website_url: form.company_website_url,
-        interview_notes: form.interview_notes,
-        prep_work: form.prep_work,
       })
     } else {
       const formData = new FormData()
@@ -128,8 +114,6 @@ async function submit() {
       if (form.job_description) formData.append('job_description', form.job_description)
       if (form.job_posting_url) formData.append('job_posting_url', form.job_posting_url)
       if (form.company_website_url) formData.append('company_website_url', form.company_website_url)
-      if (form.interview_notes) formData.append('interview_notes', form.interview_notes)
-      if (form.prep_work) formData.append('prep_work', form.prep_work)
       if (cvFile.value) formData.append('cv', cvFile.value)
       if (coverLetterFile.value) formData.append('cover_letter', coverLetterFile.value)
       await createApplication(formData)
