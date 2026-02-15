@@ -16,6 +16,18 @@ Open **http://localhost:3000** in your browser.
 
 That's it. The app builds and runs in a single container.
 
+## Updating
+
+Pull the latest changes and rebuild:
+
+```bash
+cd job-tracker
+git pull
+docker compose up --build -d
+```
+
+Your data is safe — updates only rebuild the container, not the volume-mounted data directories.
+
 ## Data Persistence
 
 All data is stored in Docker volumes mapped to local directories:
@@ -23,9 +35,14 @@ All data is stored in Docker volumes mapped to local directories:
 - `./data/` — SQLite database
 - `./uploads/` — uploaded CV and cover letter files
 
-These directories are created automatically. Your data survives container restarts and rebuilds.
+These directories are created automatically. Your data survives container restarts, rebuilds, and updates.
 
-To back up, just copy those two directories.
+To back up:
+
+```bash
+cp -r data/ data-backup/
+cp -r uploads/ uploads-backup/
+```
 
 ## Features
 
