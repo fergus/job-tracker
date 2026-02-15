@@ -1,11 +1,12 @@
 <template>
   <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
         <h2 class="text-lg font-semibold text-gray-900">{{ isEdit ? 'Edit Application' : 'New Application' }}</h2>
         <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
       </div>
-      <form @submit.prevent="submit" class="px-6 py-4 space-y-4">
+      <form @submit.prevent="submit" class="flex flex-col flex-1 min-h-0">
+      <div class="px-6 py-4 space-y-4 overflow-y-auto flex-1">
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Company *</label>
@@ -61,7 +62,8 @@
           <textarea v-model="form.prep_work" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"></textarea>
         </div>
 
-        <div class="flex justify-end gap-3 pt-2">
+      </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 flex-shrink-0">
           <button type="button" @click="$emit('close')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancel</button>
           <button type="submit" :disabled="saving" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50">
             {{ saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create') }}
