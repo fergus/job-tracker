@@ -3,7 +3,10 @@
     <!-- Top bar -->
     <header class="bg-white shadow-sm border-b border-gray-200">
       <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
-        <h1 class="text-xl font-bold text-gray-800">Job Application Tracker</h1>
+        <div class="flex items-center gap-2.5">
+          <img src="/logo.svg" alt="" class="w-8 h-8 rounded-lg" />
+          <h1 class="text-xl font-bold text-gray-800">Job Application Tracker</h1>
+        </div>
         <div class="flex items-center gap-3">
           <div class="flex bg-gray-100 rounded-lg p-0.5">
             <button
