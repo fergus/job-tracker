@@ -3,7 +3,7 @@
     <div
       v-for="stage in stages"
       :key="stage.value"
-      class="flex-1 min-w-0"
+      class="flex-1 min-w-[200px]"
     >
       <div class="flex items-center gap-2 mb-3">
         <span :class="stage.color" class="w-2.5 h-2.5 rounded-full inline-block"></span>
