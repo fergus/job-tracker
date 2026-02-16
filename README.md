@@ -11,10 +11,11 @@ Requirements: [Docker](https://docs.docker.com/get-docker/) and Docker Compose, 
 **1. Clone and configure:**
 
 ```bash
-git clone <this-repo>
-cd job-tracker
+mkdir job-tracker && cd job-tracker
 cp .env.example .env
 ```
+
+Download the [`docker-compose.yml`](docker-compose.yml) and [`.env.example`](.env.example) files, or clone the repo.
 
 **2. Set up PocketID:**
 
@@ -33,25 +34,32 @@ COOKIE_SECRET=   # generate with: openssl rand -base64 32 | tr -- '+/' '-_'
 LISTEN_PORT=3000
 ```
 
-**4. Start:**
+**4. Update `docker-compose.yml`** to use the pre-built image:
+
+```yaml
+services:
+  job-tracker:
+    image: ghcr.io/fergus/job-tracker:latest
+```
+
+**5. Start:**
 
 ```bash
-docker compose up --build -d
+docker compose up -d
 ```
 
 Open your `PUBLIC_URL` in a browser. You'll be redirected to PocketID to log in.
 
 ## Updating
 
-Pull the latest changes and rebuild:
+Pull the latest image and restart:
 
 ```bash
-cd job-tracker
-git pull
-docker compose up --build -d
+docker compose pull
+docker compose up -d
 ```
 
-Your data is safe — updates only rebuild the container, not the volume-mounted data directories.
+Your data is safe — updates only replace the container, not the volume-mounted data directories.
 
 ## Data Persistence
 
@@ -75,7 +83,7 @@ cp -r uploads/ uploads-backup/
 - **Table view** — sortable columns, click any row for details
 - **File uploads** — attach CVs and cover letters (PDF, DOC, DOCX up to 10MB)
 - **Date tracking** — timestamps auto-set when you move applications between stages
-- **Notes & prep** — free-text fields for interview notes and prep work
+- **Stage notes** — per-stage timestamped notes with colored stage badges
 - **Links** — store job posting and company website URLs
 
 ## Configuration
