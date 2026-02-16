@@ -78,25 +78,31 @@
 
         <!-- Stage Notes -->
         <div>
-          <h3 class="text-sm font-semibold text-gray-700 mb-3">Stage Notes</h3>
-          <div v-for="stage in noteStages" :key="stage" class="mb-4">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{{ stage }}</p>
-            <div v-for="note in notesByStage[stage] || []" :key="note.id" class="flex items-start justify-between bg-gray-50 rounded-lg p-2 mb-1">
+          <h3 class="text-sm font-semibold text-gray-700 mb-3">Notes</h3>
+          <!-- Add note form -->
+          <div class="flex gap-2 mb-3">
+            <select v-model="newNoteStage" class="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none capitalize">
+              <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+            </select>
+            <input
+              v-model="newNoteContent"
+              @keydown.enter="addNote"
+              placeholder="Add a note..."
+              class="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+            <button @click="addNote" class="text-sm text-blue-600 hover:text-blue-700 font-medium px-2">Add</button>
+          </div>
+          <!-- Notes list -->
+          <div v-if="sortedNotes.length === 0" class="text-sm text-gray-400 py-2">No notes yet.</div>
+          <div v-for="note in sortedNotes" :key="note.id" class="flex items-start justify-between bg-gray-50 rounded-lg p-2 mb-1.5">
+            <div class="flex items-start gap-2">
+              <span :class="stageBadgeClass(note.stage)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 flex-shrink-0">{{ note.stage }}</span>
               <div>
                 <p class="text-sm text-gray-700">{{ note.content }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ formatDateTime(note.created_at) }}</p>
               </div>
-              <button @click="removeNote(note.id)" class="text-gray-300 hover:text-red-500 text-sm ml-2 flex-shrink-0">&times;</button>
             </div>
-            <div class="flex gap-2 mt-1">
-              <input
-                v-model="newNoteText[stage]"
-                @keydown.enter="addNote(stage)"
-                placeholder="Add a note..."
-                class="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
-              <button @click="addNote(stage)" class="text-sm text-blue-600 hover:text-blue-700 font-medium px-2">Add</button>
-            </div>
+            <button @click="removeNote(note.id)" class="text-gray-300 hover:text-red-500 text-sm ml-2 flex-shrink-0">&times;</button>
           </div>
         </div>
       </div>
@@ -117,14 +123,27 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, ref } from 'vue'
 import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, deleteNote } from '../api'
 
 const props = defineProps({ application: Object })
 const emit = defineEmits(['close', 'edit', 'delete', 'status-change', 'cv-uploaded', 'cover-letter-uploaded', 'notes-changed'])
 
 const statuses = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
-const noteStages = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
+
+const stageBadgeClasses = {
+  interested: 'bg-gray-100 text-gray-700',
+  applied: 'bg-blue-100 text-blue-700',
+  screening: 'bg-yellow-100 text-yellow-700',
+  interview: 'bg-purple-100 text-purple-700',
+  offer: 'bg-green-100 text-green-700',
+  accepted: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-red-100 text-red-700',
+}
+
+function stageBadgeClass(stage) {
+  return stageBadgeClasses[stage] || 'bg-gray-100 text-gray-700'
+}
 
 const dates = [
   { key: 'created_at', label: 'Created' },
@@ -138,15 +157,11 @@ const dates = [
 const cvUrl = computed(() => getCVUrl(props.application.id))
 const coverLetterUrl = computed(() => getCoverLetterUrl(props.application.id))
 
-const newNoteText = reactive({})
-for (const s of noteStages) newNoteText[s] = ''
+const newNoteStage = ref(props.application.status)
+const newNoteContent = ref('')
 
-const notesByStage = computed(() => {
-  const grouped = {}
-  for (const note of (props.application.notes || [])) {
-    (grouped[note.stage] ||= []).push(note)
-  }
-  return grouped
+const sortedNotes = computed(() => {
+  return [...(props.application.notes || [])].sort((a, b) => b.created_at.localeCompare(a.created_at))
 })
 
 function formatDate(iso) {
@@ -160,12 +175,12 @@ function formatDateTime(iso) {
   return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-async function addNote(stage) {
-  const content = newNoteText[stage]?.trim()
+async function addNote() {
+  const content = newNoteContent.value?.trim()
   if (!content) return
   try {
-    await createNote(props.application.id, { stage, content })
-    newNoteText[stage] = ''
+    await createNote(props.application.id, { stage: newNoteStage.value, content })
+    newNoteContent.value = ''
     emit('notes-changed')
   } catch (err) {
     alert('Error adding note: ' + (err.response?.data?.error || err.message))
