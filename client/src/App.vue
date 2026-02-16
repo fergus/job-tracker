@@ -115,8 +115,11 @@ async function handleStatusChange(id, status) {
   loadApplications()
 }
 
-function handleFileUploaded() {
-  loadApplications()
+async function handleFileUploaded() {
+  await loadApplications()
+  if (selectedApp.value) {
+    selectedApp.value = applications.value.find(a => a.id === selectedApp.value.id) || null
+  }
 }
 
 async function handleNotesChanged() {
