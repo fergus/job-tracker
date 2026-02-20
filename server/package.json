@@ -1,6 +1,6 @@
 {
   "name": "job-tracker-server",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "private": true,
   "dependencies": {
     "better-sqlite3": "^12.6.2",
