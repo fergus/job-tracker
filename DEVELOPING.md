@@ -16,7 +16,7 @@ job-tracker/
 │   │   ├── App.vue          # Root component, state management
 │   │   ├── main.js          # Vue app entry point
 │   │   ├── assets/
-│   │   │   └── main.css     # Tailwind imports
+│   │   │   └── main.css     # Tailwind CSS entry point
 │   │   └── components/
 │   │       ├── KanbanBoard.vue       # Drag-and-drop board
 │   │       ├── KanbanCard.vue        # Individual card
@@ -25,8 +25,7 @@ job-tracker/
 │   │       └── ApplicationDetail.vue # Detail modal + notes
 │   ├── public/              # Static assets (logo, icons, manifest)
 │   ├── index.html           # SPA shell
-│   ├── vite.config.js       # Vite config with API proxy
-│   ├── tailwind.config.js
+│   ├── vite.config.js       # Vite + Tailwind CSS plugin, API proxy
 │   └── package.json
 ├── server/                  # Express backend
 │   ├── index.js             # App entry, static serving, route mounting
@@ -279,7 +278,7 @@ Child component
 
 ### Styling
 
-Tailwind CSS utility classes applied directly in templates. No custom CSS files beyond the Tailwind imports in `main.css`. Colour scheme for pipeline stages is defined inline in components that need it (KanbanBoard, TableView, ApplicationDetail).
+Tailwind CSS 4 with the `@tailwindcss/vite` plugin — no PostCSS config or `tailwind.config.js` needed. Utility classes are applied directly in templates. Colour scheme for pipeline stages is defined inline in components that need it (KanbanBoard, TableView, ApplicationDetail).
 
 ## CI/CD
 
