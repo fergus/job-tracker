@@ -4,3 +4,9 @@ uploads/
 client/dist/
 *.db
 .env
+CLAUDE.md
+.cursorrules
+.cursor/
+.github/copilot-instructions.md
+.windsurfrules
+.aider*

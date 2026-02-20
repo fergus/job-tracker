@@ -29,17 +29,11 @@
               {{ app.status }}
             </span>
           </td>
-          <td class="px-4 py-3 text-gray-500">{{ formatDate(app.applied_at) }}</td>
-          <td class="px-4 py-3">
-            <div class="flex gap-2">
-              <a v-if="app.job_posting_url" :href="app.job_posting_url" target="_blank" @click.stop class="text-blue-500 hover:underline text-xs">Posting</a>
-              <a v-if="app.company_website_url" :href="app.company_website_url" target="_blank" @click.stop class="text-blue-500 hover:underline text-xs">Website</a>
-            </div>
-          </td>
-          <td class="px-4 py-3 text-gray-500 text-xs">{{ formatDate(app.updated_at) }}</td>
+          <td class="px-4 py-3 text-gray-500 truncate max-w-xs">{{ latestNote(app) }}</td>
+          <td class="px-4 py-3 text-gray-500 text-xs">{{ formatDate(lastActivity(app)) }}</td>
         </tr>
         <tr v-if="applications.length === 0">
-          <td colspan="6" class="px-4 py-8 text-center text-gray-400">No applications yet. Click "+ Add Application" to get started.</td>
+          <td colspan="5" class="px-4 py-8 text-center text-gray-400">No applications yet. Click "+ Add Application" to get started.</td>
         </tr>
       </tbody>
     </table>
@@ -56,16 +50,15 @@ const columns = [
   { key: 'company_name', label: 'Company' },
   { key: 'role_title', label: 'Role' },
   { key: 'status', label: 'Status' },
-  { key: 'applied_at', label: 'Applied' },
-  { key: 'links', label: 'Links' },
-  { key: 'updated_at', label: 'Updated' },
+  { key: 'latest_note', label: 'Latest Note' },
+  { key: 'updated_at', label: 'Last Updated' },
 ]
 
 const sortKey = ref('updated_at')
 const sortDir = ref('desc')
 
 function toggleSort(key) {
-  if (key === 'links') return
+  if (key === 'latest_note') return
   if (sortKey.value === key) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
   } else {
@@ -74,11 +67,29 @@ function toggleSort(key) {
   }
 }
 
+function latestNote(app) {
+  if (!app.notes || app.notes.length === 0) return '-'
+  return app.notes[app.notes.length - 1].content
+}
+
+function lastActivity(app) {
+  const updatedAt = app.updated_at || ''
+  const notes = app.notes || []
+  const latestNoteDate = notes.length > 0 ? notes[notes.length - 1].created_at || '' : ''
+  return latestNoteDate > updatedAt ? latestNoteDate : updatedAt
+}
+
 const sorted = computed(() => {
   const arr = [...props.applications]
   arr.sort((a, b) => {
-    const va = a[sortKey.value] || ''
-    const vb = b[sortKey.value] || ''
+    let va, vb
+    if (sortKey.value === 'updated_at') {
+      va = lastActivity(a)
+      vb = lastActivity(b)
+    } else {
+      va = a[sortKey.value] || ''
+      vb = b[sortKey.value] || ''
+    }
     const cmp = va < vb ? -1 : va > vb ? 1 : 0
     return sortDir.value === 'asc' ? cmp : -cmp
   })
