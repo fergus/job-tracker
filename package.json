@@ -1,11 +1,14 @@
 {
   "name": "job-tracker",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev:server": "node server/index.js",
     "dev:client": "cd client && npm run dev",
     "build:client": "cd client && npm run build",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "version:patch": "npm version patch --no-git-tag-version && cd client && npm version patch --no-git-tag-version && cd ../server && npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version && cd client && npm version minor --no-git-tag-version && cd ../server && npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version && cd client && npm version major --no-git-tag-version && cd ../server && npm version major --no-git-tag-version"
   }
 }

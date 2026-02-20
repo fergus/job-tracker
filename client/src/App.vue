@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen flex flex-col">
     <!-- Top bar -->
     <header class="bg-white shadow-xs border-b border-gray-200">
       <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -29,7 +29,7 @@
     </header>
 
     <!-- Main content -->
-    <main class="px-4 py-4">
+    <main class="flex-1 px-4 py-4">
       <KanbanBoard
         v-if="view === 'kanban'"
         :applications="applications"
@@ -42,6 +42,13 @@
         @select="openDetail"
       />
     </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-200 bg-gray-50">
+      <div class="max-w-screen-2xl mx-auto px-4 py-2 text-center text-xs text-gray-400">
+        v{{ version }}
+      </div>
+    </footer>
 
     <!-- Modals -->
     <ApplicationForm
@@ -71,6 +78,8 @@ import KanbanBoard from './components/KanbanBoard.vue'
 import TableView from './components/TableView.vue'
 import ApplicationForm from './components/ApplicationForm.vue'
 import ApplicationDetail from './components/ApplicationDetail.vue'
+
+const version = __APP_VERSION__
 
 const view = ref('kanban')
 const applications = ref([])

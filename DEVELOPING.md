@@ -289,13 +289,32 @@ GitHub Actions workflow at `.github/workflows/build.yml`:
 
 ### Releasing a new version
 
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-gh release create v0.2.0 --title "v0.2.0" --notes "Release notes here..."
-```
+1. **Bump the version** in all three `package.json` files (root, client, server).
+   Use the helper scripts to keep them in sync:
+   ```bash
+   npm run version:patch   # 0.2.0 → 0.2.1
+   npm run version:minor   # 0.2.0 → 0.3.0
+   npm run version:major   # 0.2.0 → 1.0.0
+   ```
+2. **Commit the version bump**:
+   ```bash
+   git add package.json client/package.json server/package.json
+   git commit -m "chore: bump version to vX.Y.Z"
+   ```
+3. **Tag the commit** with a `v` prefix:
+   ```bash
+   git tag vX.Y.Z
+   ```
+4. **Push the commit and tag**:
+   ```bash
+   git push origin main --tags
+   ```
+5. **Create a GitHub release**:
+   ```bash
+   gh release create vX.Y.Z --title "vX.Y.Z" --notes "Release notes here..."
+   ```
 
-The GitHub Actions workflow will automatically build and push the Docker image.
+The GitHub Actions workflow will automatically build and push the Docker image when a version tag is pushed.
 
 ## Testing with curl
 
