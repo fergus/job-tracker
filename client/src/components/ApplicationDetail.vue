@@ -16,7 +16,7 @@
           <select
             :value="application.status"
             @change="$emit('status-change', application.id, ($event.target).value)"
-            class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
           >
             <option v-for="s in statuses" :key="s" :value="s" class="capitalize">{{ s }}</option>
           </select>
@@ -81,14 +81,14 @@
           <h3 class="text-sm font-semibold text-gray-700 mb-3">Notes</h3>
           <!-- Add note form -->
           <div class="flex gap-2 mb-3">
-            <select v-model="newNoteStage" class="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none capitalize">
+            <select v-model="newNoteStage" class="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden capitalize">
               <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
             </select>
             <input
               v-model="newNoteContent"
               @keydown.enter="addNote"
               placeholder="Add a note..."
-              class="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              class="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
             />
             <button @click="addNote" class="text-sm text-blue-600 hover:text-blue-700 font-medium px-2">Add</button>
           </div>
@@ -96,13 +96,13 @@
           <div v-if="sortedNotes.length === 0" class="text-sm text-gray-400 py-2">No notes yet.</div>
           <div v-for="note in sortedNotes" :key="note.id" class="flex items-start justify-between bg-gray-50 rounded-lg p-2 mb-1.5">
             <div class="flex items-start gap-2">
-              <span :class="stageBadgeClass(note.stage)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 flex-shrink-0">{{ note.stage }}</span>
+              <span :class="stageBadgeClass(note.stage)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 shrink-0">{{ note.stage }}</span>
               <div>
                 <p class="text-sm text-gray-700">{{ note.content }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ formatDateTime(note.created_at) }}</p>
               </div>
             </div>
-            <button @click="removeNote(note.id)" class="text-gray-300 hover:text-red-500 text-sm ml-2 flex-shrink-0">&times;</button>
+            <button @click="removeNote(note.id)" class="text-gray-300 hover:text-red-500 text-sm ml-2 shrink-0">&times;</button>
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen">
     <!-- Top bar -->
-    <header class="bg-white shadow-sm border-b border-gray-200">
+    <header class="bg-white shadow-xs border-b border-gray-200">
       <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <img src="/logo.svg" alt="" class="w-8 h-8 rounded-lg" />
@@ -11,12 +11,12 @@
           <div class="flex bg-gray-100 rounded-lg p-0.5">
             <button
               @click="view = 'kanban'"
-              :class="view === 'kanban' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              :class="view === 'kanban' ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >Board</button>
             <button
               @click="view = 'table'"
-              :class="view === 'table' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              :class="view === 'table' ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >Table</button>
           </div>
