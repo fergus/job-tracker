@@ -8,6 +8,18 @@
           <h1 class="text-xl font-bold text-gray-800">Job Application Tracker</h1>
         </div>
         <div class="flex items-center gap-3">
+          <div v-if="currentUser?.isAdmin" class="flex bg-gray-100 rounded-lg p-0.5">
+            <button
+              @click="toggleAllUsers()"
+              :class="!showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+            >My Applications</button>
+            <button
+              @click="toggleAllUsers()"
+              :class="showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+            >All Applications</button>
+          </div>
           <div class="flex bg-gray-100 rounded-lg p-0.5">
             <button
               @click="view = 'kanban'"
@@ -24,6 +36,7 @@
             @click="openForm()"
             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >+ Add Application</button>
+          <span v-if="currentUser" class="text-sm text-gray-500">{{ currentUser.email }}</span>
         </div>
       </div>
     </header>
@@ -33,12 +46,14 @@
       <KanbanBoard
         v-if="view === 'kanban'"
         :applications="applications"
+        :showUser="showAllUsers"
         @status-change="handleStatusChange"
         @select="openDetail"
       />
       <TableView
         v-else
         :applications="applications"
+        :showUserColumn="showAllUsers"
         @select="openDetail"
       />
     </main>
@@ -73,7 +88,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { fetchApplications, updateStatus, deleteApplication } from './api'
+import { fetchMe, fetchApplications, updateStatus, deleteApplication } from './api'
 import KanbanBoard from './components/KanbanBoard.vue'
 import TableView from './components/TableView.vue'
 import ApplicationForm from './components/ApplicationForm.vue'
@@ -87,9 +102,11 @@ const showForm = ref(false)
 const showDetail = ref(false)
 const editingApp = ref(null)
 const selectedApp = ref(null)
+const currentUser = ref(null)
+const showAllUsers = ref(false)
 
 async function loadApplications() {
-  applications.value = await fetchApplications()
+  applications.value = await fetchApplications(null, showAllUsers.value)
 }
 
 function openForm(app = null) {
@@ -138,5 +155,13 @@ async function handleNotesChanged() {
   }
 }
 
-onMounted(loadApplications)
+function toggleAllUsers() {
+  showAllUsers.value = !showAllUsers.value
+  loadApplications()
+}
+
+onMounted(async () => {
+  currentUser.value = await fetchMe()
+  loadApplications()
+})
 </script>

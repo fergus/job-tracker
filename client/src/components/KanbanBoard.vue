@@ -18,7 +18,7 @@
         @change="(evt) => onChange(evt, stage.value)"
       >
         <template #item="{ element }">
-          <KanbanCard :application="element" @select="$emit('select', element)" />
+          <KanbanCard :application="element" :showUser="showUser" @select="$emit('select', element)" />
         </template>
       </draggable>
     </div>
@@ -30,7 +30,7 @@ import { reactive, watch } from 'vue'
 import draggable from 'vuedraggable'
 import KanbanCard from './KanbanCard.vue'
 
-const props = defineProps({ applications: Array })
+const props = defineProps({ applications: Array, showUser: Boolean })
 const emit = defineEmits(['status-change', 'select'])
 
 const stages = [

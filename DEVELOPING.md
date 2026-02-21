@@ -29,9 +29,11 @@ job-tracker/
 │   └── package.json
 ├── server/                  # Express backend
 │   ├── index.js             # App entry, static serving, route mounting
-│   ├── db.js                # SQLite setup, table creation
+│   ├── db.js                # SQLite setup, table creation, migrations
+│   ├── middleware/
+│   │   └── auth.js          # User identification via X-Forwarded-Email
 │   ├── routes/
-│   │   └── applications.js  # All REST endpoints
+│   │   └── applications.js  # All REST endpoints (user-scoped)
 │   └── package.json
 ├── Dockerfile               # Multi-stage build
 ├── docker-compose.yml       # App + oauth2-proxy
@@ -66,6 +68,8 @@ npm run dev:client
 ```
 
 Open `http://localhost:5173` in your browser. The Vite dev server proxies `/api` requests to the Express server on port 3000 (configured in `client/vite.config.js`).
+
+In dev mode, when the `X-Forwarded-Email` header is absent, the auth middleware falls back to `dev@localhost` as the user identity.
 
 ### 3. Hot reload
 
@@ -127,20 +131,29 @@ npm run dev:server   # or docker compose up --build -d
 
 ## API Reference
 
-Base URL: `/api/applications`
+All request/response bodies are JSON unless noted as multipart. All application endpoints are scoped to the authenticated user via `req.userEmail`.
 
-All request/response bodies are JSON unless noted as multipart.
+### Current User
+
+```
+GET /api/me
+```
+
+Returns `{ email, isAdmin }` for the authenticated user.
 
 ### Applications
+
+Base URL: `/api/applications`
 
 #### List applications
 
 ```
 GET /api/applications
 GET /api/applications?status=interview
+GET /api/applications?all=true          # admin only: show all users' applications
 ```
 
-Returns an array of applications, each with a `notes` array attached. Ordered by `updated_at` descending.
+Returns an array of applications, each with a `notes` array attached. Ordered by `updated_at` descending. Results are scoped to the current user unless `?all=true` is passed by an admin.
 
 #### Get single application
 
@@ -321,25 +334,37 @@ The GitHub Actions workflow will automatically build and push the Docker image w
 Quick smoke test against a running server (adjust port/host as needed):
 
 ```bash
+# In dev mode, X-Forwarded-Email is optional (defaults to dev@localhost).
+# Include the header to simulate a specific user:
+
 # Create an application
 curl -s -X POST http://localhost:3000/api/applications \
+  -H 'X-Forwarded-Email: dev@localhost' \
   -F 'company_name=Acme' -F 'role_title=Engineer' | jq
 
 # Add a note
 curl -s -X POST http://localhost:3000/api/applications/1/notes \
+  -H 'X-Forwarded-Email: dev@localhost' \
   -H 'Content-Type: application/json' \
   -d '{"stage":"screening","content":"Phone screen scheduled"}' | jq
 
 # Change status
 curl -s -X PATCH http://localhost:3000/api/applications/1/status \
+  -H 'X-Forwarded-Email: dev@localhost' \
   -H 'Content-Type: application/json' \
   -d '{"status":"screening"}' | jq
 
 # List all
-curl -s http://localhost:3000/api/applications | jq
+curl -s http://localhost:3000/api/applications \
+  -H 'X-Forwarded-Email: dev@localhost' | jq
+
+# Current user info
+curl -s http://localhost:3000/api/me \
+  -H 'X-Forwarded-Email: dev@localhost' | jq
 
 # Delete
-curl -s -X DELETE http://localhost:3000/api/applications/1 | jq
+curl -s -X DELETE http://localhost:3000/api/applications/1 \
+  -H 'X-Forwarded-Email: dev@localhost' | jq
 ```
 
 When running inside Docker, use `docker exec` to reach the app container directly:
