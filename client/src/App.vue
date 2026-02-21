@@ -10,12 +10,12 @@
         <div class="flex items-center gap-3">
           <div v-if="currentUser?.isAdmin" class="flex bg-gray-100 rounded-lg p-0.5">
             <button
-              @click="toggleAllUsers()"
+              @click="setShowAll(false)"
               :class="!showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >My Applications</button>
             <button
-              @click="toggleAllUsers()"
+              @click="setShowAll(true)"
               :class="showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >All Applications</button>
@@ -155,8 +155,9 @@ async function handleNotesChanged() {
   }
 }
 
-function toggleAllUsers() {
-  showAllUsers.value = !showAllUsers.value
+function setShowAll(val) {
+  if (showAllUsers.value === val) return
+  showAllUsers.value = val
   loadApplications()
 }
 
