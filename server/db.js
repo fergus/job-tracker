@@ -11,6 +11,15 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS applications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     company_name TEXT NOT NULL,
@@ -45,5 +54,13 @@ db.exec(`
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
   )
 `);
+
+// Migrate: add user_email column to applications if missing
+const columns = db.prepare('PRAGMA table_info(applications)').all();
+if (!columns.some(c => c.name === 'user_email')) {
+  db.exec('ALTER TABLE applications ADD COLUMN user_email TEXT');
+}
+
+db.exec('CREATE INDEX IF NOT EXISTS idx_applications_user_email ON applications(user_email)');
 
 module.exports = db;

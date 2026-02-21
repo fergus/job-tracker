@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/fergus/job-tracker/actions/workflows/build.yml/badge.svg)](https://github.com/fergus/job-tracker/actions/workflows/build.yml)
 
-A single-page web app for tracking job applications through a pipeline — from initial interest through to offer and acceptance. Kanban board with drag-and-drop, table view, file uploads for CVs and cover letters, notes, and date tracking per stage.
+A multi-user web app for tracking job applications through a pipeline — from initial interest through to offer and acceptance. Kanban board with drag-and-drop, table view, file uploads for CVs and cover letters, notes, and date tracking per stage. Each user sees only their own applications; admins can view all.
 
 ## Quick Start
 
@@ -85,6 +85,7 @@ cp -r uploads/ uploads-backup/
 - **Date tracking** — timestamps auto-set when you move applications between stages
 - **Stage notes** — per-stage timestamped notes with colored stage badges
 - **Links** — store job posting and company website URLs
+- **Multi-user** — each user sees only their own applications, identified via PocketID `X-Forwarded-Email` header. Admins (configured via `ADMIN_EMAILS`) can view all users' applications but cannot edit or delete others' data
 
 ## Configuration
 
@@ -98,6 +99,12 @@ To run without HTTPS (e.g. local dev), set:
 
 ```env
 COOKIE_SECURE=false
+```
+
+To grant admin access (view all users' applications), set a comma-separated list of email addresses:
+
+```env
+ADMIN_EMAILS=admin@example.com,boss@example.com
 ```
 
 ## Tech Stack

@@ -5,6 +5,7 @@
   >
     <p class="font-semibold text-sm text-gray-900 truncate">{{ application.company_name }}</p>
     <p class="text-xs text-gray-600 truncate mt-0.5">{{ application.role_title }}</p>
+    <p v-if="showUser" class="text-xs text-gray-400 truncate mt-0.5">{{ application.user_email }}</p>
     <div class="flex items-center justify-between mt-2">
       <span class="text-xs text-gray-400">{{ formatDate(application.updated_at) }}</span>
       <span class="flex gap-1">
@@ -16,7 +17,7 @@
 </template>
 
 <script setup>
-defineProps({ application: Object })
+defineProps({ application: Object, showUser: Boolean })
 defineEmits(['select'])
 
 function formatDate(iso) {

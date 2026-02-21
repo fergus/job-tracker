@@ -29,11 +29,12 @@
               {{ app.status }}
             </span>
           </td>
+          <td v-if="showUserColumn" class="px-4 py-3 text-gray-500 text-sm">{{ app.user_email }}</td>
           <td class="px-4 py-3 text-gray-500 truncate max-w-xs">{{ latestNote(app) }}</td>
           <td class="px-4 py-3 text-gray-500 text-xs">{{ formatDate(lastActivity(app)) }}</td>
         </tr>
         <tr v-if="applications.length === 0">
-          <td colspan="5" class="px-4 py-8 text-center text-gray-400">No applications yet. Click "+ Add Application" to get started.</td>
+          <td :colspan="showUserColumn ? 6 : 5" class="px-4 py-8 text-center text-gray-400">No applications yet. Click "+ Add Application" to get started.</td>
         </tr>
       </tbody>
     </table>
@@ -43,16 +44,26 @@
 <script setup>
 import { ref, computed } from 'vue'
 
-const props = defineProps({ applications: Array })
+const props = defineProps({ applications: Array, showUserColumn: Boolean })
 defineEmits(['select'])
 
-const columns = [
+const baseColumns = [
   { key: 'company_name', label: 'Company' },
   { key: 'role_title', label: 'Role' },
   { key: 'status', label: 'Status' },
+]
+const userColumn = { key: 'user_email', label: 'User' }
+const tailColumns = [
   { key: 'latest_note', label: 'Latest Note' },
   { key: 'updated_at', label: 'Last Updated' },
 ]
+
+const columns = computed(() => {
+  if (props.showUserColumn) {
+    return [...baseColumns, userColumn, ...tailColumns]
+  }
+  return [...baseColumns, ...tailColumns]
+})
 
 const sortKey = ref('updated_at')
 const sortDir = ref('desc')

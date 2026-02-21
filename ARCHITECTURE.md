@@ -2,7 +2,7 @@
 
 ## Overview
 
-Job Application Tracker is a single-page web application that runs as two Docker containers behind a reverse proxy. A Node.js server serves both the REST API and the pre-built Vue frontend as static files. Authentication is handled externally by oauth2-proxy before requests reach the application.
+Job Application Tracker is a multi-user single-page web application that runs as two Docker containers behind a reverse proxy. A Node.js server serves both the REST API and the pre-built Vue frontend as static files. Authentication is handled externally by oauth2-proxy before requests reach the application. All application data is scoped per-user via the `X-Forwarded-Email` header, with admin users able to view (but not modify) all users' data.
 
 ```mermaid
 graph LR
@@ -80,10 +80,17 @@ The Express server (`server/index.js`) has two responsibilities:
 
 ### Database Schema
 
-SQLite with WAL mode and foreign keys enabled. Tables are auto-created on startup via `CREATE TABLE IF NOT EXISTS`.
+SQLite with WAL mode and foreign keys enabled. Tables are auto-created on startup via `CREATE TABLE IF NOT EXISTS`. The `user_email` column on `applications` is added via `ALTER TABLE` migration if missing.
 
 ```mermaid
 erDiagram
+    users {
+        INTEGER id PK
+        TEXT email
+        TEXT first_seen_at
+        TEXT last_seen_at
+    }
+
     applications {
         INTEGER id PK
         TEXT company_name
@@ -96,6 +103,7 @@ erDiagram
         TEXT cv_path
         TEXT cover_letter_filename
         TEXT cover_letter_path
+        TEXT user_email
         TEXT created_at
         TEXT applied_at
         TEXT screening_at
@@ -113,6 +121,7 @@ erDiagram
         TEXT created_at
     }
 
+    users ||--o{ applications : "owns"
     applications ||--o{ stage_notes : "has"
 ```
 
@@ -122,7 +131,8 @@ Stage notes cascade-delete when their parent application is deleted.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/applications` | List all (optionally filter by `?status=`) |
+| `GET` | `/api/me` | Current user info (`email`, `isAdmin`) |
+| `GET` | `/api/applications` | List user's apps (filter by `?status=`, admin: `?all=true`) |
 | `GET` | `/api/applications/:id` | Get single application with notes |
 | `POST` | `/api/applications` | Create application (multipart form) |
 | `PUT` | `/api/applications/:id` | Update application fields |
@@ -134,6 +144,18 @@ Stage notes cascade-delete when their parent application is deleted.
 | `POST` | `/api/applications/:id/notes` | Create a stage note |
 | `DELETE` | `/api/applications/:id/notes/:noteId` | Delete a stage note |
 | `DELETE` | `/api/applications/:id` | Delete application (cascades) |
+
+### User Scoping & Authorization
+
+All API requests pass through auth middleware (`server/middleware/auth.js`) which:
+
+1. Reads `X-Forwarded-Email` header set by oauth2-proxy (falls back to `dev@localhost` in dev mode)
+2. Upserts the user into the `users` table
+3. Claims any legacy applications with `user_email IS NULL` (one-time migration on first login after upgrade)
+4. Checks `ADMIN_EMAILS` env var to set `req.isAdmin`
+5. Sets `req.userEmail` for downstream route handlers
+
+All application queries are scoped to `user_email = ?` by default. Admin users can view all applications via `?all=true` but cannot edit or delete other users' data.
 
 ## Frontend
 

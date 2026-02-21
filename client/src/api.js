@@ -4,8 +4,14 @@ const api = axios.create({
   baseURL: '/api'
 })
 
-export function fetchApplications(status) {
-  const params = status ? { status } : {}
+export function fetchMe() {
+  return api.get('/me').then(r => r.data)
+}
+
+export function fetchApplications(status, all = false) {
+  const params = {}
+  if (status) params.status = status
+  if (all) params.all = 'true'
   return api.get('/applications', { params }).then(r => r.data)
 }
 

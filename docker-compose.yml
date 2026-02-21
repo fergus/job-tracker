@@ -24,6 +24,8 @@ services:
     build: .
     expose:
       - "3000"
+    environment:
+      - ADMIN_EMAILS=${ADMIN_EMAILS}
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads

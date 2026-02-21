@@ -29,6 +29,10 @@ const STATUS_DATE_MAP = {
   rejected: 'closed_at'
 };
 
+function getOwnApp(id, userEmail) {
+  return db.prepare('SELECT * FROM applications WHERE id = ? AND user_email = ?').get(id, userEmail);
+}
+
 function attachNotes(rows) {
   const ids = rows.map(r => r.id);
   if (ids.length === 0) return rows;
@@ -41,21 +45,43 @@ function attachNotes(rows) {
   return rows.map(r => ({ ...r, notes: notesByApp[r.id] || [] }));
 }
 
-// List all applications
+// List applications (scoped to user, or all if admin with ?all=true)
 router.get('/', (req, res) => {
-  const { status } = req.query;
-  let rows;
-  if (status && VALID_STATUSES.includes(status)) {
-    rows = db.prepare('SELECT * FROM applications WHERE status = ? ORDER BY updated_at DESC').all(status);
-  } else {
-    rows = db.prepare('SELECT * FROM applications ORDER BY updated_at DESC').all();
+  const { status, all } = req.query;
+  const showAll = req.isAdmin && all === 'true';
+
+  let sql = 'SELECT * FROM applications';
+  const conditions = [];
+  const params = [];
+
+  if (!showAll) {
+    conditions.push('user_email = ?');
+    params.push(req.userEmail);
   }
+
+  if (status && VALID_STATUSES.includes(status)) {
+    conditions.push('status = ?');
+    params.push(status);
+  }
+
+  if (conditions.length > 0) {
+    sql += ' WHERE ' + conditions.join(' AND ');
+  }
+
+  sql += ' ORDER BY updated_at DESC';
+
+  const rows = db.prepare(sql).all(...params);
   res.json(attachNotes(rows));
 });
 
-// Get single application
+// Get single application (own or admin view)
 router.get('/:id', (req, res) => {
-  const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  let row;
+  if (req.isAdmin) {
+    row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  } else {
+    row = getOwnApp(req.params.id, req.userEmail);
+  }
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(attachNotes([row])[0]);
 });
@@ -87,8 +113,8 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
   const stmt = db.prepare(`
     INSERT INTO applications (company_name, role_title, status, job_description, job_posting_url, company_website_url,
       cv_filename, cv_path, cover_letter_filename, cover_letter_path, interview_notes, prep_work, created_at, updated_at,
-      applied_at, screening_at, interview_at, offer_at, closed_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      applied_at, screening_at, interview_at, offer_at, closed_at, user_email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -101,16 +127,17 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
     dateField === 'screening_at' ? now : null,
     dateField === 'interview_at' ? now : null,
     dateField === 'offer_at' ? now : null,
-    dateField === 'closed_at' ? now : null
+    dateField === 'closed_at' ? now : null,
+    req.userEmail
   );
 
   const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(row);
 });
 
-// Update application fields
+// Update application fields (owner only)
 router.put('/:id', (req, res) => {
-  const existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
   const fields = ['company_name', 'role_title', 'job_description', 'job_posting_url',
@@ -132,20 +159,21 @@ router.put('/:id', (req, res) => {
   updates.push('updated_at = ?');
   values.push(new Date().toISOString());
   values.push(req.params.id);
+  values.push(req.userEmail);
 
-  db.prepare(`UPDATE applications SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  db.prepare(`UPDATE applications SET ${updates.join(', ')} WHERE id = ? AND user_email = ?`).run(...values);
   const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
   res.json(row);
 });
 
-// Change status
+// Change status (owner only)
 router.patch('/:id/status', (req, res) => {
   const { status } = req.body;
   if (!status || !VALID_STATUSES.includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
 
-  const existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
   const now = new Date().toISOString();
@@ -159,14 +187,15 @@ router.patch('/:id/status', (req, res) => {
   }
 
   values.push(req.params.id);
-  db.prepare(`UPDATE applications SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  values.push(req.userEmail);
+  db.prepare(`UPDATE applications SET ${updates.join(', ')} WHERE id = ? AND user_email = ?`).run(...values);
   const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
   res.json(row);
 });
 
-// Upload/replace CV
+// Upload/replace CV (owner only)
 router.post('/:id/cv', upload.single('cv'), (req, res) => {
-  const existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -176,16 +205,21 @@ router.post('/:id/cv', upload.single('cv'), (req, res) => {
     if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
   }
 
-  db.prepare('UPDATE applications SET cv_filename = ?, cv_path = ?, updated_at = ? WHERE id = ?')
-    .run(req.file.originalname, req.file.filename, new Date().toISOString(), req.params.id);
+  db.prepare('UPDATE applications SET cv_filename = ?, cv_path = ?, updated_at = ? WHERE id = ? AND user_email = ?')
+    .run(req.file.originalname, req.file.filename, new Date().toISOString(), req.params.id, req.userEmail);
 
   const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
   res.json(row);
 });
 
-// Download CV
+// Download CV (own or admin view)
 router.get('/:id/cv', (req, res) => {
-  const existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  let existing;
+  if (req.isAdmin) {
+    existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  } else {
+    existing = getOwnApp(req.params.id, req.userEmail);
+  }
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!existing.cv_path) return res.status(404).json({ error: 'No CV uploaded' });
 
@@ -195,9 +229,9 @@ router.get('/:id/cv', (req, res) => {
   res.download(filePath, existing.cv_filename);
 });
 
-// Upload/replace cover letter
+// Upload/replace cover letter (owner only)
 router.post('/:id/cover-letter', upload.single('cover_letter'), (req, res) => {
-  const existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -206,16 +240,21 @@ router.post('/:id/cover-letter', upload.single('cover_letter'), (req, res) => {
     if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
   }
 
-  db.prepare('UPDATE applications SET cover_letter_filename = ?, cover_letter_path = ?, updated_at = ? WHERE id = ?')
-    .run(req.file.originalname, req.file.filename, new Date().toISOString(), req.params.id);
+  db.prepare('UPDATE applications SET cover_letter_filename = ?, cover_letter_path = ?, updated_at = ? WHERE id = ? AND user_email = ?')
+    .run(req.file.originalname, req.file.filename, new Date().toISOString(), req.params.id, req.userEmail);
 
   const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
   res.json(row);
 });
 
-// Download cover letter
+// Download cover letter (own or admin view)
 router.get('/:id/cover-letter', (req, res) => {
-  const existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  let existing;
+  if (req.isAdmin) {
+    existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  } else {
+    existing = getOwnApp(req.params.id, req.userEmail);
+  }
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!existing.cover_letter_path) return res.status(404).json({ error: 'No cover letter uploaded' });
 
@@ -225,9 +264,9 @@ router.get('/:id/cover-letter', (req, res) => {
   res.download(filePath, existing.cover_letter_filename);
 });
 
-// Delete application
+// Delete application (owner only — no admin bypass)
 router.delete('/:id', (req, res) => {
-  const existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
   if (existing.cv_path) {
@@ -239,13 +278,13 @@ router.delete('/:id', (req, res) => {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 
-  db.prepare('DELETE FROM applications WHERE id = ?').run(req.params.id);
+  db.prepare('DELETE FROM applications WHERE id = ? AND user_email = ?').run(req.params.id, req.userEmail);
   res.json({ success: true });
 });
 
-// Create a stage note
+// Create a stage note (owner only)
 router.post('/:id/notes', (req, res) => {
-  const existing = db.prepare('SELECT id FROM applications WHERE id = ?').get(req.params.id);
+  const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
   const { stage, content } = req.body;
@@ -261,8 +300,11 @@ router.post('/:id/notes', (req, res) => {
   res.status(201).json(note);
 });
 
-// Delete a stage note
+// Delete a stage note (owner only)
 router.delete('/:id/notes/:noteId', (req, res) => {
+  const existing = getOwnApp(req.params.id, req.userEmail);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
   const note = db.prepare('SELECT * FROM stage_notes WHERE id = ? AND application_id = ?').get(req.params.noteId, req.params.id);
   if (!note) return res.status(404).json({ error: 'Note not found' });
 
