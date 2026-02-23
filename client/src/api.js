@@ -61,6 +61,10 @@ export function createNote(appId, { stage, content }) {
   return api.post(`/applications/${appId}/notes`, { stage, content }).then(r => r.data)
 }
 
+export function updateNote(appId, noteId, { content, stage }) {
+  return api.put(`/applications/${appId}/notes/${noteId}`, { content, stage }).then(r => r.data)
+}
+
 export function deleteNote(appId, noteId) {
   return api.delete(`/applications/${appId}/notes/${noteId}`).then(r => r.data)
 }

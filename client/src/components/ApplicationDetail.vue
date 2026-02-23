@@ -1,12 +1,12 @@
 <template>
-  <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
+  <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" @click.self="handleClose">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <div>
           <h2 class="text-lg font-semibold text-gray-900">{{ application.company_name }}</h2>
           <p class="text-sm text-gray-500">{{ application.role_title }}</p>
         </div>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        <button @click="handleClose" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
       </div>
 
       <div class="px-6 py-4 space-y-5">
@@ -95,10 +95,19 @@
           <!-- Notes list -->
           <div v-if="sortedNotes.length === 0" class="text-sm text-gray-400 py-2">No notes yet.</div>
           <div v-for="note in sortedNotes" :key="note.id" class="flex items-start justify-between bg-gray-50 rounded-lg p-2 mb-1.5">
-            <div class="flex items-start gap-2">
+            <div class="flex items-start gap-2 flex-1 min-w-0">
               <span :class="stageBadgeClass(note.stage)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 shrink-0">{{ note.stage }}</span>
-              <div>
-                <p class="text-sm text-gray-700">{{ note.content }}</p>
+              <div class="flex-1 min-w-0">
+                <input
+                  v-if="editingNoteId === note.id"
+                  v-model="editingContent"
+                  @keydown.enter="saveEdit(note.id)"
+                  @keydown.escape="cancelEdit"
+                  @blur="saveEdit(note.id)"
+                  class="w-full text-sm text-gray-700 border border-blue-300 rounded px-1.5 py-0.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+                  ref="editInput"
+                />
+                <p v-else @click="startEdit(note)" class="text-sm text-gray-700 cursor-pointer hover:text-blue-600">{{ note.content }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ formatDateTime(note.created_at) }}</p>
               </div>
             </div>
@@ -114,7 +123,7 @@
           class="text-sm text-red-600 hover:text-red-700 font-medium"
         >Delete</button>
         <div class="flex gap-3">
-          <button @click="$emit('close')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Close</button>
+          <button @click="handleClose" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Close</button>
           <button @click="$emit('edit', application)" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">Edit</button>
         </div>
       </div>
@@ -123,8 +132,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, deleteNote } from '../api'
+import { computed, ref, nextTick } from 'vue'
+import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, updateNote, deleteNote } from '../api'
 
 const props = defineProps({ application: Object })
 const emit = defineEmits(['close', 'edit', 'delete', 'status-change', 'cv-uploaded', 'cover-letter-uploaded', 'notes-changed'])
@@ -159,6 +168,9 @@ const coverLetterUrl = computed(() => getCoverLetterUrl(props.application.id))
 
 const newNoteStage = ref(props.application.status)
 const newNoteContent = ref('')
+const editingNoteId = ref(null)
+const editingContent = ref('')
+const editInput = ref(null)
 
 const sortedNotes = computed(() => {
   return [...(props.application.notes || [])].sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -216,6 +228,44 @@ async function onCoverLetterUpload(e) {
   } catch (err) {
     alert('Upload failed: ' + (err.response?.data?.error || err.message))
   }
+}
+
+async function handleClose() {
+  const content = newNoteContent.value?.trim()
+  if (content) {
+    await addNote()
+  }
+  emit('close')
+}
+
+function startEdit(note) {
+  editingNoteId.value = note.id
+  editingContent.value = note.content
+  nextTick(() => {
+    editInput.value?.focus()
+  })
+}
+
+async function saveEdit(noteId) {
+  const content = editingContent.value?.trim()
+  if (!content || editingNoteId.value !== noteId) return
+  const note = props.application.notes?.find(n => n.id === noteId)
+  if (note && content === note.content) {
+    cancelEdit()
+    return
+  }
+  editingNoteId.value = null
+  try {
+    await updateNote(props.application.id, noteId, { content })
+    emit('notes-changed')
+  } catch (err) {
+    alert('Error updating note: ' + (err.response?.data?.error || err.message))
+  }
+}
+
+function cancelEdit() {
+  editingNoteId.value = null
+  editingContent.value = ''
 }
 
 function confirmDelete() {

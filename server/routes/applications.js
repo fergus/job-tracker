@@ -300,6 +300,32 @@ router.post('/:id/notes', (req, res) => {
   res.status(201).json(note);
 });
 
+// Update a stage note (owner only)
+router.put('/:id/notes/:noteId', (req, res) => {
+  const existing = getOwnApp(req.params.id, req.userEmail);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const note = db.prepare('SELECT * FROM stage_notes WHERE id = ? AND application_id = ?').get(req.params.noteId, req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+
+  const { content, stage } = req.body;
+  if (!content) return res.status(400).json({ error: 'content is required' });
+
+  const updates = ['content = ?'];
+  const values = [content];
+
+  if (stage) {
+    updates.push('stage = ?');
+    values.push(stage);
+  }
+
+  values.push(req.params.noteId);
+  db.prepare(`UPDATE stage_notes SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+  const updated = db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(req.params.noteId);
+  res.json(updated);
+});
+
 // Delete a stage note (owner only)
 router.delete('/:id/notes/:noteId', (req, res) => {
   const existing = getOwnApp(req.params.id, req.userEmail);
