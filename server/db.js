@@ -2,10 +2,13 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const dataDir = path.join(__dirname, '..', 'data');
-fs.mkdirSync(dataDir, { recursive: true });
+const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'job-tracker.db');
 
-const db = new Database(path.join(dataDir, 'job-tracker.db'));
+if (dbPath !== ':memory:') {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+}
+
+const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -62,5 +65,11 @@ if (!columns.some(c => c.name === 'user_email')) {
 }
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_applications_user_email ON applications(user_email)');
+
+// Migrate: add updated_at column to stage_notes if missing
+const stageNotesCols = db.prepare('PRAGMA table_info(stage_notes)').all();
+if (!stageNotesCols.some(c => c.name === 'updated_at')) {
+  db.exec('ALTER TABLE stage_notes ADD COLUMN updated_at TEXT');
+}
 
 module.exports = db;

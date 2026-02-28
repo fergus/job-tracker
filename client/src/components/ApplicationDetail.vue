@@ -80,38 +80,64 @@
         <div>
           <h3 class="text-sm font-semibold text-gray-700 mb-3">Notes</h3>
           <!-- Add note form -->
-          <div class="flex gap-2 mb-3">
-            <select v-model="newNoteStage" class="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden capitalize">
-              <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-            </select>
-            <input
+          <div class="flex flex-col gap-2 mb-3">
+            <div class="flex items-center gap-2">
+              <select v-model="newNoteStage" class="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden capitalize">
+                <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+              </select>
+              <button @click="addNote" class="text-sm text-blue-600 hover:text-blue-700 font-medium px-2 ml-auto">Add</button>
+            </div>
+            <textarea
               v-model="newNoteContent"
-              @keydown.enter="addNote"
-              placeholder="Add a note..."
-              class="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+              @keydown.ctrl.enter="addNote"
+              @keydown.meta.enter="addNote"
+              placeholder="Add a note... (supports markdown, Ctrl+Enter to submit)"
+              rows="3"
+              class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden resize-y"
             />
-            <button @click="addNote" class="text-sm text-blue-600 hover:text-blue-700 font-medium px-2">Add</button>
           </div>
           <!-- Notes list -->
           <div v-if="sortedNotes.length === 0" class="text-sm text-gray-400 py-2">No notes yet.</div>
-          <div v-for="note in sortedNotes" :key="note.id" class="flex items-start justify-between bg-gray-50 rounded-lg p-2 mb-1.5">
-            <div class="flex items-start gap-2 flex-1 min-w-0">
-              <span :class="stageBadgeClass(note.stage)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 shrink-0">{{ note.stage }}</span>
-              <div class="flex-1 min-w-0">
-                <input
-                  v-if="editingNoteId === note.id"
-                  v-model="editingContent"
-                  @keydown.enter="saveEdit(note.id)"
-                  @keydown.escape="cancelEdit"
-                  @blur="saveEdit(note.id)"
-                  class="w-full text-sm text-gray-700 border border-blue-300 rounded px-1.5 py-0.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
-                  ref="editInput"
-                />
-                <p v-else @click="startEdit(note)" class="text-sm text-gray-700 cursor-pointer hover:text-blue-600">{{ note.content }}</p>
-                <p class="text-xs text-gray-400 mt-0.5">{{ formatDateTime(note.created_at) }}</p>
+          <div v-for="note in sortedNotes" :key="note.id" class="bg-gray-50 rounded-lg p-2 mb-1.5">
+            <!-- Edit mode -->
+            <div v-if="editingNoteId === note.id" class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <select v-model="editingStage" class="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden capitalize">
+                  <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                </select>
+                <div class="ml-auto flex gap-2">
+                  <button @click="saveEdit(note.id)" class="text-xs text-white bg-blue-600 hover:bg-blue-700 font-medium px-2 py-1 rounded">Save</button>
+                  <button @click="cancelEdit" class="text-xs text-gray-600 hover:text-gray-800 font-medium px-2 py-1 rounded bg-gray-200 hover:bg-gray-300">Cancel</button>
+                </div>
               </div>
+              <textarea
+                v-model="editingContent"
+                @keydown.escape="cancelEdit"
+                @keydown.ctrl.enter="saveEdit(note.id)"
+                @keydown.meta.enter="saveEdit(note.id)"
+                rows="4"
+                class="w-full text-sm text-gray-700 border border-blue-300 rounded px-1.5 py-0.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden resize-y"
+                ref="editTextarea"
+              />
             </div>
-            <button @click="removeNote(note.id)" class="text-gray-300 hover:text-red-500 text-sm ml-2 shrink-0">&times;</button>
+            <!-- View mode -->
+            <div v-else class="flex items-start justify-between">
+              <div class="flex items-start gap-2 flex-1 min-w-0">
+                <span :class="stageBadgeClass(note.stage)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 shrink-0">{{ note.stage }}</span>
+                <div class="flex-1 min-w-0">
+                  <div
+                    class="text-sm text-gray-700 prose prose-sm max-w-none cursor-pointer hover:text-blue-600"
+                    v-html="renderMarkdown(note.content)"
+                    @click="startEdit(note)"
+                  />
+                  <div class="text-xs text-gray-400 mt-0.5 flex gap-2">
+                    <span>Created: {{ formatDateTime(note.created_at) }}</span>
+                    <span v-if="note.updated_at && note.updated_at !== note.created_at">· Edited: {{ formatDateTime(note.updated_at) }}</span>
+                  </div>
+                </div>
+              </div>
+              <button @click="removeNote(note.id)" class="text-gray-300 hover:text-red-500 text-sm ml-2 shrink-0">&times;</button>
+            </div>
           </div>
         </div>
       </div>
@@ -133,7 +159,10 @@
 
 <script setup>
 import { computed, ref, nextTick } from 'vue'
+import { marked } from 'marked'
 import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, updateNote, deleteNote } from '../api'
+
+marked.setOptions({ breaks: true })
 
 const props = defineProps({ application: Object })
 const emit = defineEmits(['close', 'edit', 'delete', 'status-change', 'cv-uploaded', 'cover-letter-uploaded', 'notes-changed'])
@@ -154,6 +183,10 @@ function stageBadgeClass(stage) {
   return stageBadgeClasses[stage] || 'bg-gray-100 text-gray-700'
 }
 
+function renderMarkdown(content) {
+  return marked.parse(content || '')
+}
+
 const dates = [
   { key: 'created_at', label: 'Created' },
   { key: 'applied_at', label: 'Applied' },
@@ -170,7 +203,8 @@ const newNoteStage = ref(props.application.status)
 const newNoteContent = ref('')
 const editingNoteId = ref(null)
 const editingContent = ref('')
-const editInput = ref(null)
+const editingStage = ref('')
+const editTextarea = ref(null)
 
 const sortedNotes = computed(() => {
   return [...(props.application.notes || [])].sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -241,8 +275,9 @@ async function handleClose() {
 function startEdit(note) {
   editingNoteId.value = note.id
   editingContent.value = note.content
+  editingStage.value = note.stage
   nextTick(() => {
-    editInput.value?.focus()
+    editTextarea.value?.focus()
   })
 }
 
@@ -250,13 +285,13 @@ async function saveEdit(noteId) {
   const content = editingContent.value?.trim()
   if (!content || editingNoteId.value !== noteId) return
   const note = props.application.notes?.find(n => n.id === noteId)
-  if (note && content === note.content) {
+  if (note && content === note.content && editingStage.value === note.stage) {
     cancelEdit()
     return
   }
   editingNoteId.value = null
   try {
-    await updateNote(props.application.id, noteId, { content })
+    await updateNote(props.application.id, noteId, { content, stage: editingStage.value })
     emit('notes-changed')
   } catch (err) {
     alert('Error updating note: ' + (err.response?.data?.error || err.message))
@@ -266,6 +301,7 @@ async function saveEdit(noteId) {
 function cancelEdit() {
   editingNoteId.value = null
   editingContent.value = ''
+  editingStage.value = ''
 }
 
 function confirmDelete() {
@@ -274,3 +310,18 @@ function confirmDelete() {
   }
 }
 </script>
+
+<style scoped>
+.prose :deep(p) { margin: 0 0 0.25rem; }
+.prose :deep(p:last-child) { margin-bottom: 0; }
+.prose :deep(ul), .prose :deep(ol) { margin: 0.25rem 0 0.25rem 1.25rem; padding: 0; }
+.prose :deep(li) { margin: 0; }
+.prose :deep(h1), .prose :deep(h2), .prose :deep(h3) { font-weight: 600; margin: 0.25rem 0; }
+.prose :deep(code) { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.85em; }
+.prose :deep(pre) { background: #f3f4f6; padding: 0.5rem; border-radius: 6px; overflow-x: auto; margin: 0.25rem 0; }
+.prose :deep(pre code) { background: none; padding: 0; }
+.prose :deep(blockquote) { border-left: 3px solid #d1d5db; margin: 0.25rem 0; padding-left: 0.75rem; color: #6b7280; }
+.prose :deep(a) { color: #2563eb; text-decoration: underline; }
+.prose :deep(strong) { font-weight: 600; }
+.prose :deep(em) { font-style: italic; }
+</style>

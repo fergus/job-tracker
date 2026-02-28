@@ -293,8 +293,8 @@ router.post('/:id/notes', (req, res) => {
   }
 
   const now = new Date().toISOString();
-  const result = db.prepare('INSERT INTO stage_notes (application_id, stage, content, created_at) VALUES (?, ?, ?, ?)')
-    .run(req.params.id, stage, content, now);
+  const result = db.prepare('INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(req.params.id, stage, content, now, now);
 
   const note = db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(note);
@@ -311,8 +311,9 @@ router.put('/:id/notes/:noteId', (req, res) => {
   const { content, stage } = req.body;
   if (!content) return res.status(400).json({ error: 'content is required' });
 
-  const updates = ['content = ?'];
-  const values = [content];
+  const now = new Date().toISOString();
+  const updates = ['content = ?', 'updated_at = ?'];
+  const values = [content, now];
 
   if (stage) {
     updates.push('stage = ?');
