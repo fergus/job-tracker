@@ -6,7 +6,11 @@
         <div class="flex items-center gap-2.5">
           <img src="/logo.svg" alt="" class="w-8 h-8 rounded-lg" />
           <h1 class="text-xl font-bold text-gray-800">Job Application Tracker</h1>
-          <span class="text-xs text-gray-400">v{{ version }}</span>
+          <a
+            :href="`https://github.com/fergus/job-tracker/releases/tag/v${version}`"
+            target="_blank"
+            class="text-xs text-gray-400 hover:text-gray-600 hover:underline"
+          >v{{ version }}</a>
         </div>
         <div class="flex items-center gap-3">
           <div v-if="currentUser?.isAdmin" class="flex bg-gray-100 rounded-lg p-0.5">
