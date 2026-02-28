@@ -13,7 +13,8 @@
           >v{{ version }}</a>
         </div>
         <div class="flex items-center gap-3">
-          <div v-if="currentUser?.isAdmin" class="flex bg-gray-100 rounded-lg p-0.5">
+          <!-- Admin toggle: only when not compact -->
+          <div v-if="currentUser?.isAdmin && !compactHeader" class="flex bg-gray-100 rounded-lg p-0.5">
             <button
               @click="setShowAll(false)"
               :class="!showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
@@ -25,7 +26,9 @@
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >All Applications</button>
           </div>
-          <div class="flex bg-gray-100 rounded-lg p-0.5">
+
+          <!-- View switcher: only when not compact -->
+          <div v-if="!compactHeader" class="flex bg-gray-100 rounded-lg p-0.5">
             <button
               @click="view = 'kanban'"
               :class="view === 'kanban' ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
@@ -42,11 +45,21 @@
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >Timeline</button>
           </div>
+
+          <!-- Always visible: Add button + hamburger -->
           <button
             @click="openForm()"
             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >+ Add Application</button>
-          <span v-if="currentUser" class="text-sm text-gray-500">{{ currentUser.email }}</span>
+          <button
+            @click="showSidebar = true"
+            class="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            aria-label="Open menu"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
         </div>
       </div>
     </header>
@@ -91,19 +104,33 @@
       @cover-letter-uploaded="handleFileUploaded"
       @notes-changed="handleNotesChanged"
     />
+    <SidebarMenu
+      v-if="showSidebar"
+      :currentUser="currentUser"
+      :view="view"
+      :showAllUsers="showAllUsers"
+      :compactHeader="compactHeader"
+      @close="showSidebar = false"
+      @set-view="(v) => { view = v; showSidebar = false }"
+      @set-show-all="setShowAll"
+      @toggle-compact="toggleCompact"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { fetchMe, fetchApplications, updateStatus, deleteApplication } from './api'
 import KanbanBoard from './components/KanbanBoard.vue'
 import TableView from './components/TableView.vue'
 import TimelineView from './components/TimelineView.vue'
 import ApplicationForm from './components/ApplicationForm.vue'
 import ApplicationDetail from './components/ApplicationDetail.vue'
+import SidebarMenu from './components/SidebarMenu.vue'
 
 const version = __APP_VERSION__
+
+const COMPACT_KEY = 'jobtracker_compact_header'
 
 const view = ref('kanban')
 const applications = ref([])
@@ -113,6 +140,17 @@ const editingApp = ref(null)
 const selectedApp = ref(null)
 const currentUser = ref(null)
 const showAllUsers = ref(false)
+const showSidebar = ref(false)
+const compactHeader = ref(false)
+
+watch(showSidebar, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+})
+
+function toggleCompact() {
+  compactHeader.value = !compactHeader.value
+  localStorage.setItem(COMPACT_KEY, String(compactHeader.value))
+}
 
 async function loadApplications() {
   applications.value = await fetchApplications(null, showAllUsers.value)
@@ -171,6 +209,10 @@ function setShowAll(val) {
 }
 
 onMounted(async () => {
+  const isMobile = window.innerWidth < 768
+  view.value = isMobile ? 'table' : 'kanban'
+  const saved = localStorage.getItem(COMPACT_KEY)
+  compactHeader.value = saved !== null ? saved === 'true' : isMobile
   currentUser.value = await fetchMe()
   loadApplications()
 })
