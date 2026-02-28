@@ -15,7 +15,9 @@ RUN cd server && npm install --omit=dev
 COPY server/ ./server/
 COPY --from=build /app/client/dist ./client/dist
 RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
+RUN apk add --no-cache su-exec
 RUN mkdir -p /app/data /app/uploads && chown -R nodejs:nodejs /app/data /app/uploads
-USER nodejs
+COPY docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
 EXPOSE 3000
-CMD ["node", "server/index.js"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
