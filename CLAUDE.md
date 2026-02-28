@@ -25,6 +25,16 @@ npm run version:patch   # or version:minor, version:major
 
 No test framework or linter is configured.
 
+## Deploying to Test Server
+
+The test server is at docker.intervl.com. SSH access is via the `docker` host alias (key already configured):
+
+```bash
+ssh docker 'cd job-tracker && docker compose pull && docker compose up -d'
+```
+
+After a release, tag it and the GitHub Actions workflow will build and push the image to GHCR. Then run the above to deploy.
+
 ## Architecture
 
 Full-stack job application tracker: Vue 3 SPA + Express REST API + SQLite.
