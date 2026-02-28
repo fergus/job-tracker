@@ -32,6 +32,11 @@
               :class="view === 'table' ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >Table</button>
+            <button
+              @click="view = 'timeline'"
+              :class="view === 'timeline' ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+            >Timeline</button>
           </div>
           <button
             @click="openForm()"
@@ -52,10 +57,15 @@
         @select="openDetail"
       />
       <TableView
-        v-else
+        v-else-if="view === 'table'"
         :applications="applications"
         :showUserColumn="showAllUsers"
         @select="openDetail"
+      />
+      <TimelineView
+        v-else-if="view === 'timeline'"
+        :applications="applications"
+        @open-detail="openDetail"
       />
     </main>
 
@@ -85,6 +95,7 @@ import { ref, onMounted } from 'vue'
 import { fetchMe, fetchApplications, updateStatus, deleteApplication } from './api'
 import KanbanBoard from './components/KanbanBoard.vue'
 import TableView from './components/TableView.vue'
+import TimelineView from './components/TimelineView.vue'
 import ApplicationForm from './components/ApplicationForm.vue'
 import ApplicationDetail from './components/ApplicationDetail.vue'
 

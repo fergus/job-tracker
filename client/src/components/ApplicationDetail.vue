@@ -36,6 +36,26 @@
           </div>
         </div>
 
+        <!-- Mini Timeline -->
+        <div>
+          <p class="text-xs text-gray-400 uppercase tracking-wide mb-1.5">Journey</p>
+          <div class="relative h-5 rounded overflow-hidden bg-gray-100">
+            <div
+              v-for="seg in miniSegments"
+              :key="seg.stage"
+              class="absolute top-0 h-full rounded"
+              :style="miniSegmentStyle(seg)"
+              :title="`${seg.stage} · ${miniDays(seg)} day${miniDays(seg) === 1 ? '' : 's'}`"
+            ></div>
+          </div>
+          <div class="flex gap-3 mt-1.5 flex-wrap">
+            <div v-for="seg in miniSegments" :key="seg.stage" class="flex items-center gap-1">
+              <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" :style="{ backgroundColor: miniStageColor(seg.stage) }"></span>
+              <span class="text-xs text-gray-500 capitalize">{{ seg.stage }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Job Description -->
         <div v-if="application.job_description">
           <h3 class="text-sm font-semibold text-gray-700 mb-1">Job Description</h3>
@@ -161,6 +181,7 @@
 import { computed, ref, nextTick } from 'vue'
 import { marked } from 'marked'
 import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, updateNote, deleteNote } from '../api'
+import { computeSegments, stageColor, durationDays } from '../utils/timeline'
 
 marked.setOptions({ breaks: true })
 
@@ -198,6 +219,53 @@ const dates = [
 
 const cvUrl = computed(() => getCVUrl(props.application.id))
 const coverLetterUrl = computed(() => getCoverLetterUrl(props.application.id))
+
+// Mini timeline
+const miniSegments = computed(() => computeSegments(props.application, new Date().toISOString()))
+
+const miniTotalMs = computed(() => {
+  const start = new Date(props.application.created_at)
+  const end = props.application.closed_at ? new Date(props.application.closed_at) : new Date()
+  return Math.max(end - start, 1)
+})
+
+function miniPct(isoDate) {
+  return ((new Date(isoDate) - new Date(props.application.created_at)) / miniTotalMs.value) * 100
+}
+
+function miniSegmentStyle(seg) {
+  const left = Math.max(0, miniPct(seg.start))
+  const right = Math.min(100, miniPct(seg.end))
+  const width = Math.max(right - left, 0.5)
+
+  if (seg.isTrailing) {
+    return {
+      left: left + '%',
+      width: width + '%',
+      backgroundImage: `repeating-linear-gradient(
+        90deg,
+        ${stageColor(seg.stage)}cc 0px,
+        ${stageColor(seg.stage)}cc 6px,
+        transparent 6px,
+        transparent 10px
+      )`,
+    }
+  }
+
+  return {
+    left: left + '%',
+    width: width + '%',
+    backgroundColor: stageColor(seg.stage),
+  }
+}
+
+function miniStageColor(stage) {
+  return stageColor(stage)
+}
+
+function miniDays(seg) {
+  return durationDays(seg.start, seg.end)
+}
 
 const newNoteStage = ref(props.application.status)
 const newNoteContent = ref('')
