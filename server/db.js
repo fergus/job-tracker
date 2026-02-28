@@ -66,6 +66,14 @@ if (!columns.some(c => c.name === 'user_email')) {
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_applications_user_email ON applications(user_email)');
 
+// Migrate: add interested_at column to applications if missing
+const appCols = db.prepare('PRAGMA table_info(applications)').all();
+if (!appCols.some(c => c.name === 'interested_at')) {
+  db.exec('ALTER TABLE applications ADD COLUMN interested_at TEXT');
+  // Backfill: set interested_at = created_at for existing rows
+  db.exec('UPDATE applications SET interested_at = created_at WHERE interested_at IS NULL');
+}
+
 // Migrate: add updated_at column to stage_notes if missing
 const stageNotesCols = db.prepare('PRAGMA table_info(stage_notes)').all();
 if (!stageNotesCols.some(c => c.name === 'updated_at')) {

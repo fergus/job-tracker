@@ -33,6 +33,7 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFil
 const VALID_STATUSES = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected'];
 
 const STATUS_DATE_MAP = {
+  interested: 'interested_at',
   applied: 'applied_at',
   screening: 'screening_at',
   interview: 'interview_at',
@@ -169,8 +170,8 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
   const stmt = db.prepare(`
     INSERT INTO applications (company_name, role_title, status, job_description, job_posting_url, company_website_url,
       cv_filename, cv_path, cover_letter_filename, cover_letter_path, interview_notes, prep_work, created_at, updated_at,
-      applied_at, screening_at, interview_at, offer_at, closed_at, user_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      interested_at, applied_at, screening_at, interview_at, offer_at, closed_at, user_email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -179,6 +180,7 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
     cv_filename, cv_path, cover_letter_filename, cover_letter_path,
     interview_notes || null, prep_work || null,
     now, now,
+    now,
     dateField === 'applied_at' ? now : null,
     dateField === 'screening_at' ? now : null,
     dateField === 'interview_at' ? now : null,
@@ -337,7 +339,7 @@ router.patch('/:id/dates', (req, res) => {
   const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  const DATE_FIELDS = ['applied_at', 'screening_at', 'interview_at', 'offer_at', 'closed_at'];
+  const DATE_FIELDS = ['interested_at', 'applied_at', 'screening_at', 'interview_at', 'offer_at', 'closed_at'];
   const updates = [];
   const values = [];
 

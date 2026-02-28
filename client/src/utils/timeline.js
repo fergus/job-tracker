@@ -2,6 +2,7 @@ const STAGE_ORDER = ['interested', 'applied', 'screening', 'interview', 'offer']
 const TERMINAL_STAGES = ['accepted', 'rejected']
 
 const STAGE_DATE_MAP = {
+  interested: 'interested_at',
   applied: 'applied_at',
   screening: 'screening_at',
   interview: 'interview_at',
@@ -27,9 +28,9 @@ export function computeSegments(application, globalEnd) {
   const isTerminal = TERMINAL_STAGES.includes(application.status)
 
   // Build ordered list of { stage, date } transition points
-  const points = [{ stage: 'interested', date: application.created_at }]
+  const points = []
 
-  for (const stage of STAGE_ORDER.slice(1)) {
+  for (const stage of STAGE_ORDER) {
     const dateKey = STAGE_DATE_MAP[stage]
     if (application[dateKey]) {
       points.push({ stage, date: application[dateKey] })

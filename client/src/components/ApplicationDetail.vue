@@ -232,6 +232,7 @@ function renderMarkdown(content) {
 
 const dates = [
   { key: 'created_at', label: 'Created' },
+  { key: 'interested_at', label: 'Interested' },
   { key: 'applied_at', label: 'Applied' },
   { key: 'screening_at', label: 'Screening' },
   { key: 'interview_at', label: 'Interview' },

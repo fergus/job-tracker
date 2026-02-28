@@ -79,6 +79,7 @@ describe('Applications', () => {
     assert.equal(res.body.role_title, 'Developer');
     assert.equal(res.body.status, 'interested');
     assert.equal(res.body.user_email, 'dev@localhost');
+    assert.ok(res.body.interested_at, 'interested_at should be set on creation');
   });
 
   test('GET /api/applications/:id returns the application with notes', async () => {
@@ -273,6 +274,15 @@ describe('Date editing', () => {
     assert.equal(res.status, 200);
     assert.ok(Array.isArray(res.body.notes), 'response should include notes array');
     assert.equal(res.body.notes.length, 1);
+  });
+
+  test('PATCH /api/applications/:id/dates supports interested_at', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ interested_at: '2025-05-01T12:00:00.000Z' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.interested_at, '2025-05-01T12:00:00.000Z');
   });
 
   test('PATCH /api/applications/:id/dates supports closed_at', async () => {
