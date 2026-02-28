@@ -24,8 +24,8 @@
 
         <!-- Links -->
         <div v-if="application.job_posting_url || application.company_website_url" class="flex gap-4">
-          <a v-if="application.job_posting_url" :href="application.job_posting_url" target="_blank" class="text-sm text-blue-600 hover:underline">Job Posting &#8599;</a>
-          <a v-if="application.company_website_url" :href="application.company_website_url" target="_blank" class="text-sm text-blue-600 hover:underline">Company Website &#8599;</a>
+          <a v-if="application.job_posting_url" :href="application.job_posting_url" target="_blank" rel="noopener noreferrer" class="text-sm text-blue-600 hover:underline">Job Posting &#8599;</a>
+          <a v-if="application.company_website_url" :href="application.company_website_url" target="_blank" rel="noopener noreferrer" class="text-sm text-blue-600 hover:underline">Company Website &#8599;</a>
         </div>
 
         <!-- Dates -->
@@ -180,6 +180,7 @@
 <script setup>
 import { computed, ref, nextTick } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, updateNote, deleteNote } from '../api'
 import { computeSegments, stageColor, durationDays } from '../utils/timeline'
 
@@ -205,7 +206,7 @@ function stageBadgeClass(stage) {
 }
 
 function renderMarkdown(content) {
-  return marked.parse(content || '')
+  return DOMPurify.sanitize(marked.parse(content || ''))
 }
 
 const dates = [

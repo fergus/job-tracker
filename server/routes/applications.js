@@ -6,8 +6,10 @@ const db = require('../db');
 
 const router = express.Router();
 
-const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+const uploadsDir = path.resolve(path.join(__dirname, '..', '..', 'uploads'));
 fs.mkdirSync(uploadsDir, { recursive: true });
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
 
 const storage = multer.diskStorage({
   destination: uploadsDir,
@@ -16,7 +18,17 @@ const storage = multer.diskStorage({
     cb(null, unique + path.extname(file.originalname));
   }
 });
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+
+function fileFilter(req, file, cb) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (ALLOWED_EXTENSIONS.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only .pdf, .doc, and .docx files are allowed'));
+  }
+}
+
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter });
 
 const VALID_STATUSES = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected'];
 
@@ -28,6 +40,43 @@ const STATUS_DATE_MAP = {
   accepted: 'closed_at',
   rejected: 'closed_at'
 };
+
+const LIMITS = {
+  company_name: 200,
+  role_title: 200,
+  job_description: 10000,
+  job_posting_url: 2000,
+  company_website_url: 2000,
+  interview_notes: 10000,
+  prep_work: 10000,
+};
+
+function validateInputLengths(body, fields) {
+  for (const field of fields) {
+    if (body[field] && body[field].length > LIMITS[field]) {
+      return `${field} exceeds maximum length of ${LIMITS[field]} characters`;
+    }
+  }
+  return null;
+}
+
+function isValidUrl(url) {
+  if (!url) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function safePath(base, filename) {
+  const resolved = path.resolve(base, filename);
+  if (!resolved.startsWith(base + path.sep) && resolved !== base) {
+    return null;
+  }
+  return resolved;
+}
 
 function getOwnApp(id, userEmail) {
   return db.prepare('SELECT * FROM applications WHERE id = ? AND user_email = ?').get(id, userEmail);
@@ -92,6 +141,13 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
   if (!company_name || !role_title) {
     return res.status(400).json({ error: 'company_name and role_title are required' });
   }
+
+  const lengthError = validateInputLengths(req.body, Object.keys(LIMITS));
+  if (lengthError) return res.status(400).json({ error: lengthError });
+
+  if (!isValidUrl(job_posting_url)) return res.status(400).json({ error: 'job_posting_url must be an http or https URL' });
+  if (!isValidUrl(company_website_url)) return res.status(400).json({ error: 'company_website_url must be an http or https URL' });
+
   const now = new Date().toISOString();
   const appStatus = status && VALID_STATUSES.includes(status) ? status : 'interested';
 
@@ -144,6 +200,16 @@ router.put('/:id', (req, res) => {
     'company_website_url', 'interview_notes', 'prep_work'];
   const updates = [];
   const values = [];
+
+  const lengthError = validateInputLengths(req.body, fields);
+  if (lengthError) return res.status(400).json({ error: lengthError });
+
+  if (req.body.job_posting_url !== undefined && !isValidUrl(req.body.job_posting_url)) {
+    return res.status(400).json({ error: 'job_posting_url must be an http or https URL' });
+  }
+  if (req.body.company_website_url !== undefined && !isValidUrl(req.body.company_website_url)) {
+    return res.status(400).json({ error: 'company_website_url must be an http or https URL' });
+  }
 
   for (const field of fields) {
     if (req.body[field] !== undefined) {
@@ -201,8 +267,8 @@ router.post('/:id/cv', upload.single('cv'), (req, res) => {
 
   // Remove old file
   if (existing.cv_path) {
-    const oldPath = path.join(uploadsDir, existing.cv_path);
-    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    const oldPath = safePath(uploadsDir, existing.cv_path);
+    if (oldPath && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
   }
 
   db.prepare('UPDATE applications SET cv_filename = ?, cv_path = ?, updated_at = ? WHERE id = ? AND user_email = ?')
@@ -223,7 +289,8 @@ router.get('/:id/cv', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!existing.cv_path) return res.status(404).json({ error: 'No CV uploaded' });
 
-  const filePath = path.join(uploadsDir, existing.cv_path);
+  const filePath = safePath(uploadsDir, existing.cv_path);
+  if (!filePath) return res.status(400).json({ error: 'Invalid file path' });
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
 
   res.download(filePath, existing.cv_filename);
@@ -236,8 +303,8 @@ router.post('/:id/cover-letter', upload.single('cover_letter'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   if (existing.cover_letter_path) {
-    const oldPath = path.join(uploadsDir, existing.cover_letter_path);
-    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    const oldPath = safePath(uploadsDir, existing.cover_letter_path);
+    if (oldPath && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
   }
 
   db.prepare('UPDATE applications SET cover_letter_filename = ?, cover_letter_path = ?, updated_at = ? WHERE id = ? AND user_email = ?')
@@ -258,7 +325,8 @@ router.get('/:id/cover-letter', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!existing.cover_letter_path) return res.status(404).json({ error: 'No cover letter uploaded' });
 
-  const filePath = path.join(uploadsDir, existing.cover_letter_path);
+  const filePath = safePath(uploadsDir, existing.cover_letter_path);
+  if (!filePath) return res.status(400).json({ error: 'Invalid file path' });
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
 
   res.download(filePath, existing.cover_letter_filename);
@@ -270,12 +338,12 @@ router.delete('/:id', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
   if (existing.cv_path) {
-    const filePath = path.join(uploadsDir, existing.cv_path);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    const filePath = safePath(uploadsDir, existing.cv_path);
+    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
   if (existing.cover_letter_path) {
-    const filePath = path.join(uploadsDir, existing.cover_letter_path);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    const filePath = safePath(uploadsDir, existing.cover_letter_path);
+    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 
   db.prepare('DELETE FROM applications WHERE id = ? AND user_email = ?').run(req.params.id, req.userEmail);
@@ -290,6 +358,12 @@ router.post('/:id/notes', (req, res) => {
   const { stage, content } = req.body;
   if (!stage || !content) {
     return res.status(400).json({ error: 'stage and content are required' });
+  }
+  if (!VALID_STATUSES.includes(stage)) {
+    return res.status(400).json({ error: 'Invalid stage' });
+  }
+  if (content.length > 10000) {
+    return res.status(400).json({ error: 'content exceeds maximum length of 10000 characters' });
   }
 
   const now = new Date().toISOString();
@@ -310,12 +384,18 @@ router.put('/:id/notes/:noteId', (req, res) => {
 
   const { content, stage } = req.body;
   if (!content) return res.status(400).json({ error: 'content is required' });
+  if (content.length > 10000) {
+    return res.status(400).json({ error: 'content exceeds maximum length of 10000 characters' });
+  }
 
   const now = new Date().toISOString();
   const updates = ['content = ?', 'updated_at = ?'];
   const values = [content, now];
 
   if (stage) {
+    if (!VALID_STATUSES.includes(stage)) {
+      return res.status(400).json({ error: 'Invalid stage' });
+    }
     updates.push('stage = ?');
     values.push(stage);
   }

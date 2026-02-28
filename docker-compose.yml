@@ -25,6 +25,7 @@ services:
     expose:
       - "3000"
     environment:
+      - NODE_ENV=production
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
     volumes:
       - ./data:/app/data

@@ -11,14 +11,6 @@ const upsertUser = db.prepare(`
   ON CONFLICT(email) DO UPDATE SET last_seen_at = excluded.last_seen_at
 `);
 
-const claimLegacyApps = db.prepare(`
-  UPDATE applications SET user_email = ? WHERE user_email IS NULL
-`);
-
-const hasUnclaimedApps = db.prepare(`
-  SELECT 1 FROM applications WHERE user_email IS NULL LIMIT 1
-`);
-
 function authMiddleware(req, res, next) {
   const email = req.headers['x-forwarded-email'];
 
@@ -33,11 +25,6 @@ function authMiddleware(req, res, next) {
 
   const now = new Date().toISOString();
   upsertUser.run(req.userEmail, now, now);
-
-  // Claim legacy applications (user_email IS NULL) on first login after upgrade
-  if (hasUnclaimedApps.get()) {
-    claimLegacyApps.run(req.userEmail);
-  }
 
   req.isAdmin = adminEmails.includes(req.userEmail);
 
