@@ -103,6 +103,7 @@
       @cv-uploaded="handleFileUploaded"
       @cover-letter-uploaded="handleFileUploaded"
       @notes-changed="handleNotesChanged"
+      @dates-changed="handleDatesChanged"
     />
     <SidebarMenu
       v-if="showSidebar"
@@ -196,6 +197,13 @@ async function handleFileUploaded() {
 }
 
 async function handleNotesChanged() {
+  await loadApplications()
+  if (selectedApp.value) {
+    selectedApp.value = applications.value.find(a => a.id === selectedApp.value.id) || null
+  }
+}
+
+async function handleDatesChanged() {
   await loadApplications()
   if (selectedApp.value) {
     selectedApp.value = applications.value.find(a => a.id === selectedApp.value.id) || null

@@ -69,6 +69,10 @@ export function deleteNote(appId, noteId) {
   return api.delete(`/applications/${appId}/notes/${noteId}`).then(r => r.data)
 }
 
+export function updateDates(id, dates) {
+  return api.patch(`/applications/${id}/dates`, dates).then(r => r.data)
+}
+
 export function deleteApplication(id) {
   return api.delete(`/applications/${id}`).then(r => r.data)
 }

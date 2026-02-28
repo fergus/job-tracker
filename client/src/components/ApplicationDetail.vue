@@ -32,7 +32,28 @@
         <div class="grid grid-cols-3 gap-3">
           <div v-for="d in dates" :key="d.key">
             <p class="text-xs text-gray-400 uppercase tracking-wide">{{ d.label }}</p>
-            <p class="text-sm text-gray-700">{{ formatDate(application[d.key]) }}</p>
+            <!-- Read-only created_at -->
+            <p v-if="d.key === 'created_at'" class="text-sm text-gray-700">{{ formatDate(application[d.key]) }}</p>
+            <!-- Editing mode -->
+            <div v-else-if="editingDateKey === d.key" class="flex items-center gap-1">
+              <input
+                type="date"
+                :value="toDateInputValue(application[d.key])"
+                @change="onDateChange(d.key, $event)"
+                @blur="editingDateKey = null"
+                @keydown.escape="editingDateKey = null"
+                class="text-sm border border-blue-300 rounded px-1 py-0.5 focus:ring-2 focus:ring-blue-500 outline-hidden w-full"
+                ref="dateInput"
+              />
+              <button
+                v-if="application[d.key]"
+                @mousedown.prevent="clearDate(d.key)"
+                class="text-gray-400 hover:text-red-500 text-sm leading-none shrink-0"
+                title="Clear date"
+              >&times;</button>
+            </div>
+            <!-- Display mode (clickable) -->
+            <p v-else @click="editingDateKey = d.key" class="text-sm text-gray-700 cursor-pointer hover:text-blue-600">{{ formatDate(application[d.key]) }}</p>
           </div>
         </div>
 
@@ -45,7 +66,7 @@
               :key="seg.stage"
               class="absolute top-0 h-full rounded"
               :style="miniSegmentStyle(seg)"
-              :title="`${seg.stage} · ${miniDays(seg)} day${miniDays(seg) === 1 ? '' : 's'}`"
+              :title="`${seg.stage} · ${formatShortDate(seg.start)} – ${formatShortDate(seg.end)} · ${miniDays(seg)} day${miniDays(seg) === 1 ? '' : 's'}`"
             ></div>
           </div>
           <div class="flex gap-3 mt-1.5 flex-wrap">
@@ -181,13 +202,13 @@
 import { computed, ref, nextTick } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, updateNote, deleteNote } from '../api'
+import { getCVUrl, uploadCV, getCoverLetterUrl, uploadCoverLetter, createNote, updateNote, deleteNote, updateDates } from '../api'
 import { computeSegments, stageColor, durationDays } from '../utils/timeline'
 
 marked.setOptions({ breaks: true })
 
 const props = defineProps({ application: Object })
-const emit = defineEmits(['close', 'edit', 'delete', 'status-change', 'cv-uploaded', 'cover-letter-uploaded', 'notes-changed'])
+const emit = defineEmits(['close', 'edit', 'delete', 'status-change', 'cv-uploaded', 'cover-letter-uploaded', 'notes-changed', 'dates-changed'])
 
 const statuses = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
 
@@ -266,6 +287,43 @@ function miniStageColor(stage) {
 
 function miniDays(seg) {
   return durationDays(seg.start, seg.end)
+}
+
+const editingDateKey = ref(null)
+const dateInput = ref(null)
+
+function toDateInputValue(iso) {
+  if (!iso) return ''
+  return iso.slice(0, 10)
+}
+
+async function onDateChange(key, event) {
+  const val = event.target.value
+  editingDateKey.value = null
+  if (!val) return
+  const isoValue = new Date(val + 'T12:00:00').toISOString()
+  try {
+    await updateDates(props.application.id, { [key]: isoValue })
+    emit('dates-changed')
+  } catch (err) {
+    alert('Error updating date: ' + (err.response?.data?.error || err.message))
+  }
+}
+
+async function clearDate(key) {
+  editingDateKey.value = null
+  try {
+    await updateDates(props.application.id, { [key]: null })
+    emit('dates-changed')
+  } catch (err) {
+    alert('Error clearing date: ' + (err.response?.data?.error || err.message))
+  }
+}
+
+function formatShortDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 const newNoteStage = ref(props.application.status)

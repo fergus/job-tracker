@@ -161,6 +161,131 @@ describe('Status changes', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Date editing
+// ---------------------------------------------------------------------------
+
+describe('Date editing', () => {
+  test('PATCH /api/applications/:id/dates updates a single date field', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ applied_at: '2025-06-15T12:00:00.000Z' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.applied_at, '2025-06-15T12:00:00.000Z');
+  });
+
+  test('PATCH /api/applications/:id/dates updates multiple date fields', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({
+        applied_at: '2025-06-10T12:00:00.000Z',
+        screening_at: '2025-06-12T12:00:00.000Z',
+        interview_at: '2025-06-14T12:00:00.000Z',
+      });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.applied_at, '2025-06-10T12:00:00.000Z');
+    assert.equal(res.body.screening_at, '2025-06-12T12:00:00.000Z');
+    assert.equal(res.body.interview_at, '2025-06-14T12:00:00.000Z');
+  });
+
+  test('PATCH /api/applications/:id/dates clears a date with null', async () => {
+    const app = await createApp();
+    // Set a date first
+    await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ applied_at: '2025-06-15T12:00:00.000Z' });
+    // Clear it
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ applied_at: null });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.applied_at, null);
+  });
+
+  test('PATCH /api/applications/:id/dates sets updated_at', async () => {
+    const app = await createApp();
+    await new Promise(r => setTimeout(r, 10));
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ offer_at: '2025-07-01T12:00:00.000Z' });
+    assert.equal(res.status, 200);
+    assert.ok(res.body.updated_at > app.updated_at, 'updated_at should advance');
+  });
+
+  test('PATCH /api/applications/:id/dates rejects invalid date value', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ applied_at: 'not-a-date' });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error.includes('Invalid date'));
+  });
+
+  test('PATCH /api/applications/:id/dates rejects non-string non-null value', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ applied_at: 12345 });
+    assert.equal(res.status, 400);
+  });
+
+  test('PATCH /api/applications/:id/dates returns 400 with no date fields', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({});
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error.includes('No date fields'));
+  });
+
+  test('PATCH /api/applications/:id/dates ignores unknown fields', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ applied_at: '2025-06-15T12:00:00.000Z', bogus_field: 'ignored' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.applied_at, '2025-06-15T12:00:00.000Z');
+  });
+
+  test('PATCH /api/applications/:id/dates returns 404 for unknown app', async () => {
+    const res = await req
+      .patch('/api/applications/999999/dates')
+      .send({ applied_at: '2025-06-15T12:00:00.000Z' });
+    assert.equal(res.status, 404);
+  });
+
+  test('PATCH /api/applications/:id/dates returns 404 for another user app', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .set('X-Forwarded-Email', 'other@example.com')
+      .send({ applied_at: '2025-06-15T12:00:00.000Z' });
+    assert.equal(res.status, 404);
+  });
+
+  test('PATCH /api/applications/:id/dates returns application with notes array', async () => {
+    const app = await createApp();
+    await createNote(app.id);
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ applied_at: '2025-06-15T12:00:00.000Z' });
+    assert.equal(res.status, 200);
+    assert.ok(Array.isArray(res.body.notes), 'response should include notes array');
+    assert.equal(res.body.notes.length, 1);
+  });
+
+  test('PATCH /api/applications/:id/dates supports closed_at', async () => {
+    const app = await createApp();
+    const res = await req
+      .patch(`/api/applications/${app.id}/dates`)
+      .send({ closed_at: '2025-08-01T12:00:00.000Z' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.closed_at, '2025-08-01T12:00:00.000Z');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Notes CRUD
 // ---------------------------------------------------------------------------
 

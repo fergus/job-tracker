@@ -332,6 +332,43 @@ router.get('/:id/cover-letter', (req, res) => {
   res.download(filePath, existing.cover_letter_filename);
 });
 
+// Update date fields (owner only)
+router.patch('/:id/dates', (req, res) => {
+  const existing = getOwnApp(req.params.id, req.userEmail);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const DATE_FIELDS = ['applied_at', 'screening_at', 'interview_at', 'offer_at', 'closed_at'];
+  const updates = [];
+  const values = [];
+
+  for (const field of DATE_FIELDS) {
+    if (req.body[field] === undefined) continue;
+    const val = req.body[field];
+    if (val === null) {
+      updates.push(`${field} = ?`);
+      values.push(null);
+    } else if (typeof val === 'string' && !isNaN(Date.parse(val))) {
+      updates.push(`${field} = ?`);
+      values.push(val);
+    } else {
+      return res.status(400).json({ error: `Invalid date value for ${field}` });
+    }
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No date fields to update' });
+  }
+
+  updates.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(req.params.id);
+  values.push(req.userEmail);
+
+  db.prepare(`UPDATE applications SET ${updates.join(', ')} WHERE id = ? AND user_email = ?`).run(...values);
+  const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  res.json(attachNotes([row])[0]);
+});
+
 // Delete application (owner only — no admin bypass)
 router.delete('/:id', (req, res) => {
   const existing = getOwnApp(req.params.id, req.userEmail);

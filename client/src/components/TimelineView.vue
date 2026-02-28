@@ -60,7 +60,7 @@
         :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px', transform: 'translate(-50%, -100%) translateY(-6px)' }"
       >
         <span class="capitalize font-medium">{{ tooltip.stage }}</span>
-        <span class="text-gray-300"> · {{ tooltip.days }} day{{ tooltip.days === 1 ? '' : 's' }}</span>
+        <span class="text-gray-300"> · {{ tooltip.startLabel }} – {{ tooltip.endLabel }} · {{ tooltip.days }} day{{ tooltip.days === 1 ? '' : 's' }}</span>
       </div>
     </div>
   </div>
@@ -153,11 +153,19 @@ function segmentStyle(seg) {
   return style
 }
 
+function formatShortDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 function showTooltip(event, seg) {
   const days = durationDays(seg.start, seg.end)
   tooltip.value = {
     stage: seg.stage,
     days,
+    startLabel: formatShortDate(seg.start),
+    endLabel: formatShortDate(seg.end),
     x: event.clientX,
     y: event.clientY,
   }
