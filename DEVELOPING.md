@@ -21,6 +21,8 @@ job-tracker/
 │   │       ├── KanbanBoard.vue       # Drag-and-drop board
 │   │       ├── KanbanCard.vue        # Individual card
 │   │       ├── TableView.vue         # Sortable table
+│   │       ├── TimelineView.vue      # Status history timeline
+│   │       ├── SidebarMenu.vue       # Slide-in hamburger menu
 │   │       ├── ApplicationForm.vue   # Create/edit modal
 │   │       └── ApplicationDetail.vue # Detail modal + notes
 │   ├── public/              # Static assets (logo, icons, manifest)
@@ -271,6 +273,8 @@ DELETE /api/applications/:id/notes/:noteId
 
 All application state lives in `App.vue` as a flat `applications` ref. Child components receive data via props and communicate back via events. There is no Vuex/Pinia store.
 
+UI preferences (`compactHeader`, default view) are initialised in `onMounted` based on viewport width and a `localStorage` key (`jobtracker_compact_header`), so they persist across refreshes without any server involvement.
+
 ### Event flow
 
 ```
@@ -292,6 +296,10 @@ Child component
 ### Styling
 
 Tailwind CSS 4 with the `@tailwindcss/vite` plugin — no PostCSS config or `tailwind.config.js` needed. Utility classes are applied directly in templates. Colour scheme for pipeline stages is defined inline in components that need it (KanbanBoard, TableView, ApplicationDetail).
+
+### Modals and overlays
+
+Modals and overlays use `z-index` layering: the sidebar (`SidebarMenu`) sits at `z-40`; application modals (form, detail) sit at `z-50` so they appear above the sidebar when both are open. Body scroll is locked (`document.body.style.overflow = 'hidden'`) while the sidebar or a modal is open.
 
 ## CI/CD
 

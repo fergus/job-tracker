@@ -2,7 +2,9 @@
 
 [![Build](https://github.com/fergus/job-tracker/actions/workflows/build.yml/badge.svg)](https://github.com/fergus/job-tracker/actions/workflows/build.yml)
 
-A multi-user web app for tracking job applications through a pipeline — from initial interest through to offer and acceptance. Kanban board with drag-and-drop, table view, file uploads for CVs and cover letters, notes, and date tracking per stage. Each user sees only their own applications; admins can view all.
+A multi-user web app for tracking job applications through a pipeline — from initial interest through to offer and acceptance. Kanban board with drag-and-drop, table view, timeline view, file uploads for CVs and cover letters, notes, and date tracking per stage. Each user sees only their own applications; admins can view all.
+
+![Job Application Tracker kanban board with applications across all pipeline stages](docs/screenshot.png)
 
 ## Quick Start
 
@@ -81,9 +83,11 @@ cp -r uploads/ uploads-backup/
 
 - **Kanban board** — drag cards between columns: Interested → Applied → Screening → Interview → Offer → Accepted/Rejected
 - **Table view** — sortable columns, click any row for details
+- **Timeline view** — visual history of status changes per application
+- **Hamburger menu** — slide-in sidebar houses the view switcher, admin toggle, and account info; an "Always use menu" toggle (persisted per browser) controls whether those controls also appear inline in the header
 - **File uploads** — attach CVs and cover letters (PDF, DOC, DOCX up to 10MB)
 - **Date tracking** — timestamps auto-set when you move applications between stages
-- **Stage notes** — per-stage timestamped notes with colored stage badges
+- **Stage notes** — per-stage timestamped notes with markdown rendering and colored stage badges
 - **Links** — store job posting and company website URLs
 - **Multi-user** — each user sees only their own applications, identified via PocketID `X-Forwarded-Email` header. Admins (configured via `ADMIN_EMAILS`) can view all users' applications but cannot edit or delete others' data
 

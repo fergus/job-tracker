@@ -166,8 +166,10 @@ graph TD
     App["App.vue<br/>State & event handling"]
     App --> KB["KanbanBoard.vue<br/>Drag-and-drop columns"]
     App --> TV["TableView.vue<br/>Sortable table"]
+    App --> TL["TimelineView.vue<br/>Status history timeline"]
     App --> AF["ApplicationForm.vue<br/>Create/edit modal"]
     App --> AD["ApplicationDetail.vue<br/>Detail modal + notes"]
+    App --> SM["SidebarMenu.vue<br/>Slide-in nav & settings"]
     KB --> KC["KanbanCard.vue<br/>Card in column"]
 
     AD --> API["api.js<br/>Axios HTTP client"]
