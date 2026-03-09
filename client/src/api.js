@@ -76,3 +76,25 @@ export function updateDates(id, dates) {
 export function deleteApplication(id) {
   return api.delete(`/applications/${id}`).then(r => r.data)
 }
+
+export function fetchAttachments(appId) {
+  return api.get(`/applications/${appId}/attachments`).then(r => r.data)
+}
+
+export function uploadAttachments(appId, files) {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append('files', file)
+  }
+  return api.post(`/applications/${appId}/attachments`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }).then(r => r.data)
+}
+
+export function getAttachmentUrl(appId, attachmentId) {
+  return `/api/applications/${appId}/attachments/${attachmentId}`
+}
+
+export function deleteAttachment(appId, attachmentId) {
+  return api.delete(`/applications/${appId}/attachments/${attachmentId}`).then(r => r.data)
+}
