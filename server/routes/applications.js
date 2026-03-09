@@ -150,9 +150,9 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
   if (!isValidUrl(job_posting_url)) return res.status(400).json({ error: 'job_posting_url must be an http or https URL' });
   if (!isValidUrl(company_website_url)) return res.status(400).json({ error: 'company_website_url must be an http or https URL' });
 
-  // Validate salary fields
-  let salary_min = req.body.salary_min != null ? Number(req.body.salary_min) : null;
-  let salary_max = req.body.salary_max != null ? Number(req.body.salary_max) : null;
+  // Validate salary fields (multipart forms send strings; treat '' as null)
+  let salary_min = (req.body.salary_min != null && req.body.salary_min !== '') ? Number(req.body.salary_min) : null;
+  let salary_max = (req.body.salary_max != null && req.body.salary_max !== '') ? Number(req.body.salary_max) : null;
   if (salary_min !== null && (!Number.isInteger(salary_min) || salary_min < 0)) {
     return res.status(400).json({ error: 'salary_min must be a non-negative integer or null' });
   }
@@ -395,7 +395,11 @@ router.get('/:id/attachments', (req, res) => {
 // Upload attachments (owner only)
 router.post('/:id/attachments', upload.array('files', 10), (req, res) => {
   const existing = getOwnApp(req.params.id, req.userEmail);
-  if (!existing) return res.status(404).json({ error: 'Not found' });
+  if (!existing) {
+    // Clean up files multer already wrote to disk
+    if (req.files) req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
+    return res.status(404).json({ error: 'Not found' });
+  }
   if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
 
   const MIME_MAP = {
