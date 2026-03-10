@@ -168,19 +168,20 @@ The sync engine maintains bidirectional sync between the filesystem and the API:
 
 ## Architecture
 
-```
-┌───────────────────────────────────────────────────────┐
-│  Docker Container                                     │
-│                                                       │
-│  oauth2-proxy (:4180) ──── Express API (:3000)        │
-│                                  │                    │
-│                              SQLite (WAL)             │
-│                                  │                    │
-│  [optional, ENABLE_SMB=true]     │                    │
-│  Samba (:3445) ── Sync Engine ── HTTP ──┘             │
-│       │                                               │
-│  /app/smb-share/                                      │
-└───────────────────────────────────────────────────────┘
+```mermaid
+graph LR
+  subgraph Docker Container
+    Browser["Browser"] -->|":4180"| Proxy["oauth2-proxy"]
+    Proxy -->|"X-Forwarded-Email"| API["Express API :3000"]
+    API <--> DB["SQLite (WAL)"]
+
+    subgraph SMB ["optional, ENABLE_SMB=true"]
+      SMBClient["SMB Client"] -->|":445"| Samba["Samba :3445"]
+      Samba <--> Share["/app/smb-share/"]
+      Share <-->|"chokidar"| Sync["Sync Engine"]
+      Sync -->|"HTTP + auth token"| API
+    end
+  end
 ```
 
 - **Frontend** (`client/`): Vue 3 SPA, Vite, Tailwind CSS 4. State in `App.vue`, API calls in `client/src/api.js`
