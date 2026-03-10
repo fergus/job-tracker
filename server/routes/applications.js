@@ -50,6 +50,7 @@ const LIMITS = {
   company_website_url: 2000,
   interview_notes: 10000,
   prep_work: 10000,
+  job_location: 500,
 };
 
 function validateInputLengths(body, fields) {
@@ -138,7 +139,7 @@ router.get('/:id', (req, res) => {
 
 // Create application (multipart for CV + cover letter)
 router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_letter', maxCount: 1 }]), (req, res) => {
-  const { company_name, role_title, status, job_description, job_posting_url, company_website_url, interview_notes, prep_work } = req.body;
+  const { company_name, role_title, status, job_description, job_posting_url, company_website_url, interview_notes, prep_work, job_location } = req.body;
   if (!company_name || !role_title) {
     return res.status(400).json({ error: 'company_name and role_title are required' });
   }
@@ -148,6 +149,19 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
 
   if (!isValidUrl(job_posting_url)) return res.status(400).json({ error: 'job_posting_url must be an http or https URL' });
   if (!isValidUrl(company_website_url)) return res.status(400).json({ error: 'company_website_url must be an http or https URL' });
+
+  // Validate salary fields (multipart forms send strings; treat '' as null)
+  let salary_min = (req.body.salary_min != null && req.body.salary_min !== '') ? Number(req.body.salary_min) : null;
+  let salary_max = (req.body.salary_max != null && req.body.salary_max !== '') ? Number(req.body.salary_max) : null;
+  if (salary_min !== null && (!Number.isInteger(salary_min) || salary_min < 0)) {
+    return res.status(400).json({ error: 'salary_min must be a non-negative integer or null' });
+  }
+  if (salary_max !== null && (!Number.isInteger(salary_max) || salary_max < 0)) {
+    return res.status(400).json({ error: 'salary_max must be a non-negative integer or null' });
+  }
+  if (salary_min !== null && salary_max !== null && salary_min > salary_max) {
+    return res.status(400).json({ error: 'salary_min must not exceed salary_max' });
+  }
 
   const now = new Date().toISOString();
   const appStatus = status && VALID_STATUSES.includes(status) ? status : 'interested';
@@ -169,9 +183,11 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
   const dateField = STATUS_DATE_MAP[appStatus];
   const stmt = db.prepare(`
     INSERT INTO applications (company_name, role_title, status, job_description, job_posting_url, company_website_url,
-      cv_filename, cv_path, cover_letter_filename, cover_letter_path, interview_notes, prep_work, created_at, updated_at,
+      cv_filename, cv_path, cover_letter_filename, cover_letter_path, interview_notes, prep_work,
+      salary_min, salary_max, job_location,
+      created_at, updated_at,
       interested_at, applied_at, screening_at, interview_at, offer_at, closed_at, user_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -179,6 +195,7 @@ router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_lett
     job_description || null, job_posting_url || null, company_website_url || null,
     cv_filename, cv_path, cover_letter_filename, cover_letter_path,
     interview_notes || null, prep_work || null,
+    salary_min, salary_max, job_location || null,
     now, now,
     now,
     dateField === 'applied_at' ? now : null,
@@ -199,7 +216,7 @@ router.put('/:id', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
   const fields = ['company_name', 'role_title', 'job_description', 'job_posting_url',
-    'company_website_url', 'interview_notes', 'prep_work'];
+    'company_website_url', 'interview_notes', 'prep_work', 'job_location'];
   const updates = [];
   const values = [];
 
@@ -213,7 +230,34 @@ router.put('/:id', (req, res) => {
     return res.status(400).json({ error: 'company_website_url must be an http or https URL' });
   }
 
+  // Validate salary fields
+  if (req.body.salary_min !== undefined) {
+    const val = req.body.salary_min;
+    if (val !== null && (!Number.isInteger(val) || val < 0)) {
+      return res.status(400).json({ error: 'salary_min must be a non-negative integer or null' });
+    }
+  }
+  if (req.body.salary_max !== undefined) {
+    const val = req.body.salary_max;
+    if (val !== null && (!Number.isInteger(val) || val < 0)) {
+      return res.status(400).json({ error: 'salary_max must be a non-negative integer or null' });
+    }
+  }
+  const salaryMin = req.body.salary_min !== undefined ? req.body.salary_min : existing.salary_min;
+  const salaryMax = req.body.salary_max !== undefined ? req.body.salary_max : existing.salary_max;
+  if (salaryMin != null && salaryMax != null && salaryMin > salaryMax) {
+    return res.status(400).json({ error: 'salary_min must not exceed salary_max' });
+  }
+
   for (const field of fields) {
+    if (req.body[field] !== undefined) {
+      updates.push(`${field} = ?`);
+      values.push(req.body[field]);
+    }
+  }
+
+  // Handle salary fields (not in the text fields list since they're integers)
+  for (const field of ['salary_min', 'salary_max']) {
     if (req.body[field] !== undefined) {
       updates.push(`${field} = ?`);
       values.push(req.body[field]);
@@ -334,6 +378,93 @@ router.get('/:id/cover-letter', (req, res) => {
   res.download(filePath, existing.cover_letter_filename);
 });
 
+// List attachments for an application (own or admin view)
+router.get('/:id/attachments', (req, res) => {
+  let existing;
+  if (req.isAdmin) {
+    existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  } else {
+    existing = getOwnApp(req.params.id, req.userEmail);
+  }
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const attachments = db.prepare('SELECT id, original_filename, file_size, mime_type, created_at FROM attachments WHERE application_id = ? ORDER BY created_at ASC').all(req.params.id);
+  res.json(attachments);
+});
+
+// Upload attachments (owner only)
+router.post('/:id/attachments', upload.array('files', 10), (req, res) => {
+  const existing = getOwnApp(req.params.id, req.userEmail);
+  if (!existing) {
+    // Clean up files multer already wrote to disk
+    if (req.files) req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
+    return res.status(404).json({ error: 'Not found' });
+  }
+  if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
+
+  const MIME_MAP = {
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+
+  const now = new Date().toISOString();
+  const inserted = [];
+
+  const insertAttachments = db.transaction(() => {
+    for (const file of req.files) {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const mime = MIME_MAP[ext] || null;
+      const result = db.prepare(
+        'INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(req.params.id, file.originalname, file.filename, file.size, mime, now);
+      inserted.push({ id: result.lastInsertRowid, original_filename: file.originalname, file_size: file.size, mime_type: mime, created_at: now });
+    }
+    db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
+  });
+
+  insertAttachments();
+  res.status(201).json(inserted);
+});
+
+// Download a specific attachment (own or admin view)
+router.get('/:id/attachments/:attachmentId', (req, res) => {
+  let existing;
+  if (req.isAdmin) {
+    existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  } else {
+    existing = getOwnApp(req.params.id, req.userEmail);
+  }
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const attachment = db.prepare('SELECT * FROM attachments WHERE id = ? AND application_id = ?').get(req.params.attachmentId, req.params.id);
+  if (!attachment) return res.status(404).json({ error: 'Attachment not found' });
+
+  const filePath = safePath(uploadsDir, attachment.stored_filename);
+  if (!filePath) return res.status(400).json({ error: 'Invalid file path' });
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+
+  res.download(filePath, attachment.original_filename);
+});
+
+// Delete a specific attachment (owner only)
+router.delete('/:id/attachments/:attachmentId', (req, res) => {
+  const existing = getOwnApp(req.params.id, req.userEmail);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const attachment = db.prepare('SELECT * FROM attachments WHERE id = ? AND application_id = ?').get(req.params.attachmentId, req.params.id);
+  if (!attachment) return res.status(404).json({ error: 'Attachment not found' });
+
+  const now = new Date().toISOString();
+  db.prepare('DELETE FROM attachments WHERE id = ?').run(req.params.attachmentId);
+  db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
+
+  const filePath = safePath(uploadsDir, attachment.stored_filename);
+  if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+  res.json({ success: true });
+});
+
 // Update date fields (owner only)
 router.patch('/:id/dates', (req, res) => {
   const existing = getOwnApp(req.params.id, req.userEmail);
@@ -376,16 +507,20 @@ router.delete('/:id', (req, res) => {
   const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  if (existing.cv_path) {
-    const filePath = safePath(uploadsDir, existing.cv_path);
-    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  }
-  if (existing.cover_letter_path) {
-    const filePath = safePath(uploadsDir, existing.cover_letter_path);
+  // Collect all file paths to delete (attachments + legacy cv/cover letter)
+  const attachments = db.prepare('SELECT stored_filename FROM attachments WHERE application_id = ?').all(req.params.id);
+  const filesToDelete = attachments.map(a => a.stored_filename);
+  if (existing.cv_path) filesToDelete.push(existing.cv_path);
+  if (existing.cover_letter_path) filesToDelete.push(existing.cover_letter_path);
+
+  // Delete DB row first (CASCADE removes attachment rows), then files
+  db.prepare('DELETE FROM applications WHERE id = ? AND user_email = ?').run(req.params.id, req.userEmail);
+
+  for (const filename of filesToDelete) {
+    const filePath = safePath(uploadsDir, filename);
     if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 
-  db.prepare('DELETE FROM applications WHERE id = ? AND user_email = ?').run(req.params.id, req.userEmail);
   res.json({ success: true });
 });
 
@@ -406,9 +541,14 @@ router.post('/:id/notes', (req, res) => {
   }
 
   const now = new Date().toISOString();
-  const result = db.prepare('INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-    .run(req.params.id, stage, content, now, now);
+  const insertNote = db.transaction(() => {
+    const result = db.prepare('INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(req.params.id, stage, content, now, now);
+    db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
+    return result;
+  });
 
+  const result = insertNote();
   const note = db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(note);
 });
@@ -441,6 +581,7 @@ router.put('/:id/notes/:noteId', (req, res) => {
 
   values.push(req.params.noteId);
   db.prepare(`UPDATE stage_notes SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
 
   const updated = db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(req.params.noteId);
   res.json(updated);

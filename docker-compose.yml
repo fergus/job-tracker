@@ -24,9 +24,27 @@ services:
     build: .
     expose:
       - "3000"
+    ports:
+      - "127.0.0.1:445:3445"     # SMB - high port internally, 445 externally, localhost only
     environment:
       - NODE_ENV=production
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      - ENABLE_SMB=${ENABLE_SMB:-false}
+      - SMB_USER=${SMB_USER:-}
+      - SMB_PASS=${SMB_PASS:-}
+      - SMB_USER_EMAIL=${SMB_USER_EMAIL:-}
+      - SMB_CREDENTIALS_FILE=${SMB_CREDENTIALS_FILE:-}
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
+      - ./smb-share:/app/smb-share
+    # If using SMB, set on the host: sysctl fs.inotify.max_user_watches=524288
+    security_opt:
+      - no-new-privileges
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
