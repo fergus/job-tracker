@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const db = require('../db');
 
 const adminEmails = (process.env.ADMIN_EMAILS || '')
@@ -6,6 +7,15 @@ const adminEmails = (process.env.ADMIN_EMAILS || '')
   .filter(Boolean);
 
 const internalAuthToken = process.env.INTERNAL_AUTH_TOKEN || null;
+const internalAuthEmail = (process.env.SMB_USER_EMAIL || '').toLowerCase() || null;
+
+function timingSafeEqual(a, b) {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 const upsertUser = db.prepare(`
   INSERT INTO users (email, first_seen_at, last_seen_at)
@@ -22,12 +32,18 @@ function authMiddleware(req, res, next) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     req.userEmail = 'dev@localhost';
-  } else if (internalToken && internalAuthToken && internalToken === internalAuthToken) {
-    // Trusted internal request from sync engine — accept X-Forwarded-Email directly
+  } else if (internalToken && internalAuthToken && timingSafeEqual(internalToken, internalAuthToken)) {
+    // Trusted internal request from sync engine — only accept configured SMB_USER_EMAIL
+    if (!internalAuthEmail || email.toLowerCase() !== internalAuthEmail) {
+      return res.status(403).json({ error: 'Internal token not authorized for this user' });
+    }
+    req.userEmail = internalAuthEmail;
+  } else if (process.env.NODE_ENV === 'production') {
+    // In production, require oauth2-proxy headers (X-Forwarded-User proves request came through proxy)
+    if (!req.headers['x-forwarded-user']) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     req.userEmail = email.toLowerCase();
-  } else if (process.env.NODE_ENV === 'production' && !req.headers['x-forwarded-user']) {
-    // In production, X-Forwarded-Email without oauth2-proxy headers or valid internal token is suspicious
-    return res.status(401).json({ error: 'Authentication required' });
   } else {
     req.userEmail = email.toLowerCase();
   }

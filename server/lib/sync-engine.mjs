@@ -31,6 +31,10 @@ const DISPLAY_TO_STATUS = Object.fromEntries(
 );
 
 function sha256(content) {
+  // Accept both strings and Buffers — avoid UTF-8 encoding for binary data
+  if (Buffer.isBuffer(content)) {
+    return crypto.createHash('sha256').update(content).digest('hex');
+  }
   return crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
 }
 
@@ -303,8 +307,9 @@ export class SyncEngine {
     const expectedFiles = new Set();
 
     for (const att of attachments) {
-      expectedFiles.add(att.original_filename);
-      const filePath = path.join(filesDir, att.original_filename);
+      const safeName = path.basename(att.original_filename);
+      expectedFiles.add(safeName);
+      const filePath = path.join(filesDir, safeName);
       // Download attachment if not present
       if (!fs.existsSync(filePath)) {
         this.downloadAttachment(appId, att.id, filePath).catch(e => {
@@ -336,7 +341,7 @@ export class SyncEngine {
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(destPath, buf);
-    this.lastWrittenHashes.set(destPath, sha256(buf.toString('utf-8')));
+    this.lastWrittenHashes.set(destPath, sha256(buf));
   }
 
   writeFromApi(filePath, content) {
@@ -721,7 +726,7 @@ Read-only: id, created_at, updated_at (changes ignored).
   async handleAttachmentAdd(appId, filePath, filename) {
     try {
       await this.apiUpload(`/applications/${appId}/attachments`, filePath, filename);
-      this.lastWrittenHashes.set(filePath, sha256(fs.readFileSync(filePath, 'utf-8').toString()));
+      this.lastWrittenHashes.set(filePath, sha256(fs.readFileSync(filePath)));
       console.log(`[sync] Uploaded attachment ${filename} for app ${appId}`);
     } catch (e) {
       console.error(`[sync] Failed to upload attachment ${filename}: ${e.message}`);
