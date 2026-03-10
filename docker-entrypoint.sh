@@ -39,6 +39,9 @@ if [ "$ENABLE_SMB" = "true" ]; then
   smbd --daemon --no-process-group --configfile=/etc/samba/smb.conf
   echo "SMB: Samba started on port 3445"
 
+  # Set umask so sync-engine-created files are group-writable (0664/0775)
+  umask 0002
+
   # Start sync process in background (waits for Express readiness internally)
   export SMB_USER_EMAIL
   su-exec nodejs node /app/server/smb-sync.mjs &
