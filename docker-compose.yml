@@ -38,8 +38,7 @@ services:
       - ./data:/app/data
       - ./uploads:/app/uploads
       - ./smb-share:/app/smb-share
-    sysctls:
-      - fs.inotify.max_user_watches=524288
+    # If using SMB, set on the host: sysctl fs.inotify.max_user_watches=524288
     security_opt:
       - no-new-privileges
     cap_drop:
