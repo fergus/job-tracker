@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "026"
 tags: [code-review, data-integrity, performance]
@@ -24,6 +24,7 @@ Use p-limit (concurrency: 3-5), stream downloads with res.body.pipe(createWriteS
 - **Effort**: Medium | **Risk**: Low
 
 ## Acceptance Criteria
-- [ ] Downloads are awaited, not fire-and-forget
-- [ ] Concurrency limited to prevent OOM
-- [ ] No race between download and delete
+- [x] Downloads are awaited, not fire-and-forget
+- [x] Concurrency limited to prevent OOM
+- [x] No race between download and delete
+- [x] Update documentation

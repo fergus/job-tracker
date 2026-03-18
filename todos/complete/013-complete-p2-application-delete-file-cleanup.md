@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "013"
 tags: [code-review, data-integrity]
@@ -25,9 +25,9 @@ The current DELETE /:id endpoint deletes CV and cover letter files, then deletes
 - **Risk:** Low — orphaned files are harmless, missing DB references cause errors
 
 ## Acceptance Criteria
-- [ ] DELETE endpoint removes all attachment files from disk
-- [ ] Database row deleted before files (safer crash ordering)
-- [ ] No orphaned files after application deletion
+- [x] DELETE endpoint removes all attachment files from disk
+- [x] Database row deleted before files (safer crash ordering)
+- [x] No orphaned files after application deletion
 
 ## Work Log
 - 2026-03-09: Created from technical review (data integrity guardian)

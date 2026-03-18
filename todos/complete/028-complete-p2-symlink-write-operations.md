@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "028"
 tags: [code-review, security]
@@ -26,5 +26,5 @@ fs.closeSync(fd);
 - **Effort**: Small | **Risk**: Low
 
 ## Acceptance Criteria
-- [ ] All file writes in sync engine use O_NOFOLLOW
-- [ ] Symlink replacement between check and write is prevented
+- [x] All file writes in sync engine use O_NOFOLLOW
+- [x] Symlink replacement between check and write is prevented

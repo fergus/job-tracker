@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "024"
 tags: [code-review, performance]
@@ -21,6 +21,6 @@ Add `?updated_since=<ISO timestamp>` to GET /applications, track lastSyncTime in
 - **Effort**: Medium | **Risk**: Low
 
 ## Acceptance Criteria
-- [ ] GET /applications supports updated_since parameter
-- [ ] Polling only fetches applications changed since last sync
-- [ ] Full sync still runs on startup
+- [x] GET /applications supports updated_since parameter
+- [x] Polling only fetches applications changed since last sync
+- [x] Full sync still runs on startup

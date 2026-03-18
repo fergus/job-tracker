@@ -98,7 +98,7 @@ function attachNotes(rows) {
 
 // List applications (scoped to user, or all if admin with ?all=true)
 router.get('/', (req, res) => {
-  const { status, all } = req.query;
+  const { status, all, updated_since } = req.query;
   const showAll = req.isAdmin && all === 'true';
 
   let sql = 'SELECT * FROM applications';
@@ -113,6 +113,11 @@ router.get('/', (req, res) => {
   if (status && VALID_STATUSES.includes(status)) {
     conditions.push('status = ?');
     params.push(status);
+  }
+
+  if (updated_since) {
+    conditions.push('updated_at > ?');
+    params.push(updated_since);
   }
 
   if (conditions.length > 0) {
@@ -595,7 +600,9 @@ router.delete('/:id/notes/:noteId', (req, res) => {
   const note = db.prepare('SELECT * FROM stage_notes WHERE id = ? AND application_id = ?').get(req.params.noteId, req.params.id);
   if (!note) return res.status(404).json({ error: 'Note not found' });
 
+  const now = new Date().toISOString();
   db.prepare('DELETE FROM stage_notes WHERE id = ?').run(req.params.noteId);
+  db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
   res.json({ success: true });
 });
 

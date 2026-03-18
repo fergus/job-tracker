@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "008"
 tags: [code-review, data-integrity, architecture]
@@ -26,9 +26,9 @@ Add `UPDATE applications SET updated_at = datetime('now') WHERE id = ?` after ev
 - **Affected files:** server/routes/applications.js (note POST, PUT, DELETE endpoints; attachment POST, DELETE endpoints)
 
 ## Acceptance Criteria
-- [ ] Note create/update/delete bumps parent application updated_at
-- [ ] Attachment create/delete bumps parent application updated_at
-- [ ] Incremental polling catches note and attachment changes
+- [x] Note create/update/delete bumps parent application updated_at
+- [x] Attachment create/delete bumps parent application updated_at
+- [x] Incremental polling catches note and attachment changes
 
 ## Work Log
 - 2026-03-09: Created from technical review (architecture strategist, data integrity guardian)

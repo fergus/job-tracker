@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "025"
 tags: [code-review, data-integrity]
@@ -25,5 +25,5 @@ Join all notes for a stage with a delimiter (e.g., `---`) in the section.
 - **Effort**: Medium | **Risk**: Medium
 
 ## Acceptance Criteria
-- [ ] Multiple notes per stage are not silently lost
-- [ ] Solution documented in _README.md
+- [x] Multiple notes per stage are not silently lost
+- [x] Solution documented in _README.md

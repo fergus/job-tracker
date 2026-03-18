@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "027"
 tags: [code-review, quality]
@@ -22,5 +22,5 @@ Replace `catch {}` with `catch (e) { console.warn('[sync] ...', e.message); }`
 - **Effort**: Small | **Risk**: Low
 
 ## Acceptance Criteria
-- [ ] No empty catch blocks remain
-- [ ] Errors are logged at warn level with context
+- [x] No empty catch blocks remain
+- [x] Errors are logged at warn level with context

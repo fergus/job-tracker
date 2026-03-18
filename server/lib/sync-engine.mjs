@@ -69,6 +69,18 @@ function readFileNoFollow(filePath) {
   }
 }
 
+function writeFileNoFollow(filePath, data) {
+  const fd = fs.openSync(
+    filePath,
+    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW
+  );
+  try {
+    fs.writeSync(fd, data);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 export class SyncEngine {
   constructor({ apiBase, userEmail, syncDir, authToken }) {
     this.apiBase = apiBase.replace(/\/$/, '');
@@ -77,6 +89,7 @@ export class SyncEngine {
     this.authToken = authToken;
 
     // State
+    this.lastSyncTime = null;      // ISO timestamp of last successful sync
     this.appIdByDir = new Map();   // dirPath -> appId
     this.dirByAppId = new Map();   // appId -> dirPath
     this.lastWrittenHashes = new Map(); // filePath -> sha256
@@ -150,6 +163,7 @@ export class SyncEngine {
 
     // Full sync before starting watcher
     await this.fullSync();
+    this.lastSyncTime = new Date().toISOString();
 
     // Write _README.md
     this.writeReadme();
@@ -205,7 +219,7 @@ export class SyncEngine {
       // Build/update directory tree
       for (const app of apps) {
         const attachments = attachmentsByApp.get(app.id) || [];
-        this.writeAppToDir(app, attachments);
+        await this.writeAppToDir(app, attachments);
       }
 
       // Remove directories for apps no longer in API
@@ -217,16 +231,41 @@ export class SyncEngine {
     }
   }
 
+  async incrementalSync(since) {
+    this.syncing = true;
+    try {
+      const apps = await this.apiFetch(`/applications?updated_since=${encodeURIComponent(since)}`);
+      if (apps.length === 0) return;
+      await Promise.all(apps.map(async (app) => {
+        try {
+          const attachments = await this.apiFetch(`/applications/${app.id}/attachments`);
+          await this.writeAppToDir(app, attachments);
+        } catch (e) {
+          console.warn(`[sync] Failed to sync app ${app.id}: ${e.message}`);
+        }
+      }));
+      console.log(`[sync] Incremental sync: ${apps.length} changed application(s)`);
+    } finally {
+      this.syncing = false;
+    }
+  }
+
   async pollForChanges() {
     if (this.syncing) return;
+    const now = new Date().toISOString();
     try {
-      await this.fullSync();
+      if (this.lastSyncTime) {
+        await this.incrementalSync(this.lastSyncTime);
+      } else {
+        await this.fullSync();
+      }
+      this.lastSyncTime = now;
     } catch (e) {
       console.error(`[sync] Poll error: ${e.message}`);
     }
   }
 
-  writeAppToDir(app, attachments) {
+  async writeAppToDir(app, attachments) {
     const company = sanitizeDirName(app.company_name);
     const role = sanitizeDirName(app.role_title);
     const dirName = `${company}--${role}`;
@@ -285,7 +324,7 @@ export class SyncEngine {
     this.writeFromApi(path.join(dirPath, 'notes.md'), notesContent);
 
     // Sync attachments in files/
-    this.syncAttachmentFiles(dirPath, app.id, attachments);
+    await this.syncAttachmentFiles(dirPath, app.id, attachments);
   }
 
   buildNotesContent(notes) {
@@ -297,28 +336,36 @@ export class SyncEngine {
     }
     const sections = [];
     for (const [stage, contents] of Object.entries(byStage)) {
-      sections.push(`## ${stage}\n\n${contents.join('\n\n')}`);
+      sections.push(`## ${stage}\n\n${contents.join('\n\n---\n\n')}`);
     }
     return sections.join('\n\n') + '\n';
   }
 
-  syncAttachmentFiles(dirPath, appId, attachments) {
+  async syncAttachmentFiles(dirPath, appId, attachments) {
     const filesDir = path.join(dirPath, 'files');
     const expectedFiles = new Set();
+    const pendingDownloads = [];
 
     for (const att of attachments) {
       const safeName = path.basename(att.original_filename);
       expectedFiles.add(safeName);
       const filePath = path.join(filesDir, safeName);
-      // Download attachment if not present
       if (!fs.existsSync(filePath)) {
-        this.downloadAttachment(appId, att.id, filePath).catch(e => {
-          console.warn(`[sync] Failed to download attachment ${att.original_filename}: ${e.message}`);
-        });
+        pendingDownloads.push(() =>
+          this.downloadAttachment(appId, att.id, filePath).catch(e => {
+            console.warn(`[sync] Failed to download attachment ${att.original_filename}: ${e.message}`);
+          })
+        );
       }
     }
 
-    // Remove files not in API (but don't remove files that are being uploaded)
+    // Download with concurrency limit — await all before touching existing files
+    const CONCURRENCY = 4;
+    for (let i = 0; i < pendingDownloads.length; i += CONCURRENCY) {
+      await Promise.all(pendingDownloads.slice(i, i + CONCURRENCY).map(fn => fn()));
+    }
+
+    // Remove stale files only after all downloads are complete
     if (fs.existsSync(filesDir)) {
       for (const filename of fs.readdirSync(filesDir)) {
         if (!expectedFiles.has(filename)) {
@@ -340,7 +387,7 @@ export class SyncEngine {
     });
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
-    fs.writeFileSync(destPath, buf);
+    writeFileNoFollow(destPath, buf);
     this.lastWrittenHashes.set(destPath, sha256(buf));
   }
 
@@ -354,9 +401,9 @@ export class SyncEngine {
           this.lastWrittenHashes.set(filePath, hash);
           return;
         }
-      } catch {}
+      } catch (e) { console.warn('[sync] Could not read existing file for hash check, overwriting:', filePath, e.message); }
     }
-    fs.writeFileSync(filePath, content);
+    writeFileNoFollow(filePath, content);
     this.lastWrittenHashes.set(filePath, hash);
   }
 
@@ -378,7 +425,7 @@ export class SyncEngine {
             this.dirByAppId.delete(data.id);
             console.log(`[sync] Removed stale directory: ${entry.name} (id: ${data.id})`);
           }
-        } catch {}
+        } catch (e) { console.warn('[sync] Could not process directory for stale check, skipping:', entry.name, e.message); }
       }
     }
   }
@@ -399,7 +446,7 @@ interested/google--senior-swe/
   job-description.md  - Job description text
   interview-notes.md  - Interview notes
   prep-work.md        - Preparation work
-  notes.md            - Stage notes (## headers per stage)
+  notes.md            - Stage notes (## headers per stage, --- separates multiple notes)
   files/              - File attachments
 \`\`\`
 
@@ -409,6 +456,22 @@ interested/google--senior-swe/
 - Create a new application: \`mkdir interested/company--role\`
 - Add attachments: copy files into the \`files/\` folder
 - Moving or deleting folders is ignored (use the web UI for status changes).
+
+## notes.md format
+
+Sections are separated by \`## Stage\` headers. Multiple notes per stage are separated by \`---\`:
+
+\`\`\`markdown
+## Interview
+
+Notes from first round.
+
+---
+
+Notes from second round.
+\`\`\`
+
+Adding a new \`---\` block creates a new note. Removing one deletes it.
 
 ## details.md Fields
 
@@ -551,7 +614,8 @@ Read-only: id, created_at, updated_at (changes ignored).
       const content = readFileNoFollow(filePath);
       const hash = sha256(content);
       return this.lastWrittenHashes.get(filePath) === hash;
-    } catch {
+    } catch (e) {
+      console.warn('[sync] Could not read file for skip check, will sync:', filePath, e.message);
       return false;
     }
   }
@@ -580,7 +644,7 @@ Read-only: id, created_at, updated_at (changes ignored).
       this.dirByAppId.set(app.id, dirPath);
 
       // Write initial files
-      this.writeAppToDir(app, []);
+      await this.writeAppToDir(app, []);
       console.log(`[sync] Created application ${app.id}: ${parsed.company} -- ${parsed.role}`);
     } catch (e) {
       console.error(`[sync] Failed to create application from mkdir: ${e.message}`);
@@ -658,37 +722,45 @@ Read-only: id, created_at, updated_at (changes ignored).
       const app = await this.apiFetch(`/applications/${appId}`);
       const existingNotes = app.notes || [];
 
-      // Group existing notes by stage (take first note per stage for flat model)
-      const noteByStage = {};
+      // Group existing notes by stage, preserving order
+      const notesByStage = {};
       for (const note of existingNotes) {
-        if (!noteByStage[note.stage]) noteByStage[note.stage] = note;
+        (notesByStage[note.stage] ||= []).push(note);
       }
 
-      // Sync each section
+      // Sync each section — split on --- to handle multiple notes per stage
       for (const [stage, sectionContent] of Object.entries(sections)) {
-        const trimmed = sectionContent.trim();
-        const existing = noteByStage[stage];
+        const parsedNotes = sectionContent
+          .split('\n\n---\n\n')
+          .map(s => s.trim())
+          .filter(s => s.length > 0);
+        const existing = notesByStage[stage] || [];
 
-        if (existing) {
-          if (existing.content.trim() !== trimmed && trimmed) {
-            await this.apiFetch(`/applications/${appId}/notes/${existing.id}`, {
-              method: 'PUT',
-              body: JSON.stringify({ content: trimmed, stage }),
+        // Update or create notes by position
+        for (let i = 0; i < parsedNotes.length; i++) {
+          if (existing[i]) {
+            if (existing[i].content.trim() !== parsedNotes[i]) {
+              await this.apiFetch(`/applications/${appId}/notes/${existing[i].id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ content: parsedNotes[i], stage }),
+              });
+              console.log(`[sync] Updated note for app ${appId}, stage: ${stage}`);
+            }
+          } else {
+            await this.apiFetch(`/applications/${appId}/notes`, {
+              method: 'POST',
+              body: JSON.stringify({ stage, content: parsedNotes[i] }),
             });
-            console.log(`[sync] Updated note for app ${appId}, stage: ${stage}`);
-          } else if (!trimmed) {
-            await this.apiFetch(`/applications/${appId}/notes/${existing.id}`, {
-              method: 'DELETE',
-            });
-            console.log(`[sync] Deleted empty note for app ${appId}, stage: ${stage}`);
+            console.log(`[sync] Created note for app ${appId}, stage: ${stage}`);
           }
-          delete noteByStage[stage];
-        } else if (trimmed) {
-          await this.apiFetch(`/applications/${appId}/notes`, {
-            method: 'POST',
-            body: JSON.stringify({ stage, content: trimmed }),
+        }
+
+        // Delete notes beyond the parsed list (user removed them)
+        for (let i = parsedNotes.length; i < existing.length; i++) {
+          await this.apiFetch(`/applications/${appId}/notes/${existing[i].id}`, {
+            method: 'DELETE',
           });
-          console.log(`[sync] Created note for app ${appId}, stage: ${stage}`);
+          console.log(`[sync] Deleted note for app ${appId}, stage: ${stage}`);
         }
       }
 
