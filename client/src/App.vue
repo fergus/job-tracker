@@ -48,7 +48,7 @@
 
           <!-- Always visible: Add button + hamburger -->
           <button
-            @click="openForm()"
+            @click="openPanel()"
             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >+ Add Application</button>
           <button
@@ -71,39 +71,28 @@
         :applications="applications"
         :showUser="showAllUsers"
         @status-change="handleStatusChange"
-        @select="openDetail"
+        @select="openPanel"
       />
       <TableView
         v-else-if="view === 'table'"
         :applications="applications"
         :showUserColumn="showAllUsers"
-        @select="openDetail"
+        @select="openPanel"
       />
       <TimelineView
         v-else-if="view === 'timeline'"
         :applications="applications"
-        @open-detail="openDetail"
+        @open-detail="openPanel"
       />
     </main>
 
-    <!-- Modals -->
-    <ApplicationForm
-      v-if="showForm"
-      :application="editingApp"
-      @close="showForm = false"
-      @saved="handleSaved"
-    />
-    <ApplicationDetail
-      v-if="showDetail"
-      :application="selectedApp"
-      @close="showDetail = false"
-      @edit="handleEdit"
-      @delete="handleDelete"
-      @status-change="handleStatusChange"
-      @cv-uploaded="handleFileUploaded"
-      @cover-letter-uploaded="handleFileUploaded"
-      @notes-changed="handleNotesChanged"
-      @dates-changed="handleDatesChanged"
+    <!-- Application panel -->
+    <ApplicationPanel
+      v-if="showPanel"
+      :panelApp="panelApp"
+      @close="closePanel"
+      @saved="handlePanelSaved"
+      @panel-app-updated="panelApp = $event"
     />
     <SidebarMenu
       v-if="showSidebar"
@@ -121,12 +110,11 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { fetchMe, fetchApplications, updateStatus, deleteApplication } from './api'
+import { fetchMe, fetchApplications, updateStatus } from './api'
 import KanbanBoard from './components/KanbanBoard.vue'
 import TableView from './components/TableView.vue'
 import TimelineView from './components/TimelineView.vue'
-import ApplicationForm from './components/ApplicationForm.vue'
-import ApplicationDetail from './components/ApplicationDetail.vue'
+import ApplicationPanel from './components/ApplicationPanel.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 
 const version = __APP_VERSION__
@@ -135,17 +123,16 @@ const COMPACT_KEY = 'jobtracker_compact_header'
 
 const view = ref('kanban')
 const applications = ref([])
-const showForm = ref(false)
-const showDetail = ref(false)
-const editingApp = ref(null)
-const selectedApp = ref(null)
+const panelApp = ref(null)
+const showPanel = ref(false)
 const currentUser = ref(null)
 const showAllUsers = ref(false)
 const showSidebar = ref(false)
 const compactHeader = ref(false)
 
-watch(showSidebar, (open) => {
-  document.body.style.overflow = open ? 'hidden' : ''
+watch([showSidebar, showPanel], ([sidebar, panel]) => {
+  const lock = sidebar || (panel && window.innerWidth < 768)
+  document.body.style.overflow = lock ? 'hidden' : ''
 })
 
 function toggleCompact() {
@@ -157,56 +144,29 @@ async function loadApplications() {
   applications.value = await fetchApplications(null, showAllUsers.value)
 }
 
-function openForm(app = null) {
-  editingApp.value = app
-  showForm.value = true
-  showDetail.value = false
+function openPanel(app = null) {
+  showSidebar.value = false
+  panelApp.value = app ?? {}
+  showPanel.value = true
 }
 
-function openDetail(app) {
-  selectedApp.value = app
-  showDetail.value = true
+function closePanel() {
+  panelApp.value = null
+  showPanel.value = false
 }
 
-function handleSaved() {
-  showForm.value = false
-  loadApplications()
-}
-
-function handleEdit(app) {
-  showDetail.value = false
-  openForm(app)
-}
-
-async function handleDelete(id) {
-  await deleteApplication(id)
-  showDetail.value = false
-  loadApplications()
+async function handlePanelSaved() {
+  await loadApplications()
+  if (panelApp.value?.id) {
+    panelApp.value = applications.value.find(a => a.id === panelApp.value.id) ?? null
+  }
 }
 
 async function handleStatusChange(id, status) {
   await updateStatus(id, status)
-  loadApplications()
-}
-
-async function handleFileUploaded() {
   await loadApplications()
-  if (selectedApp.value) {
-    selectedApp.value = applications.value.find(a => a.id === selectedApp.value.id) || null
-  }
-}
-
-async function handleNotesChanged() {
-  await loadApplications()
-  if (selectedApp.value) {
-    selectedApp.value = applications.value.find(a => a.id === selectedApp.value.id) || null
-  }
-}
-
-async function handleDatesChanged() {
-  await loadApplications()
-  if (selectedApp.value) {
-    selectedApp.value = applications.value.find(a => a.id === selectedApp.value.id) || null
+  if (panelApp.value?.id === id) {
+    panelApp.value = applications.value.find(a => a.id === id) ?? null
   }
 }
 

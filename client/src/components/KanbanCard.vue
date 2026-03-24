@@ -1,6 +1,10 @@
 <template>
   <div
     @click="$emit('select', application)"
+    role="button"
+    tabindex="0"
+    @keydown.enter="$emit('select', application)"
+    @keydown.space.prevent="$emit('select', application)"
     class="bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:shadow-md transition-shadow"
   >
     <p class="font-semibold text-sm text-gray-900 truncate">{{ application.company_name }}</p>

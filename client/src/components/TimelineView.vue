@@ -29,7 +29,10 @@
         :key="app.id"
         class="flex items-center group cursor-pointer hover:bg-gray-50 rounded transition-colors"
         style="min-height: 36px;"
+        role="button"
+        tabindex="0"
         @click="$emit('open-detail', app)"
+        @keydown.enter="$emit('open-detail', app)"
       >
         <!-- Label -->
         <div
