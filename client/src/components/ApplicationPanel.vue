@@ -16,11 +16,11 @@
     <div
       class="absolute flex flex-col bg-white shadow-xl
              inset-x-0 bottom-0 h-[92vh] rounded-t-2xl
-             md:inset-y-0 md:right-0 md:w-[480px] md:rounded-none
+             md:inset-y-0 md:left-0 md:h-auto md:w-[480px] md:rounded-none
              transition-transform duration-300 ease-in-out"
       :class="visible
         ? 'translate-y-0 md:translate-x-0 md:translate-y-0'
-        : 'translate-y-full md:translate-y-0 md:translate-x-full'"
+        : 'translate-y-full md:translate-y-0 md:-translate-x-full'"
     >
       <!-- Mobile drag handle -->
       <div class="md:hidden flex justify-center pt-2.5 pb-1 shrink-0">
@@ -75,21 +75,49 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1">Job Posting URL</label>
-              <input
-                v-model="form.job_posting_url"
-                type="url"
-                placeholder="https://"
-                class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
-              />
+              <div class="flex items-center gap-1">
+                <input
+                  v-model="form.job_posting_url"
+                  type="url"
+                  placeholder="https://"
+                  class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+                />
+                <a
+                  v-if="form.job_posting_url"
+                  :href="form.job_posting_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                  title="Open link"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              </div>
             </div>
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1">Company Website</label>
-              <input
-                v-model="form.company_website_url"
-                type="url"
-                placeholder="https://"
-                class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
-              />
+              <div class="flex items-center gap-1">
+                <input
+                  v-model="form.company_website_url"
+                  type="url"
+                  placeholder="https://"
+                  class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+                />
+                <a
+                  v-if="form.company_website_url"
+                  :href="form.company_website_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                  title="Open link"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              </div>
             </div>
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1">Min Salary</label>
