@@ -10,3 +10,5 @@ CLAUDE.md
 .github/copilot-instructions.md
 .windsurfrules
 .aider*
+smb-share/
+.claude/settings.local.json
