@@ -16,7 +16,7 @@
     <div
       class="absolute flex flex-col bg-white shadow-xl
              inset-x-0 bottom-0 h-[92vh] rounded-t-2xl
-             md:inset-y-0 md:right-0 md:bottom-auto md:w-[480px] md:h-auto md:rounded-none
+             md:inset-y-0 md:right-0 md:w-[480px] md:rounded-none
              transition-transform duration-300 ease-in-out"
       :class="visible
         ? 'translate-y-0 md:translate-x-0 md:translate-y-0'
@@ -121,8 +121,27 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">Job Description</label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-medium text-gray-500">Job Description</label>
+              <button
+                v-if="isEdit && form.job_description && !editingJobDesc"
+                @click="editingJobDesc = true"
+                class="text-xs text-blue-500 hover:text-blue-700"
+              >Edit</button>
+              <button
+                v-if="editingJobDesc"
+                @click="editingJobDesc = false"
+                class="text-xs text-blue-500 hover:text-blue-700"
+              >Done</button>
+            </div>
+            <div
+              v-if="isEdit && form.job_description && !editingJobDesc"
+              class="prose prose-sm max-w-none text-sm text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-gray-300"
+              v-html="renderMarkdown(form.job_description)"
+              @click="editingJobDesc = true"
+            />
             <textarea
+              v-else
               v-model="form.job_description"
               rows="4"
               placeholder="Paste the job description..."
@@ -450,6 +469,7 @@ initForm()
 watch(() => props.panelApp?.id, (newId) => {
   initForm()
   editingDateKey.value = null
+  editingJobDesc.value = false
   if (newId) {
     loadAttachments()
     newNoteStage.value = props.panelApp.status
@@ -563,6 +583,7 @@ async function confirmDelete() {
 
 // Dates
 const editingDateKey = ref(null)
+const editingJobDesc = ref(false)
 
 function toDateInputValue(iso) {
   if (!iso) return ''
