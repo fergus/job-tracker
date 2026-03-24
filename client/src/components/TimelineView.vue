@@ -8,7 +8,7 @@
     <div v-else>
       <!-- Header row with axis -->
       <div class="flex">
-        <div class="shrink-0" :style="{ width: LABEL_WIDTH + 'px' }"></div>
+        <div class="shrink-0 w-24 sm:w-36 md:w-[200px]"></div>
         <div class="flex-1 relative h-8 border-b border-gray-200">
           <!-- Month tick marks -->
           <div
@@ -36,8 +36,7 @@
       >
         <!-- Label -->
         <div
-          class="shrink-0 pr-3 text-right"
-          :style="{ width: LABEL_WIDTH + 'px' }"
+          class="shrink-0 w-24 sm:w-36 md:w-[200px] pr-3 text-right"
         >
           <span class="text-xs text-gray-700 font-medium leading-tight block truncate">{{ app.company_name }}</span>
           <span class="text-xs text-gray-400 leading-tight block truncate">{{ app.role_title }}</span>
@@ -72,8 +71,6 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { computeSegments, stageColor, durationDays } from '../utils/timeline'
-
-const LABEL_WIDTH = 200
 
 const props = defineProps({ applications: Array })
 const emit = defineEmits(['open-detail'])

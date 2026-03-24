@@ -8,6 +8,7 @@
             :key="col.key"
             @click="toggleSort(col.key)"
             class="text-left px-4 py-3 font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none"
+            :class="{ 'hidden md:table-cell': col.mobileHidden }"
           >
             {{ col.label }}
             <span v-if="sortKey === col.key" class="ml-1">{{ sortDir === 'asc' ? '&#9650;' : '&#9660;' }}</span>
@@ -29,12 +30,12 @@
               {{ app.status }}
             </span>
           </td>
-          <td v-if="showUserColumn" class="px-4 py-3 text-gray-500 text-sm">{{ app.user_email }}</td>
-          <td class="px-4 py-3 text-gray-500 truncate max-w-xs">{{ latestNote(app) }}</td>
-          <td class="px-4 py-3 text-gray-500 text-xs">{{ formatDate(lastActivity(app)) }}</td>
+          <td v-if="showUserColumn" class="hidden md:table-cell px-4 py-3 text-gray-500 text-sm">{{ app.user_email }}</td>
+          <td class="hidden md:table-cell px-4 py-3 text-gray-500 truncate max-w-xs">{{ latestNote(app) }}</td>
+          <td class="hidden md:table-cell px-4 py-3 text-gray-500 text-xs">{{ formatDate(lastActivity(app)) }}</td>
         </tr>
         <tr v-if="applications.length === 0">
-          <td :colspan="showUserColumn ? 6 : 5" class="px-4 py-8 text-center text-gray-400">No applications yet. Click "+ Add Application" to get started.</td>
+          <td :colspan="columns.length" class="px-4 py-8 text-center text-gray-400">No applications yet. Click "+ Add Application" to get started.</td>
         </tr>
       </tbody>
     </table>
@@ -52,10 +53,10 @@ const baseColumns = [
   { key: 'role_title', label: 'Role' },
   { key: 'status', label: 'Status' },
 ]
-const userColumn = { key: 'user_email', label: 'User' }
+const userColumn = { key: 'user_email', label: 'User', mobileHidden: true }
 const tailColumns = [
-  { key: 'latest_note', label: 'Latest Note' },
-  { key: 'updated_at', label: 'Last Updated' },
+  { key: 'latest_note', label: 'Latest Note', mobileHidden: true },
+  { key: 'updated_at', label: 'Last Updated', mobileHidden: true },
 ]
 
 const columns = computed(() => {

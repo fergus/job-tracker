@@ -22,7 +22,7 @@
         <span class="font-semibold text-gray-800">Menu</span>
         <button
           @click="$emit('close')"
-          class="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+          class="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
           aria-label="Close menu"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

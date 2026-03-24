@@ -44,7 +44,7 @@
           </div>
           <button
             @click="close"
-            class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0 mt-0.5"
+            class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0 mt-0.5"
             aria-label="Close panel"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -62,7 +62,7 @@
             :key="s"
             @click="onStatusClick(s)"
             :class="[statusPillClass(s), form.status === s ? 'ring-2 ring-offset-1 opacity-100' : 'opacity-50 hover:opacity-80']"
-            class="px-2.5 py-1 rounded-full text-xs font-medium capitalize transition-all"
+            class="px-2.5 py-1.5 rounded-full text-xs font-medium capitalize transition-all"
           >{{ s }}</button>
         </div>
       </div>
@@ -72,7 +72,7 @@
         <div class="px-5 py-4 space-y-5">
 
           <!-- Core fields -->
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-gray-500 mb-1">Job Posting URL</label>
               <input
@@ -171,7 +171,7 @@
                     <button
                       v-if="panelApp[d.key]"
                       @mousedown.prevent="clearDate(d.key)"
-                      class="text-gray-400 hover:text-red-500 text-sm leading-none shrink-0"
+                      class="p-1 rounded text-gray-400 hover:text-red-500 leading-none shrink-0"
                       title="Clear date"
                     >&times;</button>
                   </div>
@@ -222,7 +222,7 @@
                   >{{ att.filename }}</a>
                   <button
                     @click="removeAttachment(att.id)"
-                    class="text-gray-300 hover:text-red-500 text-sm ml-2 shrink-0"
+                    class="p-1.5 rounded text-gray-300 hover:text-red-500 ml-1 shrink-0"
                     title="Delete"
                   >&times;</button>
                 </div>
@@ -271,11 +271,11 @@
                     <div class="ml-auto flex gap-2">
                       <button
                         @click="saveEdit(note.id)"
-                        class="text-xs text-white bg-blue-600 hover:bg-blue-700 font-medium px-2 py-1 rounded"
+                        class="text-xs text-white bg-blue-600 hover:bg-blue-700 font-medium px-3 py-1.5 rounded"
                       >Save</button>
                       <button
                         @click="cancelEdit"
-                        class="text-xs text-gray-600 hover:text-gray-800 font-medium px-2 py-1 rounded bg-gray-200 hover:bg-gray-300"
+                        class="text-xs text-gray-600 hover:text-gray-800 font-medium px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300"
                       >Cancel</button>
                     </div>
                   </div>
@@ -309,7 +309,7 @@
                   </div>
                   <button
                     @click="removeNote(note.id)"
-                    class="text-gray-300 hover:text-red-500 text-sm ml-2 shrink-0"
+                    class="p-1.5 rounded text-gray-300 hover:text-red-500 ml-1 shrink-0"
                   >&times;</button>
                 </div>
               </div>
@@ -327,7 +327,7 @@
                 class="flex items-center justify-between py-1 text-sm text-gray-600"
               >
                 <span class="truncate">{{ f.name }}</span>
-                <button @click="queuedFiles.splice(i, 1)" class="text-gray-300 hover:text-red-500 ml-2 shrink-0">&times;</button>
+                <button @click="queuedFiles.splice(i, 1)" class="p-1.5 rounded text-gray-300 hover:text-red-500 ml-1 shrink-0">&times;</button>
               </div>
             </div>
             <label class="inline-block text-xs text-blue-600 hover:underline cursor-pointer">
@@ -344,7 +344,7 @@
         <button
           v-if="isEdit"
           @click="confirmDelete"
-          class="text-sm text-red-600 hover:text-red-700 font-medium"
+          class="py-2 text-sm text-red-600 hover:text-red-700 font-medium"
         >Delete</button>
         <div v-else></div>
         <div class="flex gap-2">

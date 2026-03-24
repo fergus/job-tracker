@@ -1,9 +1,9 @@
 <template>
-  <div class="flex gap-4 overflow-x-auto pb-4">
+  <div class="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
     <div
       v-for="stage in stages"
       :key="stage.value"
-      class="flex-1 min-w-[200px]"
+      class="snap-start shrink-0 w-[85vw] md:shrink md:flex-1 md:min-w-[200px]"
     >
       <div class="flex items-center gap-2 mb-3">
         <span :class="stage.color" class="w-2.5 h-2.5 rounded-full inline-block"></span>
