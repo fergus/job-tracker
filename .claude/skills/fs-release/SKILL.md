@@ -1,3 +1,8 @@
+---
+name: fs-release
+description: Bump the version, commit, push, create a GitHub release, wait for the CI build, and deploy to the test server.
+---
+
 # Release
 
 Bump the version, commit, push, create a GitHub release, wait for the build, deploy to the test server, and summarise.
