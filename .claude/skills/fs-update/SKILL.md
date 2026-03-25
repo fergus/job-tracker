@@ -79,7 +79,7 @@ Track what was updated and the old → new versions for the summary.
 If list B is non-empty, present each CVE group (there may be multiple per package) to the user one at a time using AskUserQuestion with options:
 
 - **Fix now** — apply `npm audit fix` (or `npm audit fix --force` if a major bump is required, with a warning)
-- **Create a todo** — add a TaskCreate entry and move on
+- **Create a todo** — create a file in `todos/` (see Todo Format below)
 - **Skip** — note it in the summary and continue
 
 For critical/high severity, lead with a clear warning.
@@ -89,7 +89,7 @@ For critical/high severity, lead with a clear warning.
 If list C is non-empty, present them grouped (minor bumps together, major bumps together) using AskUserQuestion with options:
 
 - **Update now** — run `npm install <package>@<version>`
-- **Create a todo** — add a TaskCreate entry
+- **Create a todo** — create a file in `todos/` (see Todo Format below)
 - **Skip** — note in summary
 
 ### 6. Prompt for Docker/Actions updates
@@ -103,7 +103,48 @@ For "Update now":
 - Dockerfile `FROM`: edit the image tag
 - `docker-compose.yml` `image:`: edit the image tag
 
-### 7. Commit
+### 7. Todo Format
+
+When creating a todo, write a markdown file to `todos/` following this exact naming convention and structure:
+
+**Filename**: `<NNN>-pending-<priority>-<short-slug>.md`
+- `NNN` — three-digit number, one higher than the current highest `issue_id` in the `todos/` directory
+- `priority` — use `p2` for CVEs, `p3` for minor/major/Docker/Actions bumps
+- `short-slug` — kebab-case description, e.g. `upgrade-vite-v8`
+
+**Content**:
+```markdown
+---
+status: pending
+priority: p3
+issue_id: "NNN"
+tags: [dependencies]
+dependencies: []
+---
+
+# <Title>
+
+## Problem Statement
+<Why this upgrade matters or what risk it carries>
+
+## Findings
+- Current version: X.Y.Z
+- Latest version: A.B.C
+- Upgrade type: major / minor / Docker / Actions
+
+## Proposed Solutions
+### Option A: Upgrade now
+Run `npm install <package>@latest` (or equivalent), verify build passes, then release.
+- **Effort**: Small | **Risk**: <Low/Medium/High>
+
+## Acceptance Criteria
+- [ ] Package upgraded to vA.B.C
+- [ ] Build passes with no regressions
+```
+
+Use `tags: [dependencies, security]` for CVEs. Adjust the template as needed to capture relevant context (e.g. migration guide URL for major bumps, CVE identifier for security issues).
+
+### 8. Commit
 
 Stage all modified files:
 
