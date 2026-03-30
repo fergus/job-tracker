@@ -247,7 +247,7 @@
                     :href="getAttachmentUrl(panelApp.id, att.id)"
                     class="text-sm text-blue-600 hover:underline truncate"
                     download
-                  >{{ att.filename }}</a>
+                  >{{ att.original_filename }}</a>
                   <button
                     @click="removeAttachment(att.id)"
                     class="p-1.5 rounded text-gray-300 hover:text-red-500 ml-1 shrink-0"
@@ -492,6 +492,9 @@ function initForm() {
 
 // Initialize form from prop immediately (form reactive object is already declared above)
 initForm()
+
+// Load attachments on mount (watcher has no immediate to avoid TDZ on refs declared below)
+onMounted(() => { if (props.panelApp?.id) loadAttachments() })
 
 // Re-init when switching between apps without unmounting (no immediate — avoid TDZ)
 watch(() => props.panelApp?.id, (newId) => {
