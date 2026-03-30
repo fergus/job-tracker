@@ -23,6 +23,6 @@ Review the [Vite 8 migration guide](https://vite.dev/guide/migration), run `npm 
 - **Effort**: Small–Medium | **Risk**: Medium (major version)
 
 ## Acceptance Criteria
-- [ ] `client/package.json` references vite 8.x
-- [ ] `npm run dev:client` starts without errors
-- [ ] `npm run build:client` succeeds with no regressions
+- [x] `client/package.json` references vite 8.x
+- [x] `npm run dev:client` starts without errors
+- [x] `npm run build:client` succeeds with no regressions
