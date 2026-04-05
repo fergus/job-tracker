@@ -67,10 +67,14 @@ GitHub Actions version bumps and Docker image version bumps. For each:
 
 For each package in list A:
 
+Always use absolute paths to avoid working-directory drift between Bash calls:
+
 ```bash
-cd server && npm update <package>   # for server packages
-cd client && npm update <package>   # for client packages
+cd /path/to/project/server && npm update <package>   # for server packages
+cd /path/to/project/client && npm update <package>   # for client packages
 ```
+
+Replace `/path/to/project` with the actual project root (the git repository root).
 
 Track what was updated and the old → new versions for the summary.
 
