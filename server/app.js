@@ -20,14 +20,14 @@ app.use(express.json({ limit: '100kb' }));
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: parseInt(process.env.RATE_LIMIT_API ?? '100', 10),
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const uploadLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: parseInt(process.env.RATE_LIMIT_UPLOADS ?? '20', 10),
   standardHeaders: true,
   legacyHeaders: false,
 });

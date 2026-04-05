@@ -29,6 +29,8 @@ services:
     environment:
       - NODE_ENV=production
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      - RATE_LIMIT_API=${RATE_LIMIT_API:-100}
+      - RATE_LIMIT_UPLOADS=${RATE_LIMIT_UPLOADS:-20}
       - ENABLE_SMB=${ENABLE_SMB:-false}
       - SMB_USER=${SMB_USER:-}
       - SMB_PASS=${SMB_PASS:-}
