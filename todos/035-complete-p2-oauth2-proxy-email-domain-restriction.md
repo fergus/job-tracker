@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "035"
 tags: [security, owasp, auth, oauth2-proxy]
@@ -30,9 +30,10 @@ If multiple domains need to be supported, keep `*` but add a comment block in bo
 ```
 
 ## Acceptance Criteria
-- [ ] `OAUTH2_PROXY_EMAIL_DOMAINS` is either restricted to a specific domain, or has a prominent warning comment
-- [ ] `.env.example` updated with the same warning/restriction
-- [ ] CLAUDE.md updated to document the assumption if wildcard is kept
+- [x] `OAUTH2_PROXY_EMAIL_DOMAINS` is either restricted to a specific domain, or has a prominent warning comment
+- [x] `.env.example` updated with the same warning/restriction
+- [x] CLAUDE.md updated to document the assumption if wildcard is kept
 
 ## Work Log
 - 2026-03-25: Created from OWASP Top 10 security review
+- 2026-04-06: Implemented Option B — added warning comments to docker-compose.yml, .env.example, and CLAUDE.md
