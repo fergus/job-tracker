@@ -158,7 +158,8 @@ git add \
   client/package.json client/package-lock.json \
   Dockerfile \
   docker-compose.yml \
-  .github/workflows/*.yml
+  .github/workflows/*.yml \
+  todos/
 ```
 
 Only stage files that were actually changed. Commit with:
@@ -169,7 +170,18 @@ git commit -m "chore: dependency updates"
 
 Do not include Co-Authored-By or any Claude attribution in the commit message.
 
-If nothing changed (all items were skipped or todo'd), skip the commit and say so.
+If nothing changed (all items were skipped or todo'd), skip the commit and push, and say so.
+
+After a successful commit, push to the remote:
+
+```bash
+git push -u origin HEAD:<current-branch>
+```
+
+If the repo is in a detached HEAD state, determine the target branch by checking
+`git ls-remote origin` and push to `main` (or whichever branch HEAD was on before
+the detach). Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on
+network failures.
 
 ### 8. Display summary table
 
