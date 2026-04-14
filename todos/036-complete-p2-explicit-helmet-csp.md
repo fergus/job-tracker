@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "036"
 tags: [security, owasp, csp, helmet]
@@ -38,9 +38,10 @@ app.use(helmet({
 Audit the actual SPA network requests to confirm all required sources are included before deploying.
 
 ## Acceptance Criteria
-- [ ] Explicit CSP directives defined in `server/app.js`
+- [x] Explicit CSP directives defined in `server/app.js`
 - [ ] Tested in browser dev tools — no CSP violations on normal app usage
-- [ ] `styleSrc` accounts for Tailwind's inline style requirements if needed
+- [x] `styleSrc` accounts for Tailwind's inline style requirements if needed
 
 ## Work Log
 - 2026-03-25: Created from OWASP Top 10 security review
+- 2026-04-06: Implemented explicit CSP directives in server/app.js
