@@ -44,7 +44,7 @@ function authMiddleware(req, res, next) {
     req.authMethod = 'api_key';
 
     // Fire-and-forget last_used_at update
-    Promise.resolve().then(() => db.updateApiKeyLastUsed.run(row.id));
+    Promise.resolve().then(() => db.updateApiKeyLastUsed.run(row.id)).catch(() => {});
 
     const now = new Date().toISOString();
     upsertUser.run(req.userEmail, now, now);
