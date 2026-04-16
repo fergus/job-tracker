@@ -156,10 +156,10 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, onMounted } from 'vue'
 import { generateApiKey, listApiKeys, revokeApiKey } from '../api'
 
-const props = defineProps({
+defineProps({
   show: Boolean,
 })
 defineEmits(['close'])
@@ -174,19 +174,12 @@ const isGenerating = ref(false)
 const confirmRevokeId = ref(null)
 const copied = ref(false)
 
-watch(() => props.show, async (val) => {
-  if (val) {
+onMounted(() => {
+  panelRoot.value?.focus()
+  requestAnimationFrame(() => {
     visible.value = true
-    await nextTick()
-    panelRoot.value?.focus()
-    loadKeys()
-  } else {
-    visible.value = false
-    confirmRevokeId.value = null
-    generateError.value = null
-    newKey.value = null
-    copied.value = false
-  }
+  })
+  loadKeys()
 })
 
 async function loadKeys() {
