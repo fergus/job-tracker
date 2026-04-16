@@ -3,10 +3,11 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const db = require('../db');
+const svc = require('../services/applications');
+const { ServiceError, VALID_STATUSES, uploadsDir, safePath } = svc;
 
 const router = express.Router();
 
-const uploadsDir = path.resolve(path.join(__dirname, '..', '..', 'uploads'));
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
@@ -30,56 +31,13 @@ function fileFilter(req, file, cb) {
 
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter });
 
-const VALID_STATUSES = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected'];
-
-const STATUS_DATE_MAP = {
-  interested: 'interested_at',
-  applied: 'applied_at',
-  screening: 'screening_at',
-  interview: 'interview_at',
-  offer: 'offer_at',
-  accepted: 'closed_at',
-  rejected: 'closed_at'
-};
-
-const LIMITS = {
-  company_name: 200,
-  role_title: 200,
-  job_description: 10000,
-  job_posting_url: 2000,
-  company_website_url: 2000,
-  interview_notes: 10000,
-  prep_work: 10000,
-  job_location: 500,
-};
-
-function validateInputLengths(body, fields) {
-  for (const field of fields) {
-    if (body[field] && body[field].length > LIMITS[field]) {
-      return `${field} exceeds maximum length of ${LIMITS[field]} characters`;
-    }
-  }
-  return null;
+// Converts a ServiceError to an HTTP response; re-throws unexpected errors.
+function handleError(res, err) {
+  if (err instanceof ServiceError) return res.status(err.status).json({ error: err.message });
+  throw err;
 }
 
-function isValidUrl(url) {
-  if (!url) return true;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-function safePath(base, filename) {
-  const resolved = path.resolve(base, filename);
-  if (!resolved.startsWith(base + path.sep) && resolved !== base) {
-    return null;
-  }
-  return resolved;
-}
-
+// Ownership check used by routes that aren't delegated to a service function.
 function getOwnApp(id, userEmail) {
   return db.prepare('SELECT * FROM applications WHERE id = ? AND user_email = ?').get(id, userEmail);
 }
@@ -98,216 +56,51 @@ function attachNotes(rows) {
 
 // List applications (scoped to user, or all if admin with ?all=true)
 router.get('/', (req, res) => {
-  const { status, all, updated_since } = req.query;
-  const showAll = req.isAdmin && all === 'true';
-
-  let sql = 'SELECT * FROM applications';
-  const conditions = [];
-  const params = [];
-
-  if (!showAll) {
-    conditions.push('user_email = ?');
-    params.push(req.userEmail);
-  }
-
-  if (status && VALID_STATUSES.includes(status)) {
-    conditions.push('status = ?');
-    params.push(status);
-  }
-
-  if (updated_since) {
-    conditions.push('updated_at > ?');
-    params.push(updated_since);
-  }
-
-  if (conditions.length > 0) {
-    sql += ' WHERE ' + conditions.join(' AND ');
-  }
-
-  sql += ' ORDER BY updated_at DESC';
-
-  const rows = db.prepare(sql).all(...params);
-  res.json(attachNotes(rows));
+  try {
+    res.json(svc.listApplications(req.userEmail, {
+      status: req.query.status,
+      all: req.query.all,
+      updated_since: req.query.updated_since,
+      isAdmin: req.isAdmin,
+    }));
+  } catch (e) { handleError(res, e); }
 });
 
 // Get single application (own or admin view)
 router.get('/:id', (req, res) => {
-  let row;
-  if (req.isAdmin) {
-    row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  } else {
-    row = getOwnApp(req.params.id, req.userEmail);
-  }
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json(attachNotes([row])[0]);
+  try {
+    res.json(svc.getApplication(req.userEmail, req.params.id, { isAdmin: req.isAdmin }));
+  } catch (e) { handleError(res, e); }
 });
 
 // Create application (multipart for CV + cover letter)
 router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_letter', maxCount: 1 }]), (req, res) => {
-  const { company_name, role_title, status, job_description, job_posting_url, company_website_url, interview_notes, prep_work, job_location } = req.body;
-  if (!company_name || !role_title) {
-    return res.status(400).json({ error: 'company_name and role_title are required' });
-  }
-
-  const lengthError = validateInputLengths(req.body, Object.keys(LIMITS));
-  if (lengthError) return res.status(400).json({ error: lengthError });
-
-  if (!isValidUrl(job_posting_url)) return res.status(400).json({ error: 'job_posting_url must be an http or https URL' });
-  if (!isValidUrl(company_website_url)) return res.status(400).json({ error: 'company_website_url must be an http or https URL' });
-
-  // Validate salary fields (multipart forms send strings; treat '' as null)
-  let salary_min = (req.body.salary_min != null && req.body.salary_min !== '') ? Number(req.body.salary_min) : null;
-  let salary_max = (req.body.salary_max != null && req.body.salary_max !== '') ? Number(req.body.salary_max) : null;
-  if (salary_min !== null && (!Number.isInteger(salary_min) || salary_min < 0)) {
-    return res.status(400).json({ error: 'salary_min must be a non-negative integer or null' });
-  }
-  if (salary_max !== null && (!Number.isInteger(salary_max) || salary_max < 0)) {
-    return res.status(400).json({ error: 'salary_max must be a non-negative integer or null' });
-  }
-  if (salary_min !== null && salary_max !== null && salary_min > salary_max) {
-    return res.status(400).json({ error: 'salary_min must not exceed salary_max' });
-  }
-
-  const now = new Date().toISOString();
-  const appStatus = status && VALID_STATUSES.includes(status) ? status : 'interested';
-
-  let cv_filename = null;
-  let cv_path = null;
-  if (req.files?.cv?.[0]) {
-    cv_filename = req.files.cv[0].originalname;
-    cv_path = req.files.cv[0].filename;
-  }
-
-  let cover_letter_filename = null;
-  let cover_letter_path = null;
-  if (req.files?.cover_letter?.[0]) {
-    cover_letter_filename = req.files.cover_letter[0].originalname;
-    cover_letter_path = req.files.cover_letter[0].filename;
-  }
-
-  const dateField = STATUS_DATE_MAP[appStatus];
-  const stmt = db.prepare(`
-    INSERT INTO applications (company_name, role_title, status, job_description, job_posting_url, company_website_url,
-      cv_filename, cv_path, cover_letter_filename, cover_letter_path, interview_notes, prep_work,
-      salary_min, salary_max, job_location,
-      created_at, updated_at,
-      interested_at, applied_at, screening_at, interview_at, offer_at, closed_at, user_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const result = stmt.run(
-    company_name, role_title, appStatus,
-    job_description || null, job_posting_url || null, company_website_url || null,
-    cv_filename, cv_path, cover_letter_filename, cover_letter_path,
-    interview_notes || null, prep_work || null,
-    salary_min, salary_max, job_location || null,
-    now, now,
-    now,
-    dateField === 'applied_at' ? now : null,
-    dateField === 'screening_at' ? now : null,
-    dateField === 'interview_at' ? now : null,
-    dateField === 'offer_at' ? now : null,
-    dateField === 'closed_at' ? now : null,
-    req.userEmail
-  );
-
-  const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(row);
+  try {
+    const data = { ...req.body };
+    if (req.files?.cv?.[0]) {
+      data.cv_filename = req.files.cv[0].originalname;
+      data.cv_path = req.files.cv[0].filename;
+    }
+    if (req.files?.cover_letter?.[0]) {
+      data.cover_letter_filename = req.files.cover_letter[0].originalname;
+      data.cover_letter_path = req.files.cover_letter[0].filename;
+    }
+    res.status(201).json(svc.createApplication(req.userEmail, data));
+  } catch (e) { handleError(res, e); }
 });
 
 // Update application fields (owner only)
 router.put('/:id', (req, res) => {
-  const existing = getOwnApp(req.params.id, req.userEmail);
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-
-  const fields = ['company_name', 'role_title', 'job_description', 'job_posting_url',
-    'company_website_url', 'interview_notes', 'prep_work', 'job_location'];
-  const updates = [];
-  const values = [];
-
-  const lengthError = validateInputLengths(req.body, fields);
-  if (lengthError) return res.status(400).json({ error: lengthError });
-
-  if (req.body.job_posting_url !== undefined && !isValidUrl(req.body.job_posting_url)) {
-    return res.status(400).json({ error: 'job_posting_url must be an http or https URL' });
-  }
-  if (req.body.company_website_url !== undefined && !isValidUrl(req.body.company_website_url)) {
-    return res.status(400).json({ error: 'company_website_url must be an http or https URL' });
-  }
-
-  // Validate salary fields
-  if (req.body.salary_min !== undefined) {
-    const val = req.body.salary_min;
-    if (val !== null && (!Number.isInteger(val) || val < 0)) {
-      return res.status(400).json({ error: 'salary_min must be a non-negative integer or null' });
-    }
-  }
-  if (req.body.salary_max !== undefined) {
-    const val = req.body.salary_max;
-    if (val !== null && (!Number.isInteger(val) || val < 0)) {
-      return res.status(400).json({ error: 'salary_max must be a non-negative integer or null' });
-    }
-  }
-  const salaryMin = req.body.salary_min !== undefined ? req.body.salary_min : existing.salary_min;
-  const salaryMax = req.body.salary_max !== undefined ? req.body.salary_max : existing.salary_max;
-  if (salaryMin != null && salaryMax != null && salaryMin > salaryMax) {
-    return res.status(400).json({ error: 'salary_min must not exceed salary_max' });
-  }
-
-  for (const field of fields) {
-    if (req.body[field] !== undefined) {
-      updates.push(`${field} = ?`);
-      values.push(req.body[field]);
-    }
-  }
-
-  // Handle salary fields (not in the text fields list since they're integers)
-  for (const field of ['salary_min', 'salary_max']) {
-    if (req.body[field] !== undefined) {
-      updates.push(`${field} = ?`);
-      values.push(req.body[field]);
-    }
-  }
-
-  if (updates.length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
-  }
-
-  updates.push('updated_at = ?');
-  values.push(new Date().toISOString());
-  values.push(req.params.id);
-  values.push(req.userEmail);
-
-  db.prepare(`UPDATE applications SET ${updates.join(', ')} WHERE id = ? AND user_email = ?`).run(...values);
-  const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  res.json(row);
+  try {
+    res.json(svc.updateApplication(req.userEmail, req.params.id, req.body));
+  } catch (e) { handleError(res, e); }
 });
 
 // Change status (owner only)
 router.patch('/:id/status', (req, res) => {
-  const { status } = req.body;
-  if (!status || !VALID_STATUSES.includes(status)) {
-    return res.status(400).json({ error: 'Invalid status' });
-  }
-
-  const existing = getOwnApp(req.params.id, req.userEmail);
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-
-  const now = new Date().toISOString();
-  const updates = ['status = ?', 'updated_at = ?'];
-  const values = [status, now];
-
-  const dateField = STATUS_DATE_MAP[status];
-  if (dateField) {
-    updates.push(`${dateField} = ?`);
-    values.push(now);
-  }
-
-  values.push(req.params.id);
-  values.push(req.userEmail);
-  db.prepare(`UPDATE applications SET ${updates.join(', ')} WHERE id = ? AND user_email = ?`).run(...values);
-  const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  res.json(row);
+  try {
+    res.json(svc.updateStatus(req.userEmail, req.params.id, req.body.status));
+  } catch (e) { handleError(res, e); }
 });
 
 // Upload/replace CV (owner only)
@@ -316,7 +109,6 @@ router.post('/:id/cv', upload.single('cv'), (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  // Remove old file
   if (existing.cv_path) {
     const oldPath = safePath(uploadsDir, existing.cv_path);
     if (oldPath && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
@@ -325,18 +117,14 @@ router.post('/:id/cv', upload.single('cv'), (req, res) => {
   db.prepare('UPDATE applications SET cv_filename = ?, cv_path = ?, updated_at = ? WHERE id = ? AND user_email = ?')
     .run(req.file.originalname, req.file.filename, new Date().toISOString(), req.params.id, req.userEmail);
 
-  const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  res.json(row);
+  res.json(db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id));
 });
 
 // Download CV (own or admin view)
 router.get('/:id/cv', (req, res) => {
-  let existing;
-  if (req.isAdmin) {
-    existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  } else {
-    existing = getOwnApp(req.params.id, req.userEmail);
-  }
+  const existing = req.isAdmin
+    ? db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id)
+    : getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!existing.cv_path) return res.status(404).json({ error: 'No CV uploaded' });
 
@@ -361,18 +149,14 @@ router.post('/:id/cover-letter', upload.single('cover_letter'), (req, res) => {
   db.prepare('UPDATE applications SET cover_letter_filename = ?, cover_letter_path = ?, updated_at = ? WHERE id = ? AND user_email = ?')
     .run(req.file.originalname, req.file.filename, new Date().toISOString(), req.params.id, req.userEmail);
 
-  const row = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  res.json(row);
+  res.json(db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id));
 });
 
 // Download cover letter (own or admin view)
 router.get('/:id/cover-letter', (req, res) => {
-  let existing;
-  if (req.isAdmin) {
-    existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  } else {
-    existing = getOwnApp(req.params.id, req.userEmail);
-  }
+  const existing = req.isAdmin
+    ? db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id)
+    : getOwnApp(req.params.id, req.userEmail);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!existing.cover_letter_path) return res.status(404).json({ error: 'No cover letter uploaded' });
 
@@ -385,23 +169,15 @@ router.get('/:id/cover-letter', (req, res) => {
 
 // List attachments for an application (own or admin view)
 router.get('/:id/attachments', (req, res) => {
-  let existing;
-  if (req.isAdmin) {
-    existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  } else {
-    existing = getOwnApp(req.params.id, req.userEmail);
-  }
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-
-  const attachments = db.prepare('SELECT id, original_filename, file_size, mime_type, created_at FROM attachments WHERE application_id = ? ORDER BY created_at ASC').all(req.params.id);
-  res.json(attachments);
+  try {
+    res.json(svc.listAttachments(req.userEmail, req.params.id, { isAdmin: req.isAdmin }));
+  } catch (e) { handleError(res, e); }
 });
 
 // Upload attachments (owner only)
 router.post('/:id/attachments', upload.array('files', 10), (req, res) => {
   const existing = getOwnApp(req.params.id, req.userEmail);
   if (!existing) {
-    // Clean up files multer already wrote to disk
     if (req.files) req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
     return res.status(404).json({ error: 'Not found' });
   }
@@ -434,22 +210,13 @@ router.post('/:id/attachments', upload.array('files', 10), (req, res) => {
 
 // Download a specific attachment (own or admin view)
 router.get('/:id/attachments/:attachmentId', (req, res) => {
-  let existing;
-  if (req.isAdmin) {
-    existing = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
-  } else {
-    existing = getOwnApp(req.params.id, req.userEmail);
-  }
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-
-  const attachment = db.prepare('SELECT * FROM attachments WHERE id = ? AND application_id = ?').get(req.params.attachmentId, req.params.id);
-  if (!attachment) return res.status(404).json({ error: 'Attachment not found' });
-
-  const filePath = safePath(uploadsDir, attachment.stored_filename);
-  if (!filePath) return res.status(400).json({ error: 'Invalid file path' });
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
-
-  res.download(filePath, attachment.original_filename);
+  try {
+    const attachment = svc.getAttachment(req.userEmail, req.params.id, req.params.attachmentId, { isAdmin: req.isAdmin });
+    const filePath = safePath(uploadsDir, attachment.stored_filename);
+    if (!filePath) return res.status(400).json({ error: 'Invalid file path' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+    res.download(filePath, attachment.original_filename);
+  } catch (e) { handleError(res, e); }
 });
 
 // Delete a specific attachment (owner only)
@@ -509,53 +276,16 @@ router.patch('/:id/dates', (req, res) => {
 
 // Delete application (owner only — no admin bypass)
 router.delete('/:id', (req, res) => {
-  const existing = getOwnApp(req.params.id, req.userEmail);
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-
-  // Collect all file paths to delete (attachments + legacy cv/cover letter)
-  const attachments = db.prepare('SELECT stored_filename FROM attachments WHERE application_id = ?').all(req.params.id);
-  const filesToDelete = attachments.map(a => a.stored_filename);
-  if (existing.cv_path) filesToDelete.push(existing.cv_path);
-  if (existing.cover_letter_path) filesToDelete.push(existing.cover_letter_path);
-
-  // Delete DB row first (CASCADE removes attachment rows), then files
-  db.prepare('DELETE FROM applications WHERE id = ? AND user_email = ?').run(req.params.id, req.userEmail);
-
-  for (const filename of filesToDelete) {
-    const filePath = safePath(uploadsDir, filename);
-    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  }
-
-  res.json({ success: true });
+  try {
+    res.json(svc.deleteApplication(req.userEmail, req.params.id));
+  } catch (e) { handleError(res, e); }
 });
 
 // Create a stage note (owner only)
 router.post('/:id/notes', (req, res) => {
-  const existing = getOwnApp(req.params.id, req.userEmail);
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-
-  const { stage, content } = req.body;
-  if (!stage || !content) {
-    return res.status(400).json({ error: 'stage and content are required' });
-  }
-  if (!VALID_STATUSES.includes(stage)) {
-    return res.status(400).json({ error: 'Invalid stage' });
-  }
-  if (content.length > 10000) {
-    return res.status(400).json({ error: 'content exceeds maximum length of 10000 characters' });
-  }
-
-  const now = new Date().toISOString();
-  const insertNote = db.transaction(() => {
-    const result = db.prepare('INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-      .run(req.params.id, stage, content, now, now);
-    db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
-    return result;
-  });
-
-  const result = insertNote();
-  const note = db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(note);
+  try {
+    res.status(201).json(svc.addNote(req.userEmail, req.params.id, req.body));
+  } catch (e) { handleError(res, e); }
 });
 
 // Update a stage note (owner only)
@@ -588,8 +318,7 @@ router.put('/:id/notes/:noteId', (req, res) => {
   db.prepare(`UPDATE stage_notes SET ${updates.join(', ')} WHERE id = ?`).run(...values);
   db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
 
-  const updated = db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(req.params.noteId);
-  res.json(updated);
+  res.json(db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(req.params.noteId));
 });
 
 // Delete a stage note (owner only)

@@ -29,11 +29,13 @@ services:
     build: .
     expose:
       - "3000"
+      - "3001"
     environment:
       - NODE_ENV=production
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
       - RATE_LIMIT_API=${RATE_LIMIT_API:-100}
       - RATE_LIMIT_UPLOADS=${RATE_LIMIT_UPLOADS:-20}
+      - MCP_PORT=3001
       # Required in production — generate with: openssl rand -hex 32
       - SERVER_API_KEY_SECRET=${SERVER_API_KEY_SECRET}
     volumes:
