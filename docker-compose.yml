@@ -29,7 +29,8 @@ services:
     build: .
     expose:
       - "3000"
-      - "3001"
+    ports:
+      - "${MCP_LISTEN_PORT:-3563}:3001"
     environment:
       - NODE_ENV=production
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
