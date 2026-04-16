@@ -29,35 +29,27 @@ services:
     build: .
     expose:
       - "3000"
-    ports:
-      - "127.0.0.1:445:3445"     # SMB - high port internally, 445 externally, localhost only
     environment:
       - NODE_ENV=production
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
       - RATE_LIMIT_API=${RATE_LIMIT_API:-100}
       - RATE_LIMIT_UPLOADS=${RATE_LIMIT_UPLOADS:-20}
-      - ENABLE_SMB=${ENABLE_SMB:-false}
-      - SMB_USER=${SMB_USER:-}
-      - SMB_PASS=${SMB_PASS:-}
-      - SMB_USER_EMAIL=${SMB_USER_EMAIL:-}
-      - SMB_CREDENTIALS_FILE=${SMB_CREDENTIALS_FILE:-}
+      # Required in production — generate with: openssl rand -hex 32
+      - SERVER_API_KEY_SECRET=${SERVER_API_KEY_SECRET}
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
-      - ./smb-share:/app/smb-share
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
-    # If using SMB, set on the host: sysctl fs.inotify.max_user_watches=524288
     security_opt:
       - no-new-privileges
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN
-      - SETUID
-      - SETGID
-      - DAC_OVERRIDE
+      - CHOWN       # entrypoint chown /app/data and /app/uploads
+      - SETUID      # su-exec user switch
+      - SETGID      # su-exec user switch

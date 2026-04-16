@@ -98,3 +98,15 @@ export function getAttachmentUrl(appId, attachmentId) {
 export function deleteAttachment(appId, attachmentId) {
   return api.delete(`/applications/${appId}/attachments/${attachmentId}`).then(r => r.data)
 }
+
+export function generateApiKey(label) {
+  return api.post('/keys', { label: label || null }).then(r => r.data)
+}
+
+export function listApiKeys() {
+  return api.get('/keys').then(r => r.data)
+}
+
+export function revokeApiKey(id) {
+  return api.delete(`/keys/${id}`).then(r => r.data)
+}

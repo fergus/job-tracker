@@ -2,6 +2,9 @@
 
 // Must be set before any require so db.js uses an in-memory database
 process.env.DB_PATH = ':memory:';
+// Disable rate limiting in tests
+process.env.RATE_LIMIT_API = '100000';
+process.env.RATE_LIMIT_UPLOADS = '100000';
 
 const { test, before, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -393,5 +396,224 @@ describe('Notes', () => {
 
     const appRes = await req.get(`/api/applications/${app.id}`);
     assert.equal(appRes.body.notes.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// API Key authentication
+// ---------------------------------------------------------------------------
+
+describe('API Key auth', () => {
+  // Helper: generate an API key via OAuth-authenticated POST
+  async function createKey(userEmail = 'keyuser@example.com', label = 'test-key') {
+    const res = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', userEmail)
+      .send({ label });
+    assert.equal(res.status, 201);
+    assert.ok(res.body.key, 'raw key must be present in creation response');
+    return res.body;
+  }
+
+  test('valid Bearer key grants access without X-Forwarded-Email header', async () => {
+    const { key } = await createKey('bearer-test@example.com');
+    // Critical: agent path — Bearer only, no X-Forwarded-Email
+    const res = await req.get('/api/me').set('Authorization', `Bearer ${key}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.email, 'bearer-test@example.com');
+  });
+
+  test('valid Bearer key scopes requests to key owner', async () => {
+    const userA = 'user-a@example.com';
+    const userB = 'user-b@example.com';
+
+    // Create an app for user A via OAuth
+    const app = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', userA)
+      .field('company_name', 'AcmeCorp')
+      .field('role_title', 'Engineer');
+    assert.equal(app.status, 201);
+
+    // Generate a key for user B
+    const { key } = await createKey(userB);
+
+    // User B's key should NOT see user A's application
+    const res = await req.get('/api/applications').set('Authorization', `Bearer ${key}`);
+    assert.equal(res.status, 200);
+    assert.ok(!res.body.some(a => a.user_email === userA), 'user B should not see user A apps');
+  });
+
+  test('invalid Bearer token returns 401', async () => {
+    const res = await req.get('/api/me').set('Authorization', 'Bearer not-a-real-key');
+    assert.equal(res.status, 401);
+    assert.equal(res.body.error, 'Invalid API key');
+  });
+
+  test('malformed Authorization header returns 401', async () => {
+    // Use a single-char token that enters the Bearer path but matches no key
+    const res = await req.get('/api/me').set('Authorization', 'Bearer x');
+    assert.equal(res.status, 401);
+  });
+
+  test('revoked key returns 401', async () => {
+    const { key, id } = await createKey('revoke-test@example.com');
+
+    // Verify it works before revocation
+    const before = await req.get('/api/me').set('Authorization', `Bearer ${key}`);
+    assert.equal(before.status, 200);
+
+    // Revoke it
+    const del = await req
+      .delete(`/api/keys/${id}`)
+      .set('X-Forwarded-Email', 'revoke-test@example.com');
+    assert.equal(del.status, 204);
+
+    // Should now return 401
+    const after = await req.get('/api/me').set('Authorization', `Bearer ${key}`);
+    assert.equal(after.status, 401);
+  });
+
+  test('existing OAuth path still works after auth refactor', async () => {
+    const res = await req.get('/api/me').set('X-Forwarded-Email', 'oauth-regression@example.com');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.email, 'oauth-regression@example.com');
+  });
+
+  test('dev fallback still works when no auth headers present', async () => {
+    const res = await req.get('/api/me');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.email, 'dev@localhost');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// API Key management endpoints
+// ---------------------------------------------------------------------------
+
+describe('Key management', () => {
+  const oauthUser = 'keymgmt@example.com';
+
+  test('POST /api/keys returns 201 with raw key and metadata', async () => {
+    const res = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', oauthUser)
+      .send({ label: 'my-key' });
+    assert.equal(res.status, 201);
+    assert.ok(res.body.key, 'raw key must be returned');
+    assert.equal(res.body.label, 'my-key');
+    assert.ok(res.body.id);
+    assert.ok(res.body.created_at);
+    // key_hash must never be returned
+    assert.equal(res.body.key_hash, undefined);
+  });
+
+  test('POST /api/keys without label stores null label', async () => {
+    const res = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', oauthUser)
+      .send({});
+    assert.equal(res.status, 201);
+    assert.equal(res.body.label, null);
+  });
+
+  test('GET /api/keys lists keys without key_hash', async () => {
+    const email = 'list-keys@example.com';
+    await req.post('/api/keys').set('X-Forwarded-Email', email).send({ label: 'k1' });
+    await req.post('/api/keys').set('X-Forwarded-Email', email).send({ label: 'k2' });
+
+    const res = await req.get('/api/keys').set('X-Forwarded-Email', email);
+    assert.equal(res.status, 200);
+    assert.ok(Array.isArray(res.body));
+    assert.ok(res.body.length >= 2);
+    // key_hash must never appear in list responses
+    for (const k of res.body) {
+      assert.equal(k.key_hash, undefined);
+      assert.equal(k.key, undefined);
+    }
+  });
+
+  test('DELETE /api/keys/:id revokes key; GET no longer includes it', async () => {
+    const email = 'delete-key@example.com';
+    const created = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', email)
+      .send({ label: 'to-delete' });
+    assert.equal(created.status, 201);
+
+    const del = await req
+      .delete(`/api/keys/${created.body.id}`)
+      .set('X-Forwarded-Email', email);
+    assert.equal(del.status, 204);
+
+    const list = await req.get('/api/keys').set('X-Forwarded-Email', email);
+    assert.ok(!list.body.some(k => k.id === created.body.id));
+  });
+
+  test('DELETE /api/keys/:id with another user key returns 404 (not 403)', async () => {
+    const owner = 'owner@example.com';
+    const other = 'other@example.com';
+
+    const created = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', owner)
+      .send({ label: 'owners-key' });
+    assert.equal(created.status, 201);
+
+    const res = await req
+      .delete(`/api/keys/${created.body.id}`)
+      .set('X-Forwarded-Email', other);
+    assert.equal(res.status, 404);
+  });
+
+  test('POST /api/keys with label > 100 chars returns 400', async () => {
+    const longLabel = 'a'.repeat(101);
+    const res = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', oauthUser)
+      .send({ label: longLabel });
+    assert.equal(res.status, 400);
+  });
+
+  test('POST /api/keys via API key auth returns 403', async () => {
+    const email = 'apikey-mgmt@example.com';
+    const created = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', email)
+      .send({ label: 'bootstrap' });
+    const rawKey = created.body.key;
+
+    // Try to generate a new key using the API key itself
+    const res = await req
+      .post('/api/keys')
+      .set('Authorization', `Bearer ${rawKey}`)
+      .send({ label: 'agent-generated' });
+    assert.equal(res.status, 403);
+  });
+
+  test('GET /api/keys via API key auth returns 403', async () => {
+    const email = 'apikey-list@example.com';
+    const created = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', email)
+      .send({ label: 'list-test' });
+
+    const res = await req
+      .get('/api/keys')
+      .set('Authorization', `Bearer ${created.body.key}`);
+    assert.equal(res.status, 403);
+  });
+
+  test('DELETE /api/keys/:id via API key auth returns 403', async () => {
+    const email = 'apikey-del@example.com';
+    const created = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', email)
+      .send({ label: 'del-test' });
+
+    const res = await req
+      .delete(`/api/keys/${created.body.id}`)
+      .set('Authorization', `Bearer ${created.body.key}`);
+    assert.equal(res.status, 403);
   });
 });

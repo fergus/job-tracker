@@ -11,4 +11,6 @@ CLAUDE.md
 .windsurfrules
 .aider*
 smb-share/
+
 .claude/settings.local.json
+.claude/skills/fs-next/.cache/
