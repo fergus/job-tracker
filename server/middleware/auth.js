@@ -54,10 +54,11 @@ function authMiddleware(req, res, next) {
 
   // 2. OAuth path (X-Forwarded-User proves request passed through oauth2-proxy)
   if (process.env.NODE_ENV === 'production') {
-    if (!req.headers['x-forwarded-user']) {
+    const email = req.headers['x-forwarded-email'];
+    if (!req.headers['x-forwarded-user'] || !email) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    req.userEmail = req.headers['x-forwarded-email'].toLowerCase();
+    req.userEmail = email.toLowerCase();
     req.authMethod = 'oauth';
   } else if (req.headers['x-forwarded-email']) {
     // Dev mode: accept X-Forwarded-Email directly (no proxy required)
