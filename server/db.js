@@ -108,6 +108,22 @@ db.exec(`
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_attachments_application_id ON attachments(application_id)');
 
+// API keys table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL REFERENCES users(email),
+    label TEXT,
+    key_hash TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used_at TEXT,
+    expires_at TEXT
+  )
+`);
+
+db.exec('CREATE INDEX IF NOT EXISTS idx_api_keys_user_email ON api_keys(user_email)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash)');
+
 // Migrations tracking table
 db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT)`);
 
@@ -164,5 +180,25 @@ if (!alreadyRun && hasCvData.count > 0) {
 
   migrate();
 }
+
+// API key prepared statements
+db.insertApiKey = db.prepare(
+  `INSERT INTO api_keys (user_email, label, key_hash) VALUES (?, ?, ?)`
+);
+db.getApiKeyByHash = db.prepare(
+  `SELECT id, user_email FROM api_keys WHERE key_hash = ?`
+);
+db.listApiKeysByUser = db.prepare(
+  `SELECT id, label, created_at, last_used_at FROM api_keys WHERE user_email = ? ORDER BY created_at ASC`
+);
+db.deleteApiKey = db.prepare(
+  `DELETE FROM api_keys WHERE id = ? AND user_email = ?`
+);
+db.updateApiKeyLastUsed = db.prepare(
+  `UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?`
+);
+db.countApiKeysByUser = db.prepare(
+  `SELECT COUNT(*) as count FROM api_keys WHERE user_email = ?`
+);
 
 module.exports = db;

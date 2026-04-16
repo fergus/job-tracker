@@ -6,15 +6,18 @@ const adminEmails = (process.env.ADMIN_EMAILS || '')
   .map(e => e.trim().toLowerCase())
   .filter(Boolean);
 
-const internalAuthToken = process.env.INTERNAL_AUTH_TOKEN || null;
-const internalAuthEmail = (process.env.SMB_USER_EMAIL || '').toLowerCase() || null;
-
-function timingSafeEqual(a, b) {
-  if (!a || !b) return false;
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
+// SERVER_API_KEY_SECRET: hard-fail in production if absent; warn + use fallback in dev.
+let apiKeySecret;
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.SERVER_API_KEY_SECRET) {
+    throw new Error('SERVER_API_KEY_SECRET environment variable is required in production');
+  }
+  apiKeySecret = process.env.SERVER_API_KEY_SECRET;
+} else {
+  if (!process.env.SERVER_API_KEY_SECRET) {
+    console.warn('[auth] SERVER_API_KEY_SECRET not set — using static dev fallback. Set this in production.');
+  }
+  apiKeySecret = process.env.SERVER_API_KEY_SECRET || 'dev-fallback-secret-do-not-use-in-production';
 }
 
 const upsertUser = db.prepare(`
@@ -24,28 +27,46 @@ const upsertUser = db.prepare(`
 `);
 
 function authMiddleware(req, res, next) {
-  const email = req.headers['x-forwarded-email'];
-  const internalToken = req.headers['x-internal-auth-token'];
+  const authHeader = req.headers['authorization'];
 
-  if (!email) {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ error: 'Authentication required' });
+  // 1. Bearer token → API key auth
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const rawToken = authHeader.slice(7);
+    const keyHash = crypto.createHmac('sha256', apiKeySecret).update(rawToken).digest('hex');
+    const row = db.getApiKeyByHash.get(keyHash);
+
+    if (!row) {
+      return res.status(401).json({ error: 'Invalid API key' });
     }
-    req.userEmail = 'dev@localhost';
-  } else if (internalToken && internalAuthToken && timingSafeEqual(internalToken, internalAuthToken)) {
-    // Trusted internal request from sync engine — only accept configured SMB_USER_EMAIL
-    if (!internalAuthEmail || email.toLowerCase() !== internalAuthEmail) {
-      return res.status(403).json({ error: 'Internal token not authorized for this user' });
-    }
-    req.userEmail = internalAuthEmail;
-  } else if (process.env.NODE_ENV === 'production') {
-    // In production, require oauth2-proxy headers (X-Forwarded-User proves request came through proxy)
+
+    req.userEmail = row.user_email;
+    req.isAdmin = false;
+    req.authMethod = 'api_key';
+
+    // Fire-and-forget last_used_at update
+    Promise.resolve().then(() => db.updateApiKeyLastUsed.run(row.id));
+
+    const now = new Date().toISOString();
+    upsertUser.run(req.userEmail, now, now);
+
+    return next();
+  }
+
+  // 2. OAuth path (X-Forwarded-User proves request passed through oauth2-proxy)
+  if (process.env.NODE_ENV === 'production') {
     if (!req.headers['x-forwarded-user']) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    req.userEmail = email.toLowerCase();
+    req.userEmail = req.headers['x-forwarded-email'].toLowerCase();
+    req.authMethod = 'oauth';
+  } else if (req.headers['x-forwarded-email']) {
+    // Dev mode: accept X-Forwarded-Email directly (no proxy required)
+    req.userEmail = req.headers['x-forwarded-email'].toLowerCase();
+    req.authMethod = 'oauth';
   } else {
-    req.userEmail = email.toLowerCase();
+    // 3. Dev fallback
+    req.userEmail = 'dev@localhost';
+    req.authMethod = 'oauth';
   }
 
   const now = new Date().toISOString();

@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const authMiddleware = require('./middleware/auth');
 const applicationsRouter = require('./routes/applications');
+const keysRouter = require('./routes/keys');
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.get('/api/me', (req, res) => {
 });
 
 app.use('/api/applications', applicationsRouter);
+app.use('/api/keys', keysRouter);
 
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));
