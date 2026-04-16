@@ -47,23 +47,6 @@
           </div>
         </div>
 
-        <!-- Data Scope section (admins only) -->
-        <div v-if="currentUser?.isAdmin">
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Data Scope</p>
-          <div class="flex bg-gray-100 rounded-lg p-0.5">
-            <button
-              @click="$emit('set-show-all', false)"
-              :class="!showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-              class="flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
-            >My Applications</button>
-            <button
-              @click="$emit('set-show-all', true)"
-              :class="showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-              class="flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
-            >All Applications</button>
-          </div>
-        </div>
-
         <!-- Always use menu toggle -->
         <div>
           <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Header</p>
@@ -102,11 +85,10 @@ import { ref, onMounted } from 'vue'
 const props = defineProps({
   currentUser: Object,
   view: String,
-  showAllUsers: Boolean,
   compactHeader: Boolean,
 })
 
-defineEmits(['close', 'set-view', 'set-show-all', 'toggle-compact'])
+defineEmits(['close', 'set-view', 'toggle-compact'])
 
 const views = [
   { id: 'kanban', label: 'Board' },

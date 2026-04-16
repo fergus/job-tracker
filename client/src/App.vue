@@ -108,17 +108,18 @@
       v-if="showSidebar"
       :currentUser="currentUser"
       :view="view"
-      :showAllUsers="showAllUsers"
       :compactHeader="compactHeader"
       @close="showSidebar = false"
       @set-view="(v) => { view = v; showSidebar = false }"
-      @set-show-all="setShowAll"
       @toggle-compact="toggleCompact"
     />
     <SettingsPanel
       v-if="showSettings"
       :show="showSettings"
+      :currentUser="currentUser"
+      :showAllUsers="showAllUsers"
       @close="showSettings = false"
+      @set-show-all="setShowAll"
     />
   </div>
 </template>
