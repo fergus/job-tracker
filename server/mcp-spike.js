@@ -47,7 +47,8 @@ const sessions = new Map();
 
 // POST without session ID → initialise a new session
 // POST/GET/DELETE with mcp-session-id → route to existing session
-app.all('/mcp', validateApiKey, async (req, res) => {
+// Route is '/' because Caddy's handle_path strips the /mcp prefix before forwarding.
+app.all('/', validateApiKey, async (req, res) => {
   try {
     const sessionId = req.headers['mcp-session-id'];
 
