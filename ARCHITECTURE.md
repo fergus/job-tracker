@@ -69,7 +69,7 @@ Two host-mounted volumes persist data across container restarts:
 | Mount | Container Path | Contents |
 |-------|---------------|----------|
 | `./data/` | `/app/data/` | SQLite database |
-| `./uploads/` | `/app/uploads/` | CV and cover letter files |
+| `./uploads/` | `/app/uploads/` | Uploaded attachment files |
 
 ## Server
 
@@ -93,18 +93,20 @@ erDiagram
 
     applications {
         INTEGER id PK
+        TEXT user_email FK
         TEXT company_name
         TEXT role_title
         TEXT status
         TEXT job_description
         TEXT job_posting_url
         TEXT company_website_url
-        TEXT cv_filename
-        TEXT cv_path
-        TEXT cover_letter_filename
-        TEXT cover_letter_path
-        TEXT user_email
+        TEXT interview_notes
+        TEXT prep_work
+        INTEGER salary_min
+        INTEGER salary_max
+        TEXT job_location
         TEXT created_at
+        TEXT interested_at
         TEXT applied_at
         TEXT screening_at
         TEXT interview_at
@@ -119,41 +121,69 @@ erDiagram
         TEXT stage
         TEXT content
         TEXT created_at
+        TEXT updated_at
+    }
+
+    attachments {
+        INTEGER id PK
+        INTEGER application_id FK
+        TEXT original_filename
+        TEXT stored_filename
+        INTEGER file_size
+        TEXT mime_type
+        TEXT created_at
+    }
+
+    api_keys {
+        INTEGER id PK
+        TEXT user_email FK
+        TEXT label
+        TEXT key_hash
+        TEXT created_at
+        TEXT last_used_at
+        TEXT expires_at
     }
 
     users ||--o{ applications : "owns"
+    users ||--o{ api_keys : "owns"
     applications ||--o{ stage_notes : "has"
+    applications ||--o{ attachments : "has"
 ```
 
-Stage notes cascade-delete when their parent application is deleted.
+Stage notes and attachments cascade-delete when their parent application is deleted.
 
 ### API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/me` | Current user info (`email`, `isAdmin`) |
-| `GET` | `/api/applications` | List user's apps (filter by `?status=`, admin: `?all=true`) |
+| `GET` | `/api/applications` | List user's apps (filter by `?status=`, `?updated_since=`, admin: `?all=true`) |
 | `GET` | `/api/applications/:id` | Get single application with notes |
 | `POST` | `/api/applications` | Create application (multipart form) |
 | `PUT` | `/api/applications/:id` | Update application fields |
-| `PATCH` | `/api/applications/:id/status` | Change status (auto-sets date) |
-| `POST` | `/api/applications/:id/cv` | Upload/replace CV |
-| `GET` | `/api/applications/:id/cv` | Download CV |
-| `POST` | `/api/applications/:id/cover-letter` | Upload/replace cover letter |
-| `GET` | `/api/applications/:id/cover-letter` | Download cover letter |
+| `PATCH` | `/api/applications/:id/status` | Change status (auto-sets corresponding date field) |
+| `PATCH` | `/api/applications/:id/dates` | Manually edit stage date fields |
+| `DELETE` | `/api/applications/:id` | Delete application and all files (cascades) |
+| `GET` | `/api/applications/:id/attachments` | List attachments |
+| `POST` | `/api/applications/:id/attachments` | Upload attachments (up to 10 files, PDF/DOC/DOCX, 10MB each) |
+| `GET` | `/api/applications/:id/attachments/:attachmentId` | Download attachment |
+| `DELETE` | `/api/applications/:id/attachments/:attachmentId` | Delete attachment |
 | `POST` | `/api/applications/:id/notes` | Create a stage note |
+| `PUT` | `/api/applications/:id/notes/:noteId` | Update a stage note |
 | `DELETE` | `/api/applications/:id/notes/:noteId` | Delete a stage note |
-| `DELETE` | `/api/applications/:id` | Delete application (cascades) |
+| `GET` | `/api/keys` | List API keys (OAuth only) |
+| `POST` | `/api/keys` | Generate a new API key (OAuth only, max 20 per user) |
+| `DELETE` | `/api/keys/:id` | Revoke an API key (OAuth only) |
 
 ### User Scoping & Authorization
 
-All API requests pass through auth middleware (`server/middleware/auth.js`) which:
+All API requests pass through auth middleware (`server/middleware/auth.js`) which supports two auth methods:
 
-1. Reads `X-Forwarded-Email` header set by oauth2-proxy (falls back to `dev@localhost` in dev mode)
-2. Upserts the user into the `users` table
-3. Claims any legacy applications with `user_email IS NULL` (one-time migration on first login after upgrade)
-4. Checks `ADMIN_EMAILS` env var to set `req.isAdmin`
-5. Sets `req.userEmail` for downstream route handlers
+**Bearer token (API key):** If an `Authorization: Bearer <token>` header is present, the token is HMAC-SHA256 hashed with `SERVER_API_KEY_SECRET` and looked up in the `api_keys` table. On match, `req.userEmail` is set from the stored row and `last_used_at` is updated asynchronously. API key auth cannot be used to manage keys themselves (generating or revoking requires OAuth).
+
+**OAuth (browser):** In production, both `X-Forwarded-User` and `X-Forwarded-Email` headers must be present (set by oauth2-proxy). In dev mode, falls back to `dev@localhost` when absent. The user is upserted into the `users` table on every request.
+
+In both cases, `req.isAdmin` is set by checking the email against the `ADMIN_EMAILS` env var.
 
 All application queries are scoped to `user_email = ?` by default. Admin users can view all applications via `?all=true` but cannot edit or delete other users' data.
 
@@ -167,13 +197,13 @@ graph TD
     App --> KB["KanbanBoard.vue<br/>Drag-and-drop columns"]
     App --> TV["TableView.vue<br/>Sortable table"]
     App --> TL["TimelineView.vue<br/>Status history timeline"]
-    App --> AF["ApplicationForm.vue<br/>Create/edit modal"]
-    App --> AD["ApplicationDetail.vue<br/>Detail modal + notes"]
-    App --> SM["SidebarMenu.vue<br/>Slide-in nav & settings"]
+    App --> AP["ApplicationPanel.vue<br/>Create/edit/detail slide-in panel"]
+    App --> SM["SidebarMenu.vue<br/>Slide-in nav"]
+    App --> SP["SettingsPanel.vue<br/>API keys + admin data scope"]
     KB --> KC["KanbanCard.vue<br/>Card in column"]
 
-    AD --> API["api.js<br/>Axios HTTP client"]
-    AF --> API
+    AP --> API["api.js<br/>Axios HTTP client"]
+    SP --> API
     App --> API
 ```
 

@@ -22,9 +22,9 @@ job-tracker/
 │   │       ├── KanbanCard.vue        # Individual card
 │   │       ├── TableView.vue         # Sortable table
 │   │       ├── TimelineView.vue      # Status history timeline
+│   │       ├── ApplicationPanel.vue  # Create/edit/detail slide-in panel
 │   │       ├── SidebarMenu.vue       # Slide-in hamburger menu
-│   │       ├── ApplicationForm.vue   # Create/edit modal
-│   │       └── ApplicationDetail.vue # Detail modal + notes
+│   │       └── SettingsPanel.vue     # API key management + admin data scope
 │   ├── public/              # Static assets (logo, icons, manifest)
 │   ├── index.html           # SPA shell
 │   ├── vite.config.js       # Vite + Tailwind CSS plugin, API proxy
@@ -35,7 +35,8 @@ job-tracker/
 │   ├── middleware/
 │   │   └── auth.js          # User identification via X-Forwarded-Email
 │   ├── routes/
-│   │   └── applications.js  # All REST endpoints (user-scoped)
+│   │   ├── applications.js  # Application CRUD, notes, attachments
+│   │   └── keys.js          # API key management (OAuth-only)
 │   └── package.json
 ├── Dockerfile               # Multi-stage build
 ├── docker-compose.yml       # App + oauth2-proxy
@@ -120,7 +121,7 @@ SELECT * FROM stage_notes WHERE application_id = 1;
 
 ### Schema changes
 
-There is no migration system. Schema changes use `CREATE TABLE IF NOT EXISTS`, so new tables are added automatically on restart. For column changes to existing tables, you would need to handle migration manually (e.g. `ALTER TABLE` in `db.js` or recreate the database).
+New tables are added automatically on restart via `CREATE TABLE IF NOT EXISTS`. Column additions use `ALTER TABLE` guarded by a `PRAGMA table_info` check, and are also applied automatically. One-shot data migrations (e.g. backfills) are recorded in the `_migrations` table so they only run once. For destructive changes (renaming or dropping columns) you would need to handle migration manually or recreate the database.
 
 ### Resetting the database
 
@@ -172,8 +173,8 @@ POST /api/applications
 Content-Type: multipart/form-data
 
 Required: company_name, role_title
-Optional: status, job_description, job_posting_url, company_website_url
-Files:    cv, cover_letter
+Optional: status, job_description, job_posting_url, company_website_url,
+          interview_notes, prep_work, salary_min, salary_max, job_location
 ```
 
 Returns `201` with the created application.
@@ -189,7 +190,12 @@ Content-Type: application/json
   "role_title": "...",
   "job_description": "...",
   "job_posting_url": "...",
-  "company_website_url": "..."
+  "company_website_url": "...",
+  "interview_notes": "...",
+  "prep_work": "...",
+  "salary_min": 80000,
+  "salary_max": 100000,
+  "job_location": "..."
 }
 ```
 
@@ -208,44 +214,58 @@ Valid statuses: `interested`, `applied`, `screening`, `interview`, `offer`, `acc
 
 Automatically sets the corresponding date field (e.g. `interview_at`) to the current time.
 
+#### Edit date fields
+
+```
+PATCH /api/applications/:id/dates
+Content-Type: application/json
+
+{
+  "interested_at": "2024-01-15T10:00:00.000Z",
+  "applied_at": "2024-01-20T10:00:00.000Z",
+  "screening_at": null
+}
+```
+
+Valid fields: `interested_at`, `applied_at`, `screening_at`, `interview_at`, `offer_at`, `closed_at`. Pass `null` to clear a date.
+
 #### Delete application
 
 ```
 DELETE /api/applications/:id
 ```
 
-Deletes the application, its stage notes (FK cascade), and any uploaded files from disk.
+Deletes the application, its stage notes and attachments (FK cascade), and any uploaded files from disk.
 
-### File Uploads
+### Attachments
 
-#### Upload/replace CV
+#### List attachments
 
 ```
-POST /api/applications/:id/cv
+GET /api/applications/:id/attachments
+```
+
+#### Upload attachments
+
+```
+POST /api/applications/:id/attachments
 Content-Type: multipart/form-data
 
-Field: cv (file, max 10MB, .pdf/.doc/.docx)
+Field: files[] (up to 10 files, max 10MB each, .pdf/.doc/.docx)
 ```
 
-#### Download CV
+Returns `201` with an array of created attachment objects.
+
+#### Download attachment
 
 ```
-GET /api/applications/:id/cv
+GET /api/applications/:id/attachments/:attachmentId
 ```
 
-#### Upload/replace cover letter
+#### Delete attachment
 
 ```
-POST /api/applications/:id/cover-letter
-Content-Type: multipart/form-data
-
-Field: cover_letter (file, max 10MB, .pdf/.doc/.docx)
-```
-
-#### Download cover letter
-
-```
-GET /api/applications/:id/cover-letter
+DELETE /api/applications/:id/attachments/:attachmentId
 ```
 
 ### Stage Notes
@@ -261,11 +281,53 @@ Content-Type: application/json
 
 Returns `201` with the created note.
 
+#### Update note
+
+```
+PUT /api/applications/:id/notes/:noteId
+Content-Type: application/json
+
+{ "content": "Updated text", "stage": "offer" }
+```
+
+`stage` is optional.
+
 #### Delete note
 
 ```
 DELETE /api/applications/:id/notes/:noteId
 ```
+
+### API Keys
+
+Key management requires browser (OAuth) authentication — Bearer token auth is not accepted for these endpoints.
+
+#### List keys
+
+```
+GET /api/keys
+```
+
+Returns an array of `{ id, label, created_at, last_used_at }` (key hashes are never returned).
+
+#### Generate key
+
+```
+POST /api/keys
+Content-Type: application/json
+
+{ "label": "my-script" }   # label is optional, max 100 chars
+```
+
+Returns `201` with `{ id, label, created_at, key }`. The `key` field is the raw token — it is only returned once.
+
+#### Revoke key
+
+```
+DELETE /api/keys/:id
+```
+
+Returns `204`.
 
 ## Frontend Conventions
 
@@ -362,6 +424,11 @@ curl -s -X PATCH http://localhost:3000/api/applications/1/status \
   -H 'Content-Type: application/json' \
   -d '{"status":"screening"}' | jq
 
+# Upload an attachment
+curl -s -X POST http://localhost:3000/api/applications/1/attachments \
+  -H 'X-Forwarded-Email: dev@localhost' \
+  -F 'files[]=@resume.pdf' | jq
+
 # List all
 curl -s http://localhost:3000/api/applications \
   -H 'X-Forwarded-Email: dev@localhost' | jq
@@ -374,6 +441,26 @@ curl -s http://localhost:3000/api/me \
 curl -s -X DELETE http://localhost:3000/api/applications/1 \
   -H 'X-Forwarded-Email: dev@localhost' | jq
 ```
+
+### Using an API key
+
+Generate a key via the Settings panel in the UI, then use it as a Bearer token:
+
+```bash
+export API_KEY=your_raw_key_here
+
+# List applications
+curl -s http://localhost:3000/api/applications \
+  -H "Authorization: Bearer $API_KEY" | jq
+
+# Create an application
+curl -s -X POST http://localhost:3000/api/applications \
+  -H "Authorization: Bearer $API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"company_name":"Acme","role_title":"Engineer"}' | jq
+```
+
+Note: API key auth uses `Content-Type: application/json` (not multipart) for create/update.
 
 When running inside Docker, use `docker exec` to reach the app container directly:
 
