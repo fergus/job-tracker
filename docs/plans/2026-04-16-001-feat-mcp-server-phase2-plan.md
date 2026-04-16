@@ -27,36 +27,100 @@ Browser → Caddy → oauth2-proxy → Express :3000 → SQLite
 MCP client → Caddy /mcp → MCP :3001 ──────────────↑
 ```
 
-The MCP port is internal-only in Docker; Caddy reaches it over the Docker
-network (or via a published port — resolved in Step 4 after the spike).
+Caddy routes `jobs.intervl.com` by host IP + published port (`192.168.1.82:3562`
+→ oauth2-proxy). The current Ansible Jinja2 template is per-subdomain only; it
+needs extending to support path-based routes so `/mcp*` can be proxied to a
+separate port while `/*` continues through oauth2-proxy. The MCP port is
+published from the job-tracker container (not oauth2-proxy) so Caddy can reach
+it directly.
 
 ## Steps
 
 ### Step 1 — SSE Spike (blocks Step 3)
 
-**Goal:** Confirm Claude Desktop and Claude Code can connect to a remote MCP
-server via `https://jobs.intervl.com/mcp` (SSE/Streamable HTTP through Caddy).
+**Goal:** Confirm MCP clients (Claude Code, Claude Desktop) can connect to
+`https://jobs.intervl.com/mcp` via SSE/Streamable HTTP through the full
+production path: MCP client → Caddy → Docker → MCP server.
 
-**What to build:**
-1. Add `@modelcontextprotocol/sdk` to server dependencies.
-2. In a temporary `server/mcp-spike.mjs`, create a minimal `McpServer` with one
-   tool (`ping` → returns `"pong"`). Start it on port 3001 alongside the Express
-   server.
-3. Publish port 3001 temporarily in `docker-compose.yml` (remove after spike).
-4. Configure Caddy on the test server to proxy `jobs.intervl.com/mcp` → port
-   3001 with SSE buffering disabled (`flush_interval -1` in Caddy terms).
-5. Add the server to Claude Code via:
+**This spike is throwaway.** All temporary changes (mcp-spike.mjs, server.js
+edits, published port, Ansible route) persist only until the spike is validated.
+Step 3 builds the real implementation from scratch.
+
+#### 1a — Extend Ansible Caddy template for path-based routing
+
+The `homelab-manager` Caddyfile.j2 template currently supports one upstream per
+vhost. Extend it to support an optional `routes` list per vhost — each route
+specifies a path prefix and upstream, rendered as `handle_path` blocks before
+the catch-all `reverse_proxy`.
+
+Example vhost config after template change:
+```yaml
+- name: jobs
+  upstream: http://192.168.1.82:3562       # existing — oauth2-proxy
+  routes:
+    - path: /mcp*
+      upstream: http://192.168.1.82:3563   # new — MCP server
+      flush_interval: true
+```
+
+Rendered Caddy block:
+```caddy
+@jobs host jobs.intervl.com
+handle @jobs {
+    handle_path /mcp* {
+        reverse_proxy http://192.168.1.82:3563 {
+            flush_interval -1
+        }
+    }
+    reverse_proxy http://192.168.1.82:3562
+}
+```
+
+`flush_interval -1` is required to disable Caddy response buffering for SSE.
+The path-based `handle_path` block must appear before the catch-all `reverse_proxy`.
+
+#### 1b — Build the spike MCP server
+
+1. Add `@modelcontextprotocol/sdk` to `server/package.json`.
+2. Create `server/mcp-spike.mjs` — a minimal `McpServer` with:
+   - One tool: `ping` → returns `"pong"`.
+   - API key auth using the same HMAC-SHA256 check as `server/middleware/auth.js`
+     (`SERVER_API_KEY_SECRET` env var). Unauthenticated requests → reject.
+   - Starts on `process.env.MCP_PORT || 3001`.
+3. Modify `server/server.js` to import and start `mcp-spike.mjs` after Express.
+
+#### 1c — Publish the MCP port
+
+Add to the `job-tracker` service in `docker-compose.yml`:
+```yaml
+ports:
+  - "${MCP_PORT:-3001}:3001"
+```
+Set `MCP_PORT=3563` in the server's `.env` to match the Caddy upstream port.
+
+#### 1d — Deploy and validate
+
+1. Build and push image; deploy to test server.
+2. Run Ansible to apply the updated Caddy config.
+3. Add the server to Claude Code:
    ```
    claude mcp add --transport sse --url https://jobs.intervl.com/mcp job-tracker
    ```
-   and to Claude Desktop via `~/.config/claude-desktop/config.json`.
-6. Verify the `ping` tool appears and returns `"pong"`.
+   Test: the `ping` tool appears and returns `"pong"`.
+4. Optionally test from Claude Desktop.
 
-**If the spike fails:** Reassess transport. Options include Streamable HTTP only,
-or wrapping via a local stdio-to-SSE proxy.
+#### 1e — Cleanup after success
 
-**Acceptance:** At least one MCP client (Claude Code or Desktop) successfully
-calls the `ping` tool through Caddy.
+Remove `server/mcp-spike.mjs`, revert `server/server.js`, remove the published
+MCP port from `docker-compose.yml`, and remove `MCP_PORT` from the server env.
+The Ansible route and Caddy template extension remain — they are production
+infrastructure, not spike scaffolding.
+
+**If the spike fails:** Reassess transport. Options: Streamable HTTP only, or a
+local stdio-to-SSE proxy on the client side.
+
+**Acceptance:** Claude Code (or Desktop) successfully calls the `ping` tool via
+`https://jobs.intervl.com/mcp` using a valid API key.
 
 ---
 
