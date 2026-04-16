@@ -29,9 +29,6 @@ services:
     build: .
     expose:
       - "3000"
-    # Spike: MCP port published directly to host (bypasses oauth2-proxy). Remove after spike.
-    ports:
-      - "${MCP_PORT:-3563}:3001"
     environment:
       - NODE_ENV=production
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
