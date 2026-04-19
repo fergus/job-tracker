@@ -17,7 +17,7 @@ v18 migration guide before applying.
 
 ## Findings
 - Current version: 17.0.6 (client/package-lock.json)
-- Latest version: 18.0.0
+- Latest version: 18.0.2
 - Upgrade type: major
 - Migration guide: https://marked.js.org/
 
@@ -38,3 +38,4 @@ rendering in the application notes UI to confirm no regressions.
 
 ## Work Log
 - 2026-04-12: Surfaced by weekly dependency update scan
+- 2026-04-19: Weekly scan confirms still pending; latest now 18.0.2
