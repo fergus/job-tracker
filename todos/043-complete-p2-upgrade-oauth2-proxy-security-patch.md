@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "043"
 tags: [dependencies, security]
@@ -32,10 +32,11 @@ The patch bump is backwards compatible; no config changes expected.
 - **Effort**: Small | **Risk**: Low (patch bump; rollback by reverting image tag)
 
 ## Acceptance Criteria
-- [ ] `docker-compose.yml` updated to `quay.io/oauth2-proxy/oauth2-proxy:v7.15.2`
+- [x] `docker-compose.yml` updated to `quay.io/oauth2-proxy/oauth2-proxy:v7.15.2`
 - [ ] Container pulled and redeployed
 - [ ] OIDC login flow confirmed working end-to-end
 - [ ] No regressions in authenticated routes
 
 ## Work Log
 - 2026-04-19: Surfaced by weekly dependency update scan; v7.15.2 released 2026-04-14 with critical security fixes (auth bypass, session fixation)
+- 2026-04-21: `docker-compose.yml` updated; pending redeploy on server

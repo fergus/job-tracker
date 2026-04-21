@@ -1,8 +1,9 @@
 ---
 title: "feat: MCP Server (Phase 2)"
 type: feat
-status: active
+status: complete
 date: 2026-04-16
+completed: 2026-04-21
 origin: docs/brainstorms/2026-04-06-mcp-server-smb-removal-requirements.md
 ---
 
