@@ -1,7 +1,7 @@
 <template>
   <div class="max-w-screen-2xl mx-auto px-4 py-4">
     <!-- Empty state -->
-    <div v-if="sortedApps.length === 0" class="text-center text-gray-400 py-20 text-sm">
+    <div v-if="sortedApps.length === 0" class="text-center text-ink-3 py-20 text-sm">
       No applications to display.
     </div>
 
@@ -9,7 +9,7 @@
       <!-- Header row with axis -->
       <div class="flex">
         <div class="shrink-0 w-24 sm:w-36 md:w-[200px]"></div>
-        <div class="flex-1 relative h-8 border-b border-gray-200">
+        <div class="flex-1 relative h-8 border-b border-line">
           <!-- Month tick marks -->
           <div
             v-for="tick in monthTicks"
@@ -17,8 +17,8 @@
             class="absolute top-0 h-full flex flex-col justify-end"
             :style="{ left: tick.pct + '%' }"
           >
-            <div class="h-2 w-px bg-gray-300"></div>
-            <span class="text-xs text-gray-400 whitespace-nowrap" style="transform: translateX(-50%)">{{ tick.label }}</span>
+            <div class="h-2 w-px bg-line-2"></div>
+            <span class="text-xs text-ink-3 whitespace-nowrap" style="transform: translateX(-50%)">{{ tick.label }}</span>
           </div>
         </div>
       </div>
@@ -27,7 +27,7 @@
       <div
         v-for="app in sortedApps"
         :key="app.id"
-        class="flex items-center group cursor-pointer hover:bg-gray-50 rounded transition-colors"
+        class="flex items-center group cursor-pointer hover:bg-raised rounded transition-colors"
         style="min-height: 36px;"
         role="button"
         tabindex="0"
@@ -38,12 +38,12 @@
         <div
           class="shrink-0 w-24 sm:w-36 md:w-[200px] pr-3 text-right"
         >
-          <span class="text-xs text-gray-700 font-medium leading-tight block truncate">{{ app.company_name }}</span>
-          <span class="text-xs text-gray-400 leading-tight block truncate">{{ app.role_title }}</span>
+          <span class="text-xs text-ink-2 font-medium leading-tight block truncate">{{ app.company_name }}</span>
+          <span class="text-xs text-ink-3 leading-tight block truncate">{{ app.role_title }}</span>
         </div>
 
         <!-- Bar area -->
-        <div class="flex-1 relative h-6 bg-gray-100 rounded overflow-visible my-1">
+        <div class="flex-1 relative h-6 bg-sunken rounded overflow-visible my-1">
           <div
             v-for="seg in getSegments(app)"
             :key="seg.stage"
@@ -58,7 +58,7 @@
       <!-- Tooltip -->
       <div
         v-if="tooltip"
-        class="fixed z-50 bg-gray-900 text-white text-xs rounded px-2 py-1 pointer-events-none whitespace-nowrap shadow-lg"
+        class="fixed z-50 bg-ink text-canvas text-xs rounded px-2 py-1 pointer-events-none whitespace-nowrap shadow-lg"
         :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px', transform: 'translate(-50%, -100%) translateY(-6px)' }"
       >
         <span class="capitalize font-medium">{{ tooltip.stage }}</span>
@@ -70,7 +70,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { computeSegments, stageColor, durationDays } from '../utils/timeline'
+import { computeSegments, durationDays } from '../utils/timeline'
 
 const props = defineProps({ applications: Array })
 const emit = defineEmits(['open-detail'])
@@ -103,7 +103,6 @@ const monthTicks = computed(() => {
   const start = new Date(minDate.value)
   const end = new Date(maxDate.value)
 
-  // Start from beginning of the next month after minDate
   const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
 
   while (cursor <= end) {
@@ -129,28 +128,25 @@ function getSegments(app) {
 function segmentStyle(seg) {
   const left = Math.max(0, pctOf(seg.start))
   const right = Math.min(100, pctOf(seg.end))
-  const width = Math.max(right - left, 0.3) // minimum 0.3% so it's visible
-
-  const style = {
-    left: left + '%',
-    width: width + '%',
-    backgroundColor: stageColor(seg.stage),
-    opacity: seg.isTrailing ? '0.7' : '1',
-  }
+  const width = Math.max(right - left, 0.3)
+  const colorVar = `var(--stage-${seg.stage}, oklch(57% 0.04 240))`
 
   if (seg.isTrailing) {
-    style.borderRight = `2px dashed ${stageColor(seg.stage)}`
-    style.backgroundImage = `repeating-linear-gradient(
-      90deg,
-      ${stageColor(seg.stage)}99 0px,
-      ${stageColor(seg.stage)}99 6px,
-      transparent 6px,
-      transparent 10px
-    )`
-    style.backgroundColor = 'transparent'
+    const colorAlpha = `color-mix(in oklch, ${colorVar} 60%, transparent)`
+    return {
+      left: left + '%',
+      width: width + '%',
+      borderRight: `2px dashed ${colorVar}`,
+      backgroundImage: `repeating-linear-gradient(90deg, ${colorAlpha} 0px, ${colorAlpha} 6px, transparent 6px, transparent 10px)`,
+      backgroundColor: 'transparent',
+    }
   }
 
-  return style
+  return {
+    left: left + '%',
+    width: width + '%',
+    backgroundColor: colorVar,
+  }
 }
 
 function formatShortDate(iso) {

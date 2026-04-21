@@ -1,47 +1,47 @@
 <template>
   <div class="min-h-screen flex flex-col">
     <!-- Top bar -->
-    <header class="bg-white shadow-xs border-b border-gray-200">
+    <header class="bg-panel shadow-xs border-b border-line">
       <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <img src="/logo.svg" alt="" class="w-8 h-8 rounded-lg" />
-          <h1 class="text-xl font-bold text-gray-800">Job Application Tracker</h1>
+          <h1 class="text-xl font-bold text-ink">Job Application Tracker</h1>
           <a
             :href="`https://github.com/fergus/job-tracker/releases/tag/v${version}`"
             target="_blank"
-            class="text-xs text-gray-400 hover:text-gray-600 hover:underline"
+            class="text-xs text-ink-3 hover:text-ink-2 hover:underline"
           >v{{ version }}</a>
         </div>
         <div class="flex items-center gap-3">
           <!-- Admin toggle: only when not compact -->
-          <div v-if="currentUser?.isAdmin && !compactHeader" class="flex bg-gray-100 rounded-lg p-0.5">
+          <div v-if="currentUser?.isAdmin && !compactHeader" class="flex bg-sunken rounded-lg p-0.5">
             <button
               @click="setShowAll(false)"
-              :class="!showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              :class="!showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >My Applications</button>
             <button
               @click="setShowAll(true)"
-              :class="showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              :class="showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >All Applications</button>
           </div>
 
           <!-- View switcher: only when not compact -->
-          <div v-if="!compactHeader" class="flex bg-gray-100 rounded-lg p-0.5">
+          <div v-if="!compactHeader" class="flex bg-sunken rounded-lg p-0.5">
             <button
               @click="view = 'kanban'"
-              :class="view === 'kanban' ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              :class="view === 'kanban' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >Board</button>
             <button
               @click="view = 'table'"
-              :class="view === 'table' ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              :class="view === 'table' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >Table</button>
             <button
               @click="view = 'timeline'"
-              :class="view === 'timeline' ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+              :class="view === 'timeline' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
             >Timeline</button>
           </div>
@@ -49,11 +49,11 @@
           <!-- Always visible: Add button + settings + hamburger -->
           <button
             @click="openPanel()"
-            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            class="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >+ Add Application</button>
           <button
             @click="showSettings = true"
-            class="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            class="p-2 rounded-lg text-ink-3 hover:bg-sunken transition-colors"
             aria-label="Open settings"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,7 +63,7 @@
           </button>
           <button
             @click="showSidebar = true"
-            class="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            class="p-2 rounded-lg text-ink-3 hover:bg-sunken transition-colors"
             aria-label="Open menu"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

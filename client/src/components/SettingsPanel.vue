@@ -14,7 +14,7 @@
 
     <!-- Panel: right-side drawer on desktop, bottom sheet on mobile -->
     <div
-      class="absolute flex flex-col bg-white shadow-xl
+      class="absolute flex flex-col bg-panel shadow-xl
              inset-x-0 bottom-0 h-[92vh] rounded-t-2xl
              md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-[480px] md:rounded-none
              transition-transform duration-300 ease-in-out"
@@ -24,16 +24,16 @@
     >
       <!-- Mobile drag handle -->
       <div class="md:hidden flex justify-center pt-2.5 pb-1 shrink-0">
-        <div class="w-8 h-1 bg-gray-300 rounded-full"></div>
+        <div class="w-8 h-1 bg-line-2 rounded-full"></div>
       </div>
 
       <!-- Header -->
-      <div class="px-5 pt-3 pb-3 border-b border-gray-200 shrink-0">
+      <div class="px-5 pt-3 pb-3 border-b border-line shrink-0">
         <div class="flex items-center justify-between">
-          <h2 class="text-base font-semibold text-gray-900">Settings</h2>
+          <h2 class="text-base font-semibold text-ink">Settings</h2>
           <button
             @click="$emit('close')"
-            class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            class="p-2 rounded-lg text-ink-3 hover:text-ink hover:bg-sunken transition-colors"
             aria-label="Close settings"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,16 +49,16 @@
 
           <!-- Data Scope section (admins only) -->
           <section v-if="props.currentUser?.isAdmin">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">Data Scope</h3>
-            <div class="flex bg-gray-100 rounded-lg p-0.5">
+            <h3 class="text-sm font-semibold text-ink-2 mb-3">Data Scope</h3>
+            <div class="flex bg-sunken rounded-lg p-0.5">
               <button
                 @click="$emit('set-show-all', false)"
-                :class="!props.showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+                :class="!props.showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
                 class="flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
               >My Applications</button>
               <button
                 @click="$emit('set-show-all', true)"
-                :class="props.showAllUsers ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+                :class="props.showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
                 class="flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
               >All Applications</button>
             </div>
@@ -66,8 +66,8 @@
 
           <!-- API Keys section -->
           <section>
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">API Keys</h3>
-            <p class="text-xs text-gray-500 mb-4">
+            <h3 class="text-sm font-semibold text-ink-2 mb-3">API Keys</h3>
+            <p class="text-xs text-ink-3 mb-4">
               Use API keys to access the REST API programmatically without the browser login flow.
               Keys are scoped to your account. The raw key is shown once at creation — save it immediately.
             </p>
@@ -79,31 +79,31 @@
                 type="text"
                 placeholder="Label (optional)"
                 maxlength="100"
-                class="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                class="flex-1 text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
                 @keydown.enter="generate"
               />
               <button
                 @click="generate"
                 :disabled="isGenerating"
-                class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+                class="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-fg px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
               >{{ isGenerating ? 'Generating…' : 'Generate Key' }}</button>
             </div>
             <p v-if="generateError" class="text-xs text-red-600 mb-3">{{ generateError }}</p>
 
             <!-- Key list -->
-            <div v-if="keys.length === 0" class="text-sm text-gray-400 italic py-2">
+            <div v-if="keys.length === 0" class="text-sm text-ink-3 italic py-2">
               No API keys yet.
             </div>
             <ul v-else class="space-y-2">
               <li
                 v-for="key in keys"
                 :key="key.id"
-                class="border border-gray-100 rounded-lg px-4 py-3"
+                class="border border-line rounded-lg px-4 py-3"
               >
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-800 truncate">{{ key.label || 'Unnamed' }}</p>
-                    <p class="text-xs text-gray-400 mt-0.5">
+                    <p class="text-sm font-medium text-ink truncate">{{ key.label || 'Unnamed' }}</p>
+                    <p class="text-xs text-ink-3 mt-0.5">
                       Created {{ relativeTime(key.created_at) }} ·
                       {{ key.last_used_at ? `Last used ${relativeTime(key.last_used_at)}` : 'Never used' }}
                     </p>
@@ -111,20 +111,20 @@
                   <div class="shrink-0">
                     <!-- Inline revoke confirmation -->
                     <template v-if="confirmRevokeId === key.id">
-                      <span class="text-xs text-gray-500 mr-1">Revoke?</span>
+                      <span class="text-xs text-ink-3 mr-1">Revoke?</span>
                       <button
                         @click="confirmRevoke(key.id)"
-                        class="text-xs text-red-600 hover:text-red-800 font-medium mr-2"
+                        class="text-xs text-danger hover:text-danger-hover font-medium mr-2"
                       >Yes</button>
                       <button
                         @click="confirmRevokeId = null"
-                        class="text-xs text-gray-500 hover:text-gray-700"
+                        class="text-xs text-ink-3 hover:text-ink-2"
                       >Cancel</button>
                     </template>
                     <button
                       v-else
                       @click="confirmRevokeId = key.id"
-                      class="text-xs text-gray-400 hover:text-red-600 transition-colors"
+                      class="text-xs text-ink-3 hover:text-danger transition-colors"
                     >Revoke</button>
                   </div>
                 </div>
@@ -138,7 +138,7 @@
       <!-- One-time key modal (non-dismissible by backdrop) -->
       <div
         v-if="newKey"
-        class="absolute inset-0 bg-white/95 flex items-center justify-center p-6 rounded-t-2xl md:rounded-none"
+        class="absolute inset-0 bg-panel/95 flex items-center justify-center p-6 rounded-t-2xl md:rounded-none"
         @click.stop
       >
         <div class="w-full max-w-sm">
@@ -148,22 +148,22 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 class="text-base font-semibold text-gray-900">API Key Generated</h3>
-            <p class="text-sm text-gray-500 mt-1">Copy this key now — it won't be shown again.</p>
+            <h3 class="text-base font-semibold text-ink">API Key Generated</h3>
+            <p class="text-sm text-ink-3 mt-1">Copy this key now — it won't be shown again.</p>
           </div>
 
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
-            <code class="text-xs text-gray-800 break-all font-mono">{{ newKey }}</code>
+          <div class="bg-raised border border-line rounded-lg p-3 mb-3">
+            <code class="text-xs text-ink break-all font-mono">{{ newKey }}</code>
           </div>
 
           <button
             @click="copyKey"
-            class="w-full mb-2 border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            class="w-full mb-2 border border-line hover:bg-raised text-ink-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >{{ copied ? '✓ Copied' : 'Copy to clipboard' }}</button>
 
           <button
             @click="newKey = null; copied = false"
-            class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            class="w-full bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >I've saved this key</button>
         </div>
       </div>
@@ -205,7 +205,6 @@ async function loadKeys() {
   try {
     keys.value = await listApiKeys()
   } catch {
-    // Non-fatal — show empty state
     keys.value = []
   }
 }

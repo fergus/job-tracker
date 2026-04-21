@@ -9,18 +9,8 @@ const STAGE_DATE_MAP = {
   offer: 'offer_at',
 }
 
-const STAGE_COLORS = {
-  interested: '#9ca3af',
-  applied: '#3b82f6',
-  screening: '#f59e0b',
-  interview: '#a855f7',
-  offer: '#22c55e',
-  accepted: '#10b981',
-  rejected: '#ef4444',
-}
-
 export function stageColor(stage) {
-  return STAGE_COLORS[stage] || '#9ca3af'
+  return `var(--stage-${stage}, oklch(57% 0.04 240))`
 }
 
 export function computeSegments(application, globalEnd) {

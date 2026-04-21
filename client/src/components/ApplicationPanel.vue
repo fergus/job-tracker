@@ -14,7 +14,7 @@
 
     <!-- Panel: right-side drawer on desktop, bottom sheet on mobile -->
     <div
-      class="absolute flex flex-col bg-white shadow-xl
+      class="absolute flex flex-col bg-panel shadow-xl
              inset-x-0 bottom-0 h-[92vh] rounded-t-2xl
              md:inset-y-0 md:left-0 md:h-auto md:w-[480px] md:rounded-none
              transition-transform duration-300 ease-in-out"
@@ -24,27 +24,27 @@
     >
       <!-- Mobile drag handle -->
       <div class="md:hidden flex justify-center pt-2.5 pb-1 shrink-0">
-        <div class="w-8 h-1 bg-gray-300 rounded-full"></div>
+        <div class="w-8 h-1 bg-line-2 rounded-full"></div>
       </div>
 
       <!-- Sticky header -->
-      <div class="px-5 pt-3 pb-3 border-b border-gray-200 shrink-0">
+      <div class="px-5 pt-3 pb-3 border-b border-line shrink-0">
         <div class="flex items-start gap-3">
           <div class="flex-1 min-w-0">
             <input
               v-model="form.company_name"
               placeholder="Company name"
-              class="w-full text-base font-semibold text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 focus:outline-none py-0.5 placeholder:text-gray-300 transition-colors"
+              class="w-full text-base font-semibold text-ink bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 placeholder:text-ink-3/50 transition-colors"
             />
             <input
               v-model="form.role_title"
               placeholder="Role title"
-              class="w-full text-sm text-gray-500 bg-transparent border-b border-transparent focus:border-blue-400 focus:outline-none py-0.5 mt-0.5 placeholder:text-gray-300 transition-colors"
+              class="w-full text-sm text-ink-2 bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 mt-0.5 placeholder:text-ink-3/50 transition-colors"
             />
           </div>
           <button
             @click="close"
-            class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0 mt-0.5"
+            class="p-2 rounded-lg text-ink-3 hover:text-ink hover:bg-sunken transition-colors shrink-0 mt-0.5"
             aria-label="Close panel"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -55,13 +55,14 @@
       </div>
 
       <!-- Sticky status bar -->
-      <div class="px-5 py-2.5 border-b border-gray-100 shrink-0 overflow-x-auto">
+      <div class="px-5 py-2.5 border-b border-line shrink-0 overflow-x-auto">
         <div class="flex gap-1.5 min-w-max">
           <button
             v-for="s in statuses"
             :key="s"
             @click="onStatusClick(s)"
-            :class="[statusPillClass(s), form.status === s ? 'ring-2 ring-offset-1 opacity-100' : 'opacity-50 hover:opacity-80']"
+            :class="[form.status === s ? 'ring-2 ring-offset-1 opacity-100' : 'opacity-50 hover:opacity-80']"
+            :style="statusPillStyle(s)"
             class="px-2.5 py-1.5 rounded-full text-xs font-medium capitalize transition-all"
           >{{ s }}</button>
         </div>
@@ -74,20 +75,20 @@
           <!-- Core fields -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Job Posting URL</label>
+              <label class="block text-xs font-medium text-ink-3 mb-1">Job Posting URL</label>
               <div class="flex items-center gap-1">
                 <input
                   v-model="form.job_posting_url"
                   type="url"
                   placeholder="https://"
-                  class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+                  class="flex-1 min-w-0 border border-line bg-raised rounded-lg px-2.5 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden"
                 />
                 <a
                   v-if="form.job_posting_url"
                   :href="form.job_posting_url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                  class="shrink-0 p-1.5 text-ink-3 hover:text-accent transition-colors"
                   title="Open link"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -97,20 +98,20 @@
               </div>
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Company Website</label>
+              <label class="block text-xs font-medium text-ink-3 mb-1">Company Website</label>
               <div class="flex items-center gap-1">
                 <input
                   v-model="form.company_website_url"
                   type="url"
                   placeholder="https://"
-                  class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+                  class="flex-1 min-w-0 border border-line bg-raised rounded-lg px-2.5 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden"
                 />
                 <a
                   v-if="form.company_website_url"
                   :href="form.company_website_url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="shrink-0 p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                  class="shrink-0 p-1.5 text-ink-3 hover:text-accent transition-colors"
                   title="Open link"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -120,51 +121,51 @@
               </div>
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Min Salary</label>
+              <label class="block text-xs font-medium text-ink-3 mb-1">Min Salary</label>
               <input
                 v-model="form.salary_min"
                 type="number"
                 placeholder="—"
-                class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+                class="w-full border border-line bg-raised rounded-lg px-2.5 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden"
               />
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1">Max Salary</label>
+              <label class="block text-xs font-medium text-ink-3 mb-1">Max Salary</label>
               <input
                 v-model="form.salary_max"
                 type="number"
                 placeholder="—"
-                class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+                class="w-full border border-line bg-raised rounded-lg px-2.5 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden"
               />
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">Location</label>
+            <label class="block text-xs font-medium text-ink-3 mb-1">Location</label>
             <input
               v-model="form.job_location"
               placeholder="Remote, New York, etc."
-              class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden"
+              class="w-full border border-line bg-raised rounded-lg px-2.5 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden"
             />
           </div>
 
           <div>
             <div class="flex items-center justify-between mb-1">
-              <label class="block text-xs font-medium text-gray-500">Job Description</label>
+              <label class="block text-xs font-medium text-ink-3">Job Description</label>
               <button
                 v-if="isEdit && form.job_description && !editingJobDesc"
                 @click="editingJobDesc = true"
-                class="text-xs text-blue-500 hover:text-blue-700"
+                class="text-xs text-accent hover:text-accent-hover"
               >Edit</button>
               <button
                 v-if="editingJobDesc"
                 @click="editingJobDesc = false"
-                class="text-xs text-blue-500 hover:text-blue-700"
+                class="text-xs text-accent hover:text-accent-hover"
               >Done</button>
             </div>
             <div
               v-if="isEdit && form.job_description && !editingJobDesc"
-              class="prose prose-sm max-w-none text-sm text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-gray-300"
+              class="prose prose-sm max-w-none text-sm text-ink-2 border border-line rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-line-2"
               v-html="renderMarkdown(form.job_description)"
               @click="editingJobDesc = true"
             />
@@ -173,7 +174,7 @@
               v-model="form.job_description"
               rows="4"
               placeholder="Paste the job description..."
-              class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden resize-y"
+              class="w-full border border-line bg-raised rounded-lg px-2.5 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden resize-y"
             />
           </div>
 
@@ -182,11 +183,11 @@
 
             <!-- Dates grid -->
             <div>
-              <p class="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Dates</p>
+              <p class="text-xs font-medium text-ink-3 mb-2 uppercase tracking-wide">Dates</p>
               <div class="grid grid-cols-3 gap-3">
                 <div v-for="d in dates" :key="d.key">
-                  <p class="text-xs text-gray-400 uppercase tracking-wide">{{ d.label }}</p>
-                  <p v-if="d.key === 'created_at'" class="text-sm text-gray-700">{{ formatDate(panelApp[d.key]) }}</p>
+                  <p class="text-xs text-ink-3 uppercase tracking-wide">{{ d.label }}</p>
+                  <p v-if="d.key === 'created_at'" class="text-sm text-ink">{{ formatDate(panelApp[d.key]) }}</p>
                   <div v-else-if="editingDateKey === d.key" class="flex items-center gap-1">
                     <input
                       type="date"
@@ -194,19 +195,19 @@
                       @change="onDateChange(d.key, $event)"
                       @blur="editingDateKey = null"
                       @keydown.escape="editingDateKey = null"
-                      class="text-sm border border-blue-300 rounded px-1 py-0.5 focus:ring-2 focus:ring-blue-500 outline-hidden w-full"
+                      class="text-sm border border-accent rounded px-1 py-0.5 focus:ring-2 focus:ring-accent outline-hidden w-full bg-raised text-ink"
                     />
                     <button
                       v-if="panelApp[d.key]"
                       @mousedown.prevent="clearDate(d.key)"
-                      class="p-1 rounded text-gray-400 hover:text-red-500 leading-none shrink-0"
+                      class="p-1 rounded text-ink-3 hover:text-danger leading-none shrink-0"
                       title="Clear date"
                     >&times;</button>
                   </div>
                   <p
                     v-else
                     @click="editingDateKey = d.key"
-                    class="text-sm text-gray-700 cursor-pointer hover:text-blue-600"
+                    class="text-sm text-ink cursor-pointer hover:text-accent"
                   >{{ formatDate(panelApp[d.key]) }}</p>
                 </div>
               </div>
@@ -214,8 +215,8 @@
 
             <!-- Mini timeline -->
             <div v-if="miniSegments.length">
-              <p class="text-xs text-gray-400 uppercase tracking-wide mb-1.5">Journey</p>
-              <div class="relative h-5 rounded overflow-hidden bg-gray-100">
+              <p class="text-xs text-ink-3 uppercase tracking-wide mb-1.5">Journey</p>
+              <div class="relative h-5 rounded overflow-hidden bg-sunken">
                 <div
                   v-for="seg in miniSegments"
                   :key="seg.stage"
@@ -227,36 +228,36 @@
               <div class="flex gap-3 mt-1.5 flex-wrap">
                 <div v-for="seg in miniSegments" :key="seg.stage" class="flex items-center gap-1">
                   <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" :style="{ backgroundColor: stageColor(seg.stage) }"></span>
-                  <span class="text-xs text-gray-500 capitalize">{{ seg.stage }}</span>
+                  <span class="text-xs text-ink-3 capitalize">{{ seg.stage }}</span>
                 </div>
               </div>
             </div>
 
             <!-- Attachments -->
             <div>
-              <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Attachments</h3>
-              <div v-if="attachmentsLoading" class="text-sm text-gray-400">Loading...</div>
+              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-2">Attachments</h3>
+              <div v-if="attachmentsLoading" class="text-sm text-ink-3">Loading...</div>
               <div v-else>
-                <div v-if="attachments.length === 0" class="text-sm text-gray-400 mb-2">No attachments.</div>
+                <div v-if="attachments.length === 0" class="text-sm text-ink-3 mb-2">No attachments.</div>
                 <div
                   v-for="att in attachments"
                   :key="att.id"
-                  class="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0"
+                  class="flex items-center justify-between py-1.5 border-b border-line last:border-0"
                 >
                   <a
                     :href="getAttachmentUrl(panelApp.id, att.id)"
-                    class="text-sm text-blue-600 hover:underline truncate"
+                    class="text-sm text-accent hover:underline truncate"
                     target="_blank"
                     rel="noopener noreferrer"
                   >{{ att.original_filename }}</a>
                   <button
                     @click="removeAttachment(att.id)"
-                    class="p-1.5 rounded text-gray-300 hover:text-red-500 ml-1 shrink-0"
+                    class="p-1.5 rounded text-line-2 hover:text-danger ml-1 shrink-0"
                     title="Delete"
                   >&times;</button>
                 </div>
               </div>
-              <label class="mt-2 inline-block text-xs text-blue-600 hover:underline cursor-pointer">
+              <label class="mt-2 inline-block text-xs text-accent hover:underline cursor-pointer">
                 Upload files
                 <input type="file" @change="onAttachmentSelect" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
               </label>
@@ -264,18 +265,18 @@
 
             <!-- Notes -->
             <div>
-              <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Notes</h3>
+              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-3">Notes</h3>
               <div class="flex flex-col gap-2 mb-3">
                 <div class="flex items-center gap-2">
                   <select
                     v-model="newNoteStage"
-                    class="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden capitalize"
+                    class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
                   >
                     <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
                   </select>
                   <button
                     @click="addNote"
-                    class="text-sm text-blue-600 hover:text-blue-700 font-medium px-2 ml-auto"
+                    class="text-sm text-accent hover:text-accent-hover font-medium px-2 ml-auto"
                   >Add</button>
                 </div>
                 <textarea
@@ -284,27 +285,27 @@
                   @keydown.meta.enter="addNote"
                   placeholder="Add a note... (supports markdown, Ctrl+Enter to submit)"
                   rows="3"
-                  class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden resize-y"
+                  class="w-full border border-line bg-raised rounded-lg px-2 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden resize-y"
                 />
               </div>
-              <div v-if="sortedNotes.length === 0" class="text-sm text-gray-400 py-2">No notes yet.</div>
-              <div v-for="note in sortedNotes" :key="note.id" class="bg-gray-50 rounded-lg p-2 mb-1.5">
+              <div v-if="sortedNotes.length === 0" class="text-sm text-ink-3 py-2">No notes yet.</div>
+              <div v-for="note in sortedNotes" :key="note.id" class="bg-raised rounded-lg p-2 mb-1.5">
                 <div v-if="editingNoteId === note.id" class="flex flex-col gap-2">
                   <div class="flex items-center gap-2">
                     <select
                       v-model="editingStage"
-                      class="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-hidden capitalize"
+                      class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
                     >
                       <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
                     </select>
                     <div class="ml-auto flex gap-2">
                       <button
                         @click="saveEdit(note.id)"
-                        class="text-xs text-white bg-blue-600 hover:bg-blue-700 font-medium px-3 py-1.5 rounded"
+                        class="text-xs text-accent-fg bg-accent hover:bg-accent-hover font-medium px-3 py-1.5 rounded"
                       >Save</button>
                       <button
                         @click="cancelEdit"
-                        class="text-xs text-gray-600 hover:text-gray-800 font-medium px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300"
+                        class="text-xs text-ink-2 hover:text-ink font-medium px-3 py-1.5 rounded bg-sunken hover:bg-line"
                       >Cancel</button>
                     </div>
                   </div>
@@ -314,23 +315,23 @@
                     @keydown.ctrl.enter="saveEdit(note.id)"
                     @keydown.meta.enter="saveEdit(note.id)"
                     rows="4"
-                    class="w-full text-sm text-gray-700 border border-blue-300 rounded px-1.5 py-0.5 focus:ring-2 focus:ring-blue-500 outline-hidden resize-y"
+                    class="w-full text-sm text-ink border border-accent rounded px-1.5 py-0.5 focus:ring-2 focus:ring-accent outline-hidden resize-y bg-panel"
                     ref="editTextarea"
                   />
                 </div>
                 <div v-else class="flex items-start justify-between">
                   <div class="flex items-start gap-2 flex-1 min-w-0">
                     <span
-                      :class="stageBadgeClass(note.stage)"
+                      :style="stageBadgeStyle(note.stage)"
                       class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 shrink-0"
                     >{{ note.stage }}</span>
                     <div class="flex-1 min-w-0">
                       <div
-                        class="text-sm text-gray-700 prose prose-sm max-w-none cursor-pointer hover:text-blue-600"
+                        class="text-sm text-ink-2 prose prose-sm max-w-none cursor-pointer hover:text-accent"
                         v-html="renderMarkdown(note.content)"
                         @click="startEdit(note)"
                       />
-                      <div class="text-xs text-gray-400 mt-0.5 flex gap-2">
+                      <div class="text-xs text-ink-3 mt-0.5 flex gap-2">
                         <span>{{ formatDateTime(note.created_at) }}</span>
                         <span v-if="note.updated_at && note.updated_at !== note.created_at">· Edited: {{ formatDateTime(note.updated_at) }}</span>
                       </div>
@@ -338,7 +339,7 @@
                   </div>
                   <button
                     @click="removeNote(note.id)"
-                    class="p-1.5 rounded text-gray-300 hover:text-red-500 ml-1 shrink-0"
+                    class="p-1.5 rounded text-line-2 hover:text-danger ml-1 shrink-0"
                   >&times;</button>
                 </div>
               </div>
@@ -349,17 +350,17 @@
           <!-- Create mode: queued file preview -->
           <template v-else>
             <div v-if="queuedFiles.length">
-              <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Files to upload</h3>
+              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-2">Files to upload</h3>
               <div
                 v-for="(f, i) in queuedFiles"
                 :key="i"
-                class="flex items-center justify-between py-1 text-sm text-gray-600"
+                class="flex items-center justify-between py-1 text-sm text-ink-2"
               >
                 <span class="truncate">{{ f.name }}</span>
-                <button @click="queuedFiles.splice(i, 1)" class="p-1.5 rounded text-gray-300 hover:text-red-500 ml-1 shrink-0">&times;</button>
+                <button @click="queuedFiles.splice(i, 1)" class="p-1.5 rounded text-line-2 hover:text-danger ml-1 shrink-0">&times;</button>
               </div>
             </div>
-            <label class="inline-block text-xs text-blue-600 hover:underline cursor-pointer">
+            <label class="inline-block text-xs text-accent hover:underline cursor-pointer">
               Attach files
               <input type="file" @change="onQueueFiles" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
             </label>
@@ -369,23 +370,23 @@
       </div>
 
       <!-- Sticky footer -->
-      <div class="flex items-center justify-between px-5 py-3 border-t border-gray-200 shrink-0">
+      <div class="flex items-center justify-between px-5 py-3 border-t border-line shrink-0">
         <button
           v-if="isEdit"
           @click="confirmDelete"
-          class="py-2 text-sm text-red-600 hover:text-red-700 font-medium"
+          class="py-2 text-sm text-danger hover:text-danger-hover font-medium"
         >Delete</button>
         <div v-else></div>
         <div class="flex gap-2">
           <button
             v-if="!isEdit"
             @click="close"
-            class="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            class="px-3 py-2 text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
           >Cancel</button>
           <button
             @click="save"
             :disabled="saving"
-            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
+            class="px-4 py-2 text-sm font-medium text-accent-fg bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50"
           >{{ saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Application') }}</button>
         </div>
       </div>
@@ -423,32 +424,19 @@ const dates = [
   { key: 'closed_at', label: 'Closed' },
 ]
 
-const statusPillClasses = {
-  interested: 'bg-gray-100 text-gray-700 ring-gray-400',
-  applied: 'bg-blue-100 text-blue-700 ring-blue-400',
-  screening: 'bg-yellow-100 text-yellow-700 ring-yellow-400',
-  interview: 'bg-purple-100 text-purple-700 ring-purple-400',
-  offer: 'bg-green-100 text-green-700 ring-green-400',
-  accepted: 'bg-emerald-100 text-emerald-700 ring-emerald-400',
-  rejected: 'bg-red-100 text-red-700 ring-red-400',
+function statusPillStyle(s) {
+  return {
+    backgroundColor: `var(--stage-${s}-bg)`,
+    color: `var(--stage-${s}-fg)`,
+    '--tw-ring-color': `var(--stage-${s})`,
+  }
 }
 
-const stageBadgeClasses = {
-  interested: 'bg-gray-100 text-gray-700',
-  applied: 'bg-blue-100 text-blue-700',
-  screening: 'bg-yellow-100 text-yellow-700',
-  interview: 'bg-purple-100 text-purple-700',
-  offer: 'bg-green-100 text-green-700',
-  accepted: 'bg-emerald-100 text-emerald-700',
-  rejected: 'bg-red-100 text-red-700',
-}
-
-function statusPillClass(s) {
-  return statusPillClasses[s] || statusPillClasses.interested
-}
-
-function stageBadgeClass(s) {
-  return stageBadgeClasses[s] || 'bg-gray-100 text-gray-700'
+function stageBadgeStyle(s) {
+  return {
+    backgroundColor: `var(--stage-${s}-bg)`,
+    color: `var(--stage-${s}-fg)`,
+  }
 }
 
 // Animation
@@ -458,7 +446,6 @@ const visible = ref(false)
 onMounted(() => {
   panelRoot.value?.focus()
   requestAnimationFrame(() => { visible.value = true })
-  // Edit-mode initialization (all refs guaranteed to exist by mount time)
   if (props.panelApp?.id) {
     loadAttachments()
     newNoteStage.value = props.panelApp.status
@@ -491,13 +478,10 @@ function initForm() {
   form.job_location = a.job_location || ''
 }
 
-// Initialize form from prop immediately (form reactive object is already declared above)
 initForm()
 
-// Load attachments on mount (watcher has no immediate to avoid TDZ on refs declared below)
 onMounted(() => { if (props.panelApp?.id) loadAttachments() })
 
-// Re-init when switching between apps without unmounting (no immediate — avoid TDZ)
 watch(() => props.panelApp?.id, (newId) => {
   initForm()
   editingDateKey.value = null
@@ -526,7 +510,6 @@ function isDirty() {
   )
 }
 
-// Close with exit animation and optional pending-note flush
 async function close() {
   if (newNoteContent.value?.trim() && isEdit.value) {
     await addNote()
@@ -538,7 +521,6 @@ async function close() {
   setTimeout(() => emit('close'), 300)
 }
 
-// Status
 async function onStatusClick(s) {
   form.status = s
   if (isEdit.value) {
@@ -552,7 +534,6 @@ async function onStatusClick(s) {
   }
 }
 
-// Save (create or update text fields)
 const saving = ref(false)
 
 async function save() {
@@ -601,7 +582,6 @@ async function save() {
   }
 }
 
-// Delete
 async function confirmDelete() {
   if (!confirm(`Delete application for ${props.panelApp.company_name} – ${props.panelApp.role_title}?`)) return
   try {
@@ -613,7 +593,6 @@ async function confirmDelete() {
   }
 }
 
-// Dates
 const editingDateKey = ref(null)
 const editingJobDesc = ref(false)
 
@@ -645,7 +624,6 @@ async function clearDate(key) {
   }
 }
 
-// Mini timeline
 const miniSegments = computed(() => {
   if (!isEdit.value) return []
   return computeSegments(props.panelApp, new Date().toISOString())
@@ -663,27 +641,22 @@ function miniPct(isoDate) {
 }
 
 function miniSegmentStyle(seg) {
+  const colorVar = `var(--stage-${seg.stage}, oklch(57% 0.04 240))`
   const left = Math.max(0, miniPct(seg.start))
   const right = Math.min(100, miniPct(seg.end))
   const width = Math.max(right - left, 0.5)
-
   if (seg.isTrailing) {
+    const colorAlpha = `color-mix(in oklch, ${colorVar} 80%, transparent)`
     return {
       left: left + '%',
       width: width + '%',
-      backgroundImage: `repeating-linear-gradient(
-        90deg,
-        ${stageColor(seg.stage)}cc 0px,
-        ${stageColor(seg.stage)}cc 6px,
-        transparent 6px,
-        transparent 10px
-      )`,
+      backgroundImage: `repeating-linear-gradient(90deg, ${colorAlpha} 0px, ${colorAlpha} 6px, transparent 6px, transparent 10px)`,
     }
   }
   return {
     left: left + '%',
     width: width + '%',
-    backgroundColor: stageColor(seg.stage),
+    backgroundColor: colorVar,
   }
 }
 
@@ -691,7 +664,6 @@ function miniDays(seg) {
   return durationDays(seg.start, seg.end)
 }
 
-// Attachments
 const attachments = ref([])
 const attachmentsLoading = ref(false)
 const queuedFiles = ref([])
@@ -735,7 +707,6 @@ function onQueueFiles(e) {
   queuedFiles.value.push(...files)
 }
 
-// Notes
 const newNoteStage = ref('interested')
 const newNoteContent = ref('')
 const editingNoteId = ref(null)
@@ -798,7 +769,6 @@ function cancelEdit() {
   editingStage.value = ''
 }
 
-// Formatting
 function renderMarkdown(content) {
   return DOMPurify.sanitize(marked.parse(content || ''))
 }
@@ -826,11 +796,11 @@ function formatDateTime(iso) {
 .prose :deep(ul), .prose :deep(ol) { margin: 0.25rem 0 0.25rem 1.25rem; padding: 0; }
 .prose :deep(li) { margin: 0; }
 .prose :deep(h1), .prose :deep(h2), .prose :deep(h3) { font-weight: 600; margin: 0.25rem 0; }
-.prose :deep(code) { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.85em; }
-.prose :deep(pre) { background: #f3f4f6; padding: 0.5rem; border-radius: 6px; overflow-x: auto; margin: 0.25rem 0; }
+.prose :deep(code) { background: var(--sunken); padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.85em; }
+.prose :deep(pre) { background: var(--sunken); padding: 0.5rem; border-radius: 6px; overflow-x: auto; margin: 0.25rem 0; }
 .prose :deep(pre code) { background: none; padding: 0; }
-.prose :deep(blockquote) { border-left: 3px solid #d1d5db; margin: 0.25rem 0; padding-left: 0.75rem; color: #6b7280; }
-.prose :deep(a) { color: #2563eb; text-decoration: underline; }
+.prose :deep(blockquote) { background: var(--sunken); border-radius: 4px; margin: 0.25rem 0; padding: 0.35rem 0.75rem; color: var(--ink-2); font-style: italic; }
+.prose :deep(a) { color: var(--accent); text-decoration: underline; }
 .prose :deep(strong) { font-weight: 600; }
 .prose :deep(em) { font-style: italic; }
 </style>

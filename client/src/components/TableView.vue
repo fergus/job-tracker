@@ -1,13 +1,13 @@
 <template>
-  <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+  <div class="bg-panel rounded-lg border border-line overflow-hidden">
     <table class="w-full text-sm">
       <thead>
-        <tr class="bg-gray-50 border-b border-gray-200">
+        <tr class="bg-raised border-b border-line">
           <th
             v-for="col in columns"
             :key="col.key"
             @click="toggleSort(col.key)"
-            class="text-left px-4 py-3 font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none"
+            class="text-left px-4 py-3 font-semibold text-ink-2 cursor-pointer hover:bg-sunken select-none"
             :class="{ 'hidden md:table-cell': col.mobileHidden }"
           >
             {{ col.label }}
@@ -21,21 +21,21 @@
           v-for="app in sorted"
           :key="app.id"
           @click="$emit('select', app)"
-          class="border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors"
+          class="border-b border-line hover:bg-accent-muted cursor-pointer transition-colors"
         >
-          <td class="px-4 py-3 font-medium text-gray-900">{{ app.company_name }}</td>
-          <td class="px-4 py-3 text-gray-700">{{ app.role_title }}</td>
+          <td class="px-4 py-3 font-medium text-ink">{{ app.company_name }}</td>
+          <td class="px-4 py-3 text-ink-2">{{ app.role_title }}</td>
           <td class="px-4 py-3">
-            <span :class="statusClass(app.status)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize">
+            <span :style="statusStyle(app.status)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize">
               {{ app.status }}
             </span>
           </td>
-          <td v-if="showUserColumn" class="hidden md:table-cell px-4 py-3 text-gray-500 text-sm">{{ app.user_email }}</td>
-          <td class="hidden md:table-cell px-4 py-3 text-gray-500 truncate max-w-xs">{{ latestNote(app) }}</td>
-          <td class="hidden md:table-cell px-4 py-3 text-gray-500 text-xs">{{ formatDate(lastActivity(app)) }}</td>
+          <td v-if="showUserColumn" class="hidden md:table-cell px-4 py-3 text-ink-3 text-sm">{{ app.user_email }}</td>
+          <td class="hidden md:table-cell px-4 py-3 text-ink-3 truncate max-w-xs">{{ latestNote(app) }}</td>
+          <td class="hidden md:table-cell px-4 py-3 text-ink-3 text-xs">{{ formatDate(lastActivity(app)) }}</td>
         </tr>
         <tr v-if="applications.length === 0">
-          <td :colspan="columns.length" class="px-4 py-8 text-center text-gray-400">No applications yet. Click "+ Add Application" to get started.</td>
+          <td :colspan="columns.length" class="px-4 py-8 text-center text-ink-3">No applications yet. Click "+ Add Application" to get started.</td>
         </tr>
       </tbody>
     </table>
@@ -113,16 +113,10 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString()
 }
 
-function statusClass(status) {
-  const map = {
-    interested: 'bg-gray-100 text-gray-700',
-    applied: 'bg-blue-100 text-blue-700',
-    screening: 'bg-yellow-100 text-yellow-700',
-    interview: 'bg-purple-100 text-purple-700',
-    offer: 'bg-green-100 text-green-700',
-    accepted: 'bg-emerald-100 text-emerald-700',
-    rejected: 'bg-red-100 text-red-700',
+function statusStyle(status) {
+  return {
+    backgroundColor: `var(--stage-${status}-bg)`,
+    color: `var(--stage-${status}-fg)`,
   }
-  return map[status] || 'bg-gray-100 text-gray-700'
 }
 </script>
