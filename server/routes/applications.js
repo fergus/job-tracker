@@ -12,6 +12,12 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
 
+const MIME_MAP = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
 const storage = multer.diskStorage({
   destination: uploadsDir,
   filename: (req, file, cb) => {
@@ -191,12 +197,6 @@ router.post('/:id/attachments', upload.array('files', 10), (req, res) => {
     return res.status(404).json({ error: 'Not found' });
   }
   if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
-
-  const MIME_MAP = {
-    '.pdf': 'application/pdf',
-    '.doc': 'application/msword',
-    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  };
 
   const now = new Date().toISOString();
   const inserted = [];
