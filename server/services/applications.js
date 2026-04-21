@@ -97,6 +97,9 @@ function listApplications(userEmail, { status, all, updated_since, isAdmin = fal
   }
 
   if (updated_since) {
+    if (isNaN(Date.parse(updated_since))) {
+      throw new ServiceError(400, 'Invalid updated_since: expected ISO 8601 date string');
+    }
     conditions.push('updated_at > ?');
     params.push(updated_since);
   }
