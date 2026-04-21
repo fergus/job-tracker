@@ -246,7 +246,8 @@
                   <a
                     :href="getAttachmentUrl(panelApp.id, att.id)"
                     class="text-sm text-blue-600 hover:underline truncate"
-                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >{{ att.original_filename }}</a>
                   <button
                     @click="removeAttachment(att.id)"
@@ -257,7 +258,7 @@
               </div>
               <label class="mt-2 inline-block text-xs text-blue-600 hover:underline cursor-pointer">
                 Upload files
-                <input type="file" @change="onAttachmentSelect" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" class="hidden" multiple />
+                <input type="file" @change="onAttachmentSelect" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
               </label>
             </div>
 
@@ -360,7 +361,7 @@
             </div>
             <label class="inline-block text-xs text-blue-600 hover:underline cursor-pointer">
               Attach files
-              <input type="file" @change="onQueueFiles" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" class="hidden" multiple />
+              <input type="file" @change="onQueueFiles" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
             </label>
           </template>
 

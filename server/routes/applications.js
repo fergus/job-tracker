@@ -10,12 +10,14 @@ const router = express.Router();
 
 fs.mkdirSync(uploadsDir, { recursive: true });
 
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx'];
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.md', '.txt'];
 
 const MIME_MAP = {
   '.pdf': 'application/pdf',
   '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.md': 'text/plain',
+  '.txt': 'text/plain',
 };
 
 const storage = multer.diskStorage({
@@ -31,7 +33,7 @@ function fileFilter(req, file, cb) {
   if (ALLOWED_EXTENSIONS.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error('Only .pdf, .doc, and .docx files are allowed'));
+    cb(new Error('Only .pdf, .doc, .docx, .md, and .txt files are allowed'));
   }
 }
 
@@ -144,7 +146,10 @@ router.get('/:id/cv', (req, res) => {
   if (req.isAdmin && existing.user_email !== req.userEmail) {
     console.info('[admin] %s downloaded CV for app %s owned by %s', req.userEmail, req.params.id, existing.user_email);
   }
-  res.download(filePath, existing.cv_filename);
+  const cvMime = MIME_MAP[path.extname(existing.cv_filename).toLowerCase()] || 'application/octet-stream';
+  res.setHeader('Content-Type', cvMime);
+  res.setHeader('Content-Disposition', 'inline');
+  res.sendFile(filePath);
 });
 
 // Upload/replace cover letter (owner only)
@@ -179,7 +184,10 @@ router.get('/:id/cover-letter', (req, res) => {
   if (req.isAdmin && existing.user_email !== req.userEmail) {
     console.info('[admin] %s downloaded cover letter for app %s owned by %s', req.userEmail, req.params.id, existing.user_email);
   }
-  res.download(filePath, existing.cover_letter_filename);
+  const clMime = MIME_MAP[path.extname(existing.cover_letter_filename).toLowerCase()] || 'application/octet-stream';
+  res.setHeader('Content-Type', clMime);
+  res.setHeader('Content-Disposition', 'inline');
+  res.sendFile(filePath);
 });
 
 // List attachments for an application (own or admin view)
@@ -227,7 +235,10 @@ router.get('/:id/attachments/:attachmentId', (req, res) => {
     if (req.isAdmin) {
       console.info('[admin] %s downloaded attachment %s from app %s', req.userEmail, req.params.attachmentId, req.params.id);
     }
-    res.download(filePath, attachment.original_filename);
+    const mime = attachment.mime_type || MIME_MAP[path.extname(attachment.original_filename).toLowerCase()] || 'application/octet-stream';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', 'inline');
+    res.sendFile(filePath);
   } catch (e) { handleError(res, e); }
 });
 
