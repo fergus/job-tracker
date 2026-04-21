@@ -65,6 +65,7 @@ if (!columns.some(c => c.name === 'user_email')) {
 }
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_applications_user_email ON applications(user_email)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_applications_user_email_updated_at ON applications(user_email, updated_at)');
 
 // Migrate: add interested_at column to applications if missing
 const appCols = db.prepare('PRAGMA table_info(applications)').all();
