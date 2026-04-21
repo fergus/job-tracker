@@ -104,6 +104,46 @@
   --color-accent-muted:  var(--accent-muted);
   --color-danger:        var(--danger);
   --color-danger-hover:  var(--danger-hover);
+
+  --font-sans:      'Barlow', system-ui, sans-serif;
+  --font-condensed: 'Barlow Condensed', system-ui, sans-serif;
+}
+
+/* ─── Motion tokens ─────────────────────────────────────────────── */
+:root {
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-expo:   cubic-bezier(0.7,  0, 0.84, 0);
+}
+
+/* Stage advancement — decisive stamp, not bounce */
+@keyframes stage-stamp {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.15); }
+  72%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+.stage-stamp {
+  animation: stage-stamp 380ms var(--ease-out-quart) forwards;
+}
+
+/* View crossfade (Board ↔ Table ↔ Timeline) */
+.view-enter-active { transition: opacity 180ms var(--ease-out-quart); }
+.view-leave-active { transition: opacity 130ms var(--ease-in-expo); }
+.view-enter-from,
+.view-leave-to     { opacity: 0; }
+
+/* Easing utility classes */
+.ease-out-expo  { transition-timing-function: var(--ease-out-expo); }
+.ease-out-quart { transition-timing-function: var(--ease-out-quart); }
+
+/* Accessibility — collapse all motion for users who need it */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:        0.01ms !important;
+    animation-iteration-count: 1      !important;
+    transition-duration:       0.01ms !important;
+  }
 }
 
 /* ─── Base ───────────────────────────────────────────────────────── */

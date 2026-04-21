@@ -1,9 +1,12 @@
 <template>
   <div
     class="fixed inset-0 z-50 outline-none"
-    @keydown.escape="close"
+    @keydown="handleKeydown"
     tabindex="-1"
     ref="panelRoot"
+    role="dialog"
+    aria-modal="true"
+    :aria-label="isEdit ? `Edit application — ${form.company_name || 'Application'}` : 'Add application'"
   >
     <!-- Backdrop -->
     <div
@@ -17,7 +20,7 @@
       class="absolute flex flex-col bg-panel shadow-xl
              inset-x-0 bottom-0 h-[92vh] rounded-t-2xl
              md:inset-y-0 md:left-0 md:h-auto md:w-[480px] md:rounded-none
-             transition-transform duration-300 ease-in-out"
+             transition-transform duration-300 ease-out-expo"
       :class="visible
         ? 'translate-y-0 md:translate-x-0 md:translate-y-0'
         : 'translate-y-full md:translate-y-0 md:-translate-x-full'"
@@ -34,17 +37,19 @@
             <input
               v-model="form.company_name"
               placeholder="Company name"
-              class="w-full text-base font-semibold text-ink bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 placeholder:text-ink-3/50 transition-colors"
+              aria-label="Company name"
+              class="w-full text-base font-semibold font-condensed text-ink bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 placeholder:text-ink-3/50 transition-colors"
             />
             <input
               v-model="form.role_title"
               placeholder="Role title"
+              aria-label="Role title"
               class="w-full text-sm text-ink-2 bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 mt-0.5 placeholder:text-ink-3/50 transition-colors"
             />
           </div>
           <button
             @click="close"
-            class="p-2 rounded-lg text-ink-3 hover:text-ink hover:bg-sunken transition-colors shrink-0 mt-0.5"
+            class="size-11 flex items-center justify-center rounded-lg text-ink-3 hover:text-ink hover:bg-sunken transition-colors shrink-0"
             aria-label="Close panel"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,7 +66,11 @@
             v-for="s in statuses"
             :key="s"
             @click="onStatusClick(s)"
-            :class="[form.status === s ? 'ring-2 ring-offset-1 opacity-100' : 'opacity-50 hover:opacity-80']"
+            :aria-pressed="form.status === s"
+            :class="[
+              form.status === s ? 'ring-2 ring-offset-1 opacity-100' : 'opacity-50 hover:opacity-80',
+              stampingStatus === s ? 'stage-stamp' : ''
+            ]"
             :style="statusPillStyle(s)"
             class="px-2.5 py-1.5 rounded-full text-xs font-medium capitalize transition-all"
           >{{ s }}</button>
@@ -252,7 +261,7 @@
                   >{{ att.original_filename }}</a>
                   <button
                     @click="removeAttachment(att.id)"
-                    class="p-1.5 rounded text-line-2 hover:text-danger ml-1 shrink-0"
+                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-line-2 hover:text-danger ml-1 shrink-0"
                     title="Delete"
                   >&times;</button>
                 </div>
@@ -339,7 +348,7 @@
                   </div>
                   <button
                     @click="removeNote(note.id)"
-                    class="p-1.5 rounded text-line-2 hover:text-danger ml-1 shrink-0"
+                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-line-2 hover:text-danger ml-1 shrink-0"
                   >&times;</button>
                 </div>
               </div>
@@ -357,7 +366,7 @@
                 class="flex items-center justify-between py-1 text-sm text-ink-2"
               >
                 <span class="truncate">{{ f.name }}</span>
-                <button @click="queuedFiles.splice(i, 1)" class="p-1.5 rounded text-line-2 hover:text-danger ml-1 shrink-0">&times;</button>
+                <button @click="queuedFiles.splice(i, 1)" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-line-2 hover:text-danger ml-1 shrink-0">&times;</button>
               </div>
             </div>
             <label class="inline-block text-xs text-accent hover:underline cursor-pointer">
@@ -442,6 +451,36 @@ function stageBadgeStyle(s) {
 // Animation
 const panelRoot = ref(null)
 const visible = ref(false)
+const stampingStatus = ref(null)
+
+// All interactive element types that participate in the tab order
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+// Trap focus within the panel so Tab doesn't leak into obscured background content.
+// Wraps forward (Tab) from last→first and backward (Shift+Tab) from first→last.
+function handleKeydown(event) {
+  if (event.key === 'Escape') {
+    close()
+    return
+  }
+  if (event.key === 'Tab') {
+    const focusable = Array.from(panelRoot.value?.querySelectorAll(FOCUSABLE) ?? [])
+    if (!focusable.length) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (event.shiftKey) {
+      if (document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+  }
+}
 
 onMounted(() => {
   panelRoot.value?.focus()
@@ -522,6 +561,10 @@ async function close() {
 }
 
 async function onStatusClick(s) {
+  if (s !== form.status) {
+    stampingStatus.value = s
+    setTimeout(() => { stampingStatus.value = null }, 420)
+  }
   form.status = s
   if (isEdit.value) {
     try {

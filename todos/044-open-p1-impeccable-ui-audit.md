@@ -56,10 +56,10 @@ against its "tactical, forward, sharp" brand brief.
 ## Recommended Actions (in order)
 
 - [x] **`/colorize`** (P0) — Build OKLCH design token system, light + dark themes, distinctive "tactical, forward, sharp" palette; move `stageColor()` to CSS variables
-- [ ] **`/harden`** (P1) — Fix WCAG violations: form labels, `aria-sort`, `aria-pressed`, focus trapping, empty state copy
-- [ ] **`/adapt`** (P1) — Fix touch targets (min 44px); add container queries to `KanbanCard`
-- [ ] **`/typeset`** (P2) — Replace system fonts with a distinctive pairing; establish type scale with real hierarchy
-- [ ] **`/animate`** (P2) — Add purposeful motion to stage advancement and panel transitions
+- [x] **`/harden`** (P1) — Fix WCAG violations: form labels, `aria-sort`, `aria-pressed`, focus trapping, empty state copy
+- [x] **`/adapt`** (P1) — Fix touch targets (min 44px); add container queries to `KanbanCard`
+- [x] **`/typeset`** (P2) — Replace system fonts with a distinctive pairing; establish type scale with real hierarchy
+- [x] **`/animate`** (P2) — Add purposeful motion to stage advancement and panel transitions
 - [ ] **`/layout`** (P2) — Break uniform spacing; create rhythm and hierarchy in panel and kanban
 - [ ] **`/polish`** (P3) — Blockquote style, redundant mount call, empty states
 
@@ -76,3 +76,7 @@ against its "tactical, forward, sharp" brand brief.
 
 - 2026-04-21: Initial audit run via `/impeccable:audit`; design context established in `.impeccable.md` and `CLAUDE.md`
 - 2026-04-21: `/colorize` complete — OKLCH token system in `main.css`, dark mode via `@media (prefers-color-scheme: dark)`, amber-bronze accent, semantic stage color pairs; all 10 components + `timeline.js` updated; `stageColor()` now returns CSS variable refs; trailing segments use `color-mix()` for alpha; blockquote border-left stripe replaced with background tint
+- 2026-04-21: `/harden` complete — `aria-label` on company/role inputs; `aria-pressed` on status pills; focus trap (Tab wrapping) + `role="dialog" aria-modal="true"` in `ApplicationPanel` and `SidebarMenu`; `aria-sort` + `scope="col"` + `aria-label` on `TableView` table/headers; sort indicators marked `aria-hidden`; `TimelineView` empty state now has heading + descriptive CTA
+- 2026-04-21: `/adapt` complete — all `p-2` icon buttons (settings, menu, close buttons across `App.vue`, `ApplicationPanel`, `SettingsPanel`, `SidebarMenu`) lifted to `size-11` (44px); all `×` delete buttons in `ApplicationPanel` lifted to `min-h-[44px] min-w-[44px]`; `@container` added to kanban column div; `KanbanCard` now uses `p-2 @[200px]:p-3` padding and hides date/indicator row at columns narrower than 200px
+- 2026-04-21: `/typeset` complete — Barlow (400/500/600) + Barlow Condensed (600/700) loaded via Google Fonts in `index.html` with `font-display: swap`; `--font-sans` and `--font-condensed` registered in `@theme inline` in `main.css`; `font-condensed` applied to `App.vue` h1 (+ `tracking-wide`), `KanbanBoard` stage headers (+ `tracking-wider`), `KanbanCard` company name, `ApplicationPanel` company name input, `TableView` company cells; `tabular-nums` added to `TableView` date column
+- 2026-04-21: `/animate` complete — motion token section added to `main.css` (`--ease-out-expo`, `--ease-out-quart`, `--ease-in-expo`; `.stage-stamp` keyframe animation; `.view-enter/leave-active` crossfade classes; `.ease-out-expo/quart` utility classes; global `prefers-reduced-motion: reduce` rule); `ApplicationPanel.vue`: panel entrance uses `ease-out-expo` (replaces `ease-in-out`), `stampingStatus` ref triggers `.stage-stamp` pulse on status pill when advancing to a new stage; `KanbanCard.vue`: hover lift (`hover:-translate-y-0.5` + `transition-[transform,box-shadow] duration-200 ease-out-quart`); `App.vue`: `<Transition name="view" mode="out-in">` crossfade wraps Board/Table/Timeline views

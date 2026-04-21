@@ -5,7 +5,7 @@
       <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <img src="/logo.svg" alt="" class="w-8 h-8 rounded-lg" />
-          <h1 class="text-xl font-bold text-ink">Job Application Tracker</h1>
+          <h1 class="text-xl font-bold font-condensed tracking-wide text-ink">Job Application Tracker</h1>
           <a
             :href="`https://github.com/fergus/job-tracker/releases/tag/v${version}`"
             target="_blank"
@@ -53,7 +53,7 @@
           >+ Add Application</button>
           <button
             @click="showSettings = true"
-            class="p-2 rounded-lg text-ink-3 hover:bg-sunken transition-colors"
+            class="size-11 flex items-center justify-center rounded-lg text-ink-3 hover:bg-sunken transition-colors"
             aria-label="Open settings"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,7 +63,7 @@
           </button>
           <button
             @click="showSidebar = true"
-            class="p-2 rounded-lg text-ink-3 hover:bg-sunken transition-colors"
+            class="size-11 flex items-center justify-center rounded-lg text-ink-3 hover:bg-sunken transition-colors"
             aria-label="Open menu"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,24 +76,29 @@
 
     <!-- Main content -->
     <main class="flex-1 px-4 py-4">
-      <KanbanBoard
-        v-if="view === 'kanban'"
-        :applications="applications"
-        :showUser="showAllUsers"
-        @status-change="handleStatusChange"
-        @select="openPanel"
-      />
-      <TableView
-        v-else-if="view === 'table'"
-        :applications="applications"
-        :showUserColumn="showAllUsers"
-        @select="openPanel"
-      />
-      <TimelineView
-        v-else-if="view === 'timeline'"
-        :applications="applications"
-        @open-detail="openPanel"
-      />
+      <Transition name="view" mode="out-in">
+        <KanbanBoard
+          v-if="view === 'kanban'"
+          key="kanban"
+          :applications="applications"
+          :showUser="showAllUsers"
+          @status-change="handleStatusChange"
+          @select="openPanel"
+        />
+        <TableView
+          v-else-if="view === 'table'"
+          key="table"
+          :applications="applications"
+          :showUserColumn="showAllUsers"
+          @select="openPanel"
+        />
+        <TimelineView
+          v-else
+          key="timeline"
+          :applications="applications"
+          @open-detail="openPanel"
+        />
+      </Transition>
     </main>
 
     <!-- Application panel -->
