@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const authMiddleware = require('./middleware/auth');
@@ -10,6 +11,8 @@ const keysRouter = require('./routes/keys');
 const app = express();
 
 app.set('trust proxy', 1);
+
+app.use(morgan('short'));
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -67,7 +70,7 @@ app.get('/*splat', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error('[error]', err.message, err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
 

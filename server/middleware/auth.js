@@ -36,6 +36,7 @@ function authMiddleware(req, res, next) {
     const row = db.getApiKeyByHash.get(keyHash);
 
     if (!row) {
+      console.warn('[auth] invalid API key from %s', req.ip);
       return res.status(401).json({ error: 'Invalid API key' });
     }
 
@@ -56,6 +57,7 @@ function authMiddleware(req, res, next) {
   if (process.env.NODE_ENV === 'production') {
     const email = req.headers['x-forwarded-email'];
     if (!req.headers['x-forwarded-user'] || !email) {
+      console.warn('[auth] rejected OAuth request: missing forwarded headers from %s', req.ip);
       return res.status(401).json({ error: 'Authentication required' });
     }
     req.userEmail = email.toLowerCase();

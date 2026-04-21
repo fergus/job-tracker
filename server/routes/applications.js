@@ -57,6 +57,9 @@ function attachNotes(rows) {
 // List applications (scoped to user, or all if admin with ?all=true)
 router.get('/', (req, res) => {
   try {
+    if (req.isAdmin && req.query.all === 'true') {
+      console.info('[admin] %s listed all applications', req.userEmail);
+    }
     res.json(svc.listApplications(req.userEmail, {
       status: req.query.status,
       all: req.query.all,
@@ -132,6 +135,9 @@ router.get('/:id/cv', (req, res) => {
   if (!filePath) return res.status(400).json({ error: 'Invalid file path' });
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
 
+  if (req.isAdmin && existing.user_email !== req.userEmail) {
+    console.info('[admin] %s downloaded CV for app %s owned by %s', req.userEmail, req.params.id, existing.user_email);
+  }
   res.download(filePath, existing.cv_filename);
 });
 
@@ -164,6 +170,9 @@ router.get('/:id/cover-letter', (req, res) => {
   if (!filePath) return res.status(400).json({ error: 'Invalid file path' });
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
 
+  if (req.isAdmin && existing.user_email !== req.userEmail) {
+    console.info('[admin] %s downloaded cover letter for app %s owned by %s', req.userEmail, req.params.id, existing.user_email);
+  }
   res.download(filePath, existing.cover_letter_filename);
 });
 
@@ -215,6 +224,9 @@ router.get('/:id/attachments/:attachmentId', (req, res) => {
     const filePath = safePath(uploadsDir, attachment.stored_filename);
     if (!filePath) return res.status(400).json({ error: 'Invalid file path' });
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+    if (req.isAdmin) {
+      console.info('[admin] %s downloaded attachment %s from app %s', req.userEmail, req.params.attachmentId, req.params.id);
+    }
     res.download(filePath, attachment.original_filename);
   } catch (e) { handleError(res, e); }
 });
