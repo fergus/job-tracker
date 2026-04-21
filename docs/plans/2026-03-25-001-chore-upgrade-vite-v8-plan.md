@@ -1,8 +1,9 @@
 ---
 title: Upgrade Vite v7 → v8
 type: chore
-status: active
+status: complete
 date: 2026-03-25
+completed: 2026-04-21
 origin: todos/033-pending-p3-upgrade-vite-v8.md
 ---
 

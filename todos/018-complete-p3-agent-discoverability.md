@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "018"
 tags: [code-review, agent-native, documentation]
@@ -28,3 +28,4 @@ Document: directory structure, how to create/edit/move/delete applications, file
 
 ## Work Log
 - 2026-03-09: Created from technical review (agent-native reviewer)
+- 2026-04-21: Closed as obsolete — SMB sync root removed in v0.9.0; MCP server (v0.10.0) is now the agent interface

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "016"
 tags: [code-review, architecture, reliability]
@@ -31,3 +31,4 @@ Have Express periodically check if the sync process is alive (check PID file or 
 
 ## Work Log
 - 2026-03-09: Created from technical review (architecture strategist)
+- 2026-04-21: Closed as obsolete — SMB sync engine removed in v0.9.0

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "015"
 tags: [code-review, performance]
@@ -38,3 +38,4 @@ Several performance improvements identified that are not critical for v1 but wou
 
 ## Work Log
 - 2026-03-09: Created from technical review (performance oracle)
+- 2026-04-21: Closed as obsolete — SMB sync engine removed in v0.9.0; all findings referred to the chokidar/sync process

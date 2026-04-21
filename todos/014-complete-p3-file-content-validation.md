@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "014"
 tags: [code-review, security]
@@ -28,3 +28,4 @@ Maintain a blocklist of dangerous extensions (.exe, .sh, .bat, .ps1, .js, .php).
 
 ## Work Log
 - 2026-03-09: Created from technical review (security sentinel, pattern recognition)
+- 2026-04-21: Closed as obsolete — SMB sync engine removed in v0.9.0; web upload path already enforces PDF/DOC/DOCX allowlist via multer

@@ -1,8 +1,9 @@
 ---
 title: Fix write operations to use O_NOFOLLOW (symlink TOCTOU hardening)
 type: fix
-status: active
+status: obsolete
 date: 2026-03-18
+closed: 2026-04-21
 ---
 
 # Fix write operations to use O_NOFOLLOW (symlink TOCTOU hardening)

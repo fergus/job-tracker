@@ -1,8 +1,9 @@
 ---
 title: "feat: SMB filesystem access for job applications"
 type: feat
-status: active
+status: obsolete
 date: 2026-03-09
+closed: 2026-04-21
 origin: docs/brainstorms/2026-03-09-smb-filesystem-access-brainstorm.md
 ---
 
