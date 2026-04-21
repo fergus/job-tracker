@@ -226,6 +226,8 @@ router.post('/:id/attachments', upload.array('files', 10), (req, res) => {
 });
 
 // Download a specific attachment (own or admin view)
+// Admins can download attachments for any application (read-only). Files leave
+// the server boundary — admin downloads are audit-logged via the line below.
 router.get('/:id/attachments/:attachmentId', (req, res) => {
   try {
     const attachment = svc.getAttachment(req.userEmail, req.params.id, req.params.attachmentId, { isAdmin: req.isAdmin });

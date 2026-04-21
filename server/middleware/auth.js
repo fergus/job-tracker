@@ -26,6 +26,18 @@ const upsertUser = db.prepare(`
   ON CONFLICT(email) DO UPDATE SET last_seen_at = excluded.last_seen_at
 `);
 
+// Cache seen emails for 60s to avoid a DB write on every request.
+const upsertCache = new Map();
+const UPSERT_TTL_MS = 60_000;
+
+function cachedUpsertUser(email) {
+  const now = Date.now();
+  const last = upsertCache.get(email);
+  if (last && now - last < UPSERT_TTL_MS) return;
+  upsertCache.set(email, now);
+  upsertUser.run(email, new Date(now).toISOString(), new Date(now).toISOString());
+}
+
 function authMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
 
@@ -47,8 +59,7 @@ function authMiddleware(req, res, next) {
     // Fire-and-forget last_used_at update
     Promise.resolve().then(() => db.updateApiKeyLastUsed.run(row.id)).catch(() => {});
 
-    const now = new Date().toISOString();
-    upsertUser.run(req.userEmail, now, now);
+    cachedUpsertUser(req.userEmail);
 
     return next();
   }
@@ -72,8 +83,7 @@ function authMiddleware(req, res, next) {
     req.authMethod = 'oauth';
   }
 
-  const now = new Date().toISOString();
-  upsertUser.run(req.userEmail, now, now);
+  cachedUpsertUser(req.userEmail);
 
   req.isAdmin = adminEmails.includes(req.userEmail);
 
