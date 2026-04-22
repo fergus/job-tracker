@@ -146,6 +146,42 @@
   }
 }
 
+/* ─── Logo colour tokens ─────────────────────────────────────────── */
+:root {
+  --logo-bg:      #D97848;
+  --logo-chevron: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --logo-bg:      #2A231C;
+    --logo-chevron: #E88A56;
+  }
+}
+
+/* ─── Build animation (header logo) ─────────────────────────────── */
+@keyframes jt-build {
+  0%   { opacity: 0; transform: translateX(-14px) scale(0.85); }
+  100% { opacity: 1; transform: translateX(0)     scale(1);    }
+}
+.b  { animation: jt-build 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+      transform-box: fill-box; transform-origin: center; }
+.b1 { animation-delay: 0.00s; }
+.b2 { animation-delay: 0.12s; }
+.b3 { animation-delay: 0.24s; }
+
+/* ─── Conveyor animation (loading states) ────────────────────────── */
+@keyframes jt-conveyor {
+  0%   { opacity: 0; transform: translateX(-12px); }
+  25%  { opacity: 1; transform: translateX(0);     }
+  75%  { opacity: 1; transform: translateX(0);     }
+  100% { opacity: 0; transform: translateX(12px);  }
+}
+.c  { animation: jt-conveyor 1.2s linear infinite;
+      transform-box: fill-box; transform-origin: center; }
+.c1 { animation-delay: 0.00s; }
+.c2 { animation-delay: 0.15s; }
+.c3 { animation-delay: 0.30s; }
+
 /* ─── Base ───────────────────────────────────────────────────────── */
 html, body {
   background-color: var(--canvas);

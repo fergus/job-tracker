@@ -1,5 +1,15 @@
 {
   "enabledPlugins": {
     "compound-engineering@compound-engineering-plugin": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(.claude/skills/fs-next/gather-state.sh *)",
+      "Bash(cd * && npm outdated *)",
+      "Bash(npm outdated *)",
+      "Bash(cd * && npm audit *)",
+      "Bash(npm audit *)",
+      "Bash(npm show *)"
+    ]
   }
 }

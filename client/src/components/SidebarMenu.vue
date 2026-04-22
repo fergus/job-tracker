@@ -1,9 +1,12 @@
 <template>
   <div
     class="fixed inset-0 z-40 outline-none"
-    @keydown.escape="$emit('close')"
+    @keydown="handleKeydown"
     tabindex="-1"
     ref="drawerRoot"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Menu"
   >
     <!-- Backdrop -->
     <div
@@ -22,7 +25,7 @@
         <span class="font-semibold text-ink">Menu</span>
         <button
           @click="$emit('close')"
-          class="p-2 rounded-lg text-ink-3 hover:bg-sunken transition-colors"
+          class="size-11 flex items-center justify-center rounded-lg text-ink-3 hover:bg-sunken transition-colors"
           aria-label="Close menu"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,7 +91,7 @@ const props = defineProps({
   compactHeader: Boolean,
 })
 
-defineEmits(['close', 'set-view', 'toggle-compact'])
+const emit = defineEmits(['close', 'set-view', 'toggle-compact'])
 
 const views = [
   { id: 'kanban', label: 'Board' },
@@ -98,6 +101,35 @@ const views = [
 
 const drawerRoot = ref(null)
 const visible = ref(false)
+
+// All interactive element types that participate in the tab order
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+// Trap focus within the drawer so Tab doesn't leak into obscured background content.
+// Wraps forward (Tab) from last→first and backward (Shift+Tab) from first→last.
+function handleKeydown(event) {
+  if (event.key === 'Escape') {
+    emit('close')
+    return
+  }
+  if (event.key === 'Tab') {
+    const focusable = Array.from(drawerRoot.value?.querySelectorAll(FOCUSABLE) ?? [])
+    if (!focusable.length) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (event.shiftKey) {
+      if (document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+  }
+}
 
 onMounted(() => {
   drawerRoot.value?.focus()

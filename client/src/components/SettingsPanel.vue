@@ -33,7 +33,7 @@
           <h2 class="text-base font-semibold text-ink">Settings</h2>
           <button
             @click="$emit('close')"
-            class="p-2 rounded-lg text-ink-3 hover:text-ink hover:bg-sunken transition-colors"
+            class="size-11 flex items-center justify-center rounded-lg text-ink-3 hover:text-ink hover:bg-sunken transition-colors"
             aria-label="Close settings"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

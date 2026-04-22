@@ -4,8 +4,8 @@
     <header class="bg-panel shadow-xs border-b border-line">
       <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-          <img src="/logo.svg" alt="" class="w-8 h-8 rounded-lg" />
-          <h1 class="text-xl font-bold font-condensed tracking-wide text-ink">Job Application Tracker</h1>
+          <LogoBuild :trigger="logoTrigger" />
+          <h1 class="text-xl font-bold font-condensed tracking-wide text-ink">Job Tracker</h1>
           <a
             :href="`https://github.com/fergus/job-tracker/releases/tag/v${version}`"
             target="_blank"
@@ -132,6 +132,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { fetchMe, fetchApplications, updateStatus } from './api'
+import LogoBuild from './components/LogoBuild.vue'
 import KanbanBoard from './components/KanbanBoard.vue'
 import TableView from './components/TableView.vue'
 import TimelineView from './components/TimelineView.vue'
@@ -152,6 +153,7 @@ const showAllUsers = ref(false)
 const showSidebar = ref(false)
 const showSettings = ref(false)
 const compactHeader = ref(false)
+const logoTrigger = ref(0)
 
 watch([showSidebar, showPanel], ([sidebar, panel]) => {
   const lock = sidebar || (panel && window.innerWidth < 768)
@@ -187,6 +189,7 @@ async function handlePanelSaved() {
 
 async function handleStatusChange(id, status) {
   await updateStatus(id, status)
+  logoTrigger.value++
   await loadApplications()
   if (panelApp.value?.id === id) {
     panelApp.value = applications.value.find(a => a.id === id) ?? null

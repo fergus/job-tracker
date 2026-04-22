@@ -1,8 +1,9 @@
 <template>
   <div class="max-w-screen-2xl mx-auto px-4 py-4">
     <!-- Empty state -->
-    <div v-if="sortedApps.length === 0" class="text-center text-ink-3 py-20 text-sm">
-      No applications to display.
+    <div v-if="sortedApps.length === 0" class="text-center py-20">
+      <p class="text-ink-2 font-medium mb-1">No applications to track yet</p>
+      <p class="text-sm text-ink-3">Add your first application to see your job search timeline here.</p>
     </div>
 
     <div v-else>

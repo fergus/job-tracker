@@ -3,14 +3,14 @@
     <div
       v-for="stage in stages"
       :key="stage.value"
-      class="snap-start shrink-0 w-[85vw] md:shrink md:flex-1 md:min-w-[200px]"
+      class="@container snap-start shrink-0 w-[85vw] md:shrink md:flex-1 md:min-w-[200px]"
     >
       <div class="flex items-center gap-2 mb-3">
         <span
           class="w-2.5 h-2.5 rounded-full inline-block"
           :style="{ backgroundColor: `var(--stage-${stage.value})` }"
         ></span>
-        <h3 class="text-sm font-semibold text-ink-2 uppercase tracking-wide">{{ stage.label }}</h3>
+        <h3 class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider">{{ stage.label }}</h3>
         <span class="text-xs text-ink-3 ml-auto">{{ columns[stage.value].length }}</span>
       </div>
       <draggable

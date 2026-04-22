@@ -1,19 +1,21 @@
 <template>
   <div class="bg-panel rounded-lg border border-line overflow-hidden">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm" aria-label="Job applications">
       <thead>
         <tr class="bg-raised border-b border-line">
           <th
             v-for="col in columns"
             :key="col.key"
+            scope="col"
             @click="toggleSort(col.key)"
-            class="text-left px-4 py-3 font-semibold text-ink-2 cursor-pointer hover:bg-sunken select-none"
-            :class="{ 'hidden md:table-cell': col.mobileHidden }"
+            :aria-sort="col.key !== 'latest_note' ? (sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined"
+            class="text-left px-4 py-3 font-semibold text-ink-2 select-none"
+            :class="[{ 'hidden md:table-cell': col.mobileHidden }, col.key !== 'latest_note' ? 'cursor-pointer hover:bg-sunken' : 'cursor-default']"
           >
             {{ col.label }}
-            <span v-if="sortKey === col.key" class="ml-1">{{ sortDir === 'asc' ? '&#9650;' : '&#9660;' }}</span>
+            <span v-if="sortKey === col.key" class="ml-1" aria-hidden="true">{{ sortDir === 'asc' ? '&#9650;' : '&#9660;' }}</span>
           </th>
-          <th class="px-4 py-3"></th>
+          <th scope="col" class="px-4 py-3"></th>
         </tr>
       </thead>
       <tbody>
@@ -23,7 +25,7 @@
           @click="$emit('select', app)"
           class="border-b border-line hover:bg-accent-muted cursor-pointer transition-colors"
         >
-          <td class="px-4 py-3 font-medium text-ink">{{ app.company_name }}</td>
+          <td class="px-4 py-3 font-medium font-condensed text-ink">{{ app.company_name }}</td>
           <td class="px-4 py-3 text-ink-2">{{ app.role_title }}</td>
           <td class="px-4 py-3">
             <span :style="statusStyle(app.status)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize">
@@ -32,7 +34,7 @@
           </td>
           <td v-if="showUserColumn" class="hidden md:table-cell px-4 py-3 text-ink-3 text-sm">{{ app.user_email }}</td>
           <td class="hidden md:table-cell px-4 py-3 text-ink-3 truncate max-w-xs">{{ latestNote(app) }}</td>
-          <td class="hidden md:table-cell px-4 py-3 text-ink-3 text-xs">{{ formatDate(lastActivity(app)) }}</td>
+          <td class="hidden md:table-cell px-4 py-3 text-ink-3 text-xs tabular-nums">{{ formatDate(lastActivity(app)) }}</td>
         </tr>
         <tr v-if="applications.length === 0">
           <td :colspan="columns.length" class="px-4 py-8 text-center text-ink-3">No applications yet. Click "+ Add Application" to get started.</td>
