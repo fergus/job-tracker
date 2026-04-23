@@ -947,4 +947,9 @@ function formatDateTime(iso) {
 .prose :deep(a) { color: var(--accent); text-decoration: underline; }
 .prose :deep(strong) { font-weight: 600; }
 .prose :deep(em) { font-style: italic; }
+.prose :deep(table) { width: 100%; border-collapse: collapse; margin: 0.25rem 0; font-size: 0.85em; }
+.prose :deep(th), .prose :deep(td) { border: 1px solid var(--line); padding: 0.25rem 0.5rem; text-align: left; }
+.prose :deep(th) { background: var(--sunken); font-weight: 600; color: var(--ink); }
+.prose :deep(td) { color: var(--ink-2); }
+.prose :deep(tr:nth-child(even) td) { background: var(--sunken); }
 </style>
