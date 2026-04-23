@@ -1,6 +1,6 @@
 ---
 name: fs-release
-description: Bump the version, commit, push, create a GitHub release, wait for the CI build, and deploy to the test server.
+description: Use when the user wants to cut a release of job-tracker — version bump, commit, push, GitHub release, CI wait, and deploy.
 ---
 
 # Release
@@ -21,11 +21,7 @@ Run the appropriate script from the project root:
 npm run version:patch   # or version:minor / version:major
 ```
 
-Read the new version from `package.json`:
-
-```bash
-node -p "require('./package.json').version"
-```
+The script prints the new version — no need to read `package.json` separately.
 
 ### 3. Commit
 
@@ -46,33 +42,53 @@ git push
 
 ### 5. Create GitHub release
 
-Create an annotated release and tag in one step. The tag triggers the Docker image build in CI:
+Release notes strategy:
+- If this is a routine patch (one or two small fixes), use `--generate-notes`
+- If this release spans notable changes or multiple versions' worth of work, write release notes by hand — summarise features, fixes, and behaviour changes in plain language (not just commit messages)
 
 ```bash
+# Routine patch:
 gh release create v<NEW_VERSION> --title "v<NEW_VERSION>" --generate-notes
+
+# Significant release:
+gh release create v<NEW_VERSION> --title "v<NEW_VERSION>" --notes "$(cat <<'EOF'
+<hand-written notes here>
+EOF
+)"
 ```
 
-### 6. Wait for the CI build
+The tag triggers the Docker image build in CI.
 
-Get the run ID for the tag push and stream its progress:
+### 6. Wait for the CI build
 
 ```bash
 gh run list --limit 5
 ```
 
-Then watch it. Poll every 15 seconds with `gh run view <RUN_ID>` until the status is `completed`. Report pass or fail. If it fails, stop here and tell the user — do not deploy a broken image.
+This returns two runs: one for the `main` push and one for the tag push. **Watch the tag run** — its `Branch` column will show `v<NEW_VERSION>`.
+
+If the tag run already shows `completed success`, skip polling and proceed to deploy.
+
+Otherwise poll every 15 seconds until done:
+
+```bash
+for i in $(seq 1 24); do
+  sleep 15
+  STATUS=$(gh run view <TAG_RUN_ID> --json status,conclusion -q '.status + " " + .conclusion')
+  echo "$(date '+%H:%M:%S') $STATUS"
+  if [[ "$STATUS" == completed* ]]; then break; fi
+done
+```
+
+Report pass or fail. If it fails, stop — do not deploy a broken image.
 
 ### 7. Deploy
-
-Once the build passes, pull the new image and restart the container on the test server:
 
 ```bash
 ssh docker 'cd job-tracker && docker compose pull && docker compose up -d'
 ```
 
 ### 8. Summary
-
-Print a concise summary in this format:
 
 ```
 Released v<NEW_VERSION>

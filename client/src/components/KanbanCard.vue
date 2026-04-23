@@ -5,25 +5,72 @@
     tabindex="0"
     @keydown.enter="$emit('select', application)"
     @keydown.space.prevent="$emit('select', application)"
-    class="bg-panel rounded-lg border border-line p-2 @[200px]:p-3 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-[transform,box-shadow] duration-200 ease-out-quart"
+    class="bg-panel rounded-lg border border-line p-3 @[200px]:p-4 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-[transform,box-shadow] duration-200 ease-out-quart"
   >
     <p class="font-semibold font-condensed text-sm text-ink truncate">{{ application.company_name }}</p>
-    <p class="text-xs text-ink-2 truncate mt-0.5">{{ application.role_title }}</p>
+    <p class="text-xs text-ink-2 truncate mt-1">{{ application.role_title }}</p>
     <p v-if="showUser" class="text-xs text-ink-3 truncate mt-0.5">{{ application.user_email }}</p>
     <!-- Hidden on narrow columns (<200px); shown when column is wide enough to breathe -->
-    <div class="hidden @[200px]:flex items-center justify-between mt-2">
-      <span class="text-xs text-ink-3">{{ formatDate(application.updated_at) }}</span>
-      <span class="flex gap-1">
-        <span v-if="application.cv_filename" class="text-xs text-blue-500" title="CV attached">&#128206;</span>
-        <span v-if="application.cover_letter_filename" class="text-xs text-green-500" title="Cover letter attached">&#128196;</span>
+    <div class="hidden @[200px]:flex items-center justify-between mt-3">
+      <span
+        class="text-xs flex items-center gap-1"
+        :class="stalenessClass"
+        :title="stalenessLabel"
+      >
+        <span
+          v-if="stalenessLevel > 0"
+          class="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0"
+          :class="stalenessDotClass"
+          aria-hidden="true"
+        ></span>
+        {{ formatDate(application.updated_at) }}
+      </span>
+      <span class="flex gap-1 items-center">
+        <svg v-if="application.cv_filename" class="w-3.5 h-3.5 text-ink-3" title="CV attached" aria-label="CV attached" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 1H3.5A1.5 1.5 0 002 2.5v11A1.5 1.5 0 003.5 15h9A1.5 1.5 0 0014 13.5V6L9 1z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 1v5h5" />
+        </svg>
+        <svg v-if="application.cover_letter_filename" class="w-3.5 h-3.5 text-ink-3" title="Cover letter attached" aria-label="Cover letter attached" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2 4.5A1.5 1.5 0 013.5 3h9A1.5 1.5 0 0114 4.5v7a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-7z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2 4.5l6 4.5 6-4.5" />
+        </svg>
       </span>
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({ application: Object, showUser: Boolean })
+import { computed } from 'vue'
+
+const props = defineProps({ application: Object, showUser: Boolean })
 defineEmits(['select'])
+
+const STALE_STAGES = new Set(['applied', 'screening', 'interview'])
+
+const stalenessLevel = computed(() => {
+  if (!STALE_STAGES.has(props.application.status)) return 0
+  const days = (Date.now() - new Date(props.application.updated_at)) / 86_400_000
+  if (days >= 30) return 2
+  if (days >= 14) return 1
+  return 0
+})
+
+const stalenessClass = computed(() => {
+  if (stalenessLevel.value === 2) return 'text-danger'
+  if (stalenessLevel.value === 1) return 'text-accent'
+  return 'text-ink-3'
+})
+
+const stalenessDotClass = computed(() => {
+  if (stalenessLevel.value === 2) return 'bg-danger'
+  return 'bg-accent'
+})
+
+const stalenessLabel = computed(() => {
+  if (stalenessLevel.value === 2) return 'No movement in 30+ days — worth following up'
+  if (stalenessLevel.value === 1) return 'No movement in 14+ days'
+  return ''
+})
 
 function formatDate(iso) {
   if (!iso) return ''

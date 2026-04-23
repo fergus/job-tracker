@@ -1,11 +1,11 @@
 <template>
-  <div class="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
+  <div class="flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
     <div
       v-for="stage in stages"
       :key="stage.value"
       class="@container snap-start shrink-0 w-[85vw] md:shrink md:flex-1 md:min-w-[200px]"
     >
-      <div class="flex items-center gap-2 mb-3">
+      <div class="flex items-center gap-2 mb-4">
         <span
           class="w-2.5 h-2.5 rounded-full inline-block"
           :style="{ backgroundColor: `var(--stage-${stage.value})` }"
@@ -30,6 +30,13 @@
 
 <script setup>
 import { reactive, watch } from 'vue'
+// vuedraggable 4.1.0 produces a benign CSP eval violation in the browser console.
+// Sortable.js (bundled inside) uses `new Function("return this")()` as a global-object
+// fallback, which CSP's script-src blocks — but it's wrapped in try/catch and the
+// `window` fallback runs correctly, so drag behaviour is unaffected.
+// To eliminate the warning entirely, replace vuedraggable with a CSP-safe library
+// (e.g. @dnd-kit/core or native HTML5 drag events). Not worth the effort unless
+// vuedraggable is being replaced for another reason.
 import draggable from 'vuedraggable'
 import KanbanCard from './KanbanCard.vue'
 
