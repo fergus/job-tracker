@@ -12,7 +12,7 @@
     <div
       class="absolute inset-0 bg-black/40 transition-opacity duration-300"
       :class="visible ? 'opacity-100' : 'opacity-0'"
-      @click="close"
+      @click="pendingDelete = false; pendingDeleteNoteId = null; close()"
     />
 
     <!-- Panel: right-side drawer on desktop, bottom sheet on mobile -->
@@ -31,7 +31,7 @@
       </div>
 
       <!-- Sticky header -->
-      <div class="px-5 pt-3 pb-3 border-b border-line shrink-0">
+      <div class="px-5 pt-5 pb-4 border-b border-line shrink-0">
         <div class="flex items-start gap-3">
           <div class="flex-1 min-w-0">
             <input
@@ -60,7 +60,7 @@
       </div>
 
       <!-- Sticky status bar -->
-      <div class="px-5 py-2.5 border-b border-line shrink-0 overflow-x-auto">
+      <div class="px-5 py-3 border-b border-line shrink-0 overflow-x-auto">
         <div class="flex gap-1.5 min-w-max">
           <button
             v-for="s in statuses"
@@ -79,9 +79,10 @@
 
       <!-- Scrollable body -->
       <div class="flex-1 overflow-y-auto">
-        <div class="px-5 py-4 space-y-5">
+        <div class="px-5 py-4">
 
-          <!-- Core fields -->
+          <!-- Primary fields: always visible, tightly grouped -->
+          <div class="space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-ink-3 mb-1">Job Posting URL</label>
@@ -187,13 +188,15 @@
             />
           </div>
 
+          </div><!-- /primary fields -->
+
           <!-- Edit/view-only sections -->
           <template v-if="isEdit">
 
             <!-- Dates grid -->
-            <div>
-              <p class="text-xs font-medium text-ink-3 mb-2 uppercase tracking-wide">Dates</p>
-              <div class="grid grid-cols-3 gap-3">
+            <div class="mt-7 pt-5 border-t border-line">
+              <p class="text-xs font-medium text-ink-3 mb-3 uppercase tracking-wide">Dates</p>
+              <div class="grid grid-cols-3 gap-4">
                 <div v-for="d in dates" :key="d.key">
                   <p class="text-xs text-ink-3 uppercase tracking-wide">{{ d.label }}</p>
                   <p v-if="d.key === 'created_at'" class="text-sm text-ink">{{ formatDate(panelApp[d.key]) }}</p>
@@ -209,9 +212,12 @@
                     <button
                       v-if="panelApp[d.key]"
                       @mousedown.prevent="clearDate(d.key)"
-                      class="p-1 rounded text-ink-3 hover:text-danger leading-none shrink-0"
+                      class="p-1 rounded text-ink-3 hover:text-danger flex items-center justify-center shrink-0"
                       title="Clear date"
-                    >&times;</button>
+                      aria-label="Clear date"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                   </div>
                   <p
                     v-else
@@ -223,8 +229,8 @@
             </div>
 
             <!-- Mini timeline -->
-            <div v-if="miniSegments.length">
-              <p class="text-xs text-ink-3 uppercase tracking-wide mb-1.5">Journey</p>
+            <div v-if="miniSegments.length" class="mt-4">
+              <p class="text-xs text-ink-3 uppercase tracking-wide mb-2">Journey</p>
               <div class="relative h-5 rounded overflow-hidden bg-sunken">
                 <div
                   v-for="seg in miniSegments"
@@ -234,7 +240,7 @@
                   :title="`${seg.stage} · ${formatShortDate(seg.start)} – ${formatShortDate(seg.end)} · ${miniDays(seg)} day${miniDays(seg) === 1 ? '' : 's'}`"
                 ></div>
               </div>
-              <div class="flex gap-3 mt-1.5 flex-wrap">
+              <div class="flex gap-3 mt-2 flex-wrap">
                 <div v-for="seg in miniSegments" :key="seg.stage" class="flex items-center gap-1">
                   <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" :style="{ backgroundColor: stageColor(seg.stage) }"></span>
                   <span class="text-xs text-ink-3 capitalize">{{ seg.stage }}</span>
@@ -243,15 +249,15 @@
             </div>
 
             <!-- Attachments -->
-            <div>
-              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-2">Attachments</h3>
+            <div class="mt-6">
+              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-3">Attachments</h3>
               <div v-if="attachmentsLoading" class="text-sm text-ink-3">Loading...</div>
               <div v-else>
                 <div v-if="attachments.length === 0" class="text-sm text-ink-3 mb-2">No attachments.</div>
                 <div
                   v-for="att in attachments"
                   :key="att.id"
-                  class="flex items-center justify-between py-1.5 border-b border-line last:border-0"
+                  class="flex items-center justify-between py-2 border-b border-line last:border-0"
                 >
                   <a
                     :href="getAttachmentUrl(panelApp.id, att.id)"
@@ -261,9 +267,12 @@
                   >{{ att.original_filename }}</a>
                   <button
                     @click="removeAttachment(att.id)"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-line-2 hover:text-danger ml-1 shrink-0"
-                    title="Delete"
-                  >&times;</button>
+                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
+                    title="Delete attachment"
+                    aria-label="Delete attachment"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
                 </div>
               </div>
               <label class="mt-2 inline-block text-xs text-accent hover:underline cursor-pointer">
@@ -273,9 +282,9 @@
             </div>
 
             <!-- Notes -->
-            <div>
-              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-3">Notes</h3>
-              <div class="flex flex-col gap-2 mb-3">
+            <div class="mt-6">
+              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-4">Notes</h3>
+              <div class="flex flex-col gap-3 mb-4">
                 <div class="flex items-center gap-2">
                   <select
                     v-model="newNoteStage"
@@ -298,7 +307,7 @@
                 />
               </div>
               <div v-if="sortedNotes.length === 0" class="text-sm text-ink-3 py-2">No notes yet.</div>
-              <div v-for="note in sortedNotes" :key="note.id" class="bg-raised rounded-lg p-2 mb-1.5">
+              <div v-for="note in sortedNotes" :key="note.id" class="bg-raised rounded-lg p-3 mb-2">
                 <div v-if="editingNoteId === note.id" class="flex flex-col gap-2">
                   <div class="flex items-center gap-2">
                     <select
@@ -329,7 +338,7 @@
                   />
                 </div>
                 <div v-else class="flex items-start justify-between">
-                  <div class="flex items-start gap-2 flex-1 min-w-0">
+                  <div class="flex items-start gap-3 flex-1 min-w-0">
                     <span
                       :style="stageBadgeStyle(note.stage)"
                       class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 shrink-0"
@@ -340,16 +349,30 @@
                         v-html="renderMarkdown(note.content)"
                         @click="startEdit(note)"
                       />
-                      <div class="text-xs text-ink-3 mt-0.5 flex gap-2">
+                      <div class="text-xs text-ink-3 mt-1 flex gap-2">
                         <span>{{ formatDateTime(note.created_at) }}</span>
                         <span v-if="note.updated_at && note.updated_at !== note.created_at">· Edited: {{ formatDateTime(note.updated_at) }}</span>
                       </div>
                     </div>
                   </div>
+                  <div v-if="pendingDeleteNoteId === note.id" class="flex items-center gap-1 ml-1 shrink-0">
+                    <button
+                      @click="removeNote(note.id)"
+                      class="text-xs font-medium text-danger hover:text-danger-hover px-2 py-1.5 rounded transition-colors"
+                    >Delete</button>
+                    <button
+                      @click="pendingDeleteNoteId = null"
+                      class="text-xs font-medium text-ink-3 hover:text-ink px-2 py-1.5 rounded transition-colors"
+                    >Cancel</button>
+                  </div>
                   <button
+                    v-else
                     @click="removeNote(note.id)"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-line-2 hover:text-danger ml-1 shrink-0"
-                  >&times;</button>
+                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
+                    aria-label="Delete note"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -358,6 +381,7 @@
 
           <!-- Create mode: queued file preview -->
           <template v-else>
+            <div class="mt-7 pt-5 border-t border-line">
             <div v-if="queuedFiles.length">
               <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-2">Files to upload</h3>
               <div
@@ -366,38 +390,72 @@
                 class="flex items-center justify-between py-1 text-sm text-ink-2"
               >
                 <span class="truncate">{{ f.name }}</span>
-                <button @click="queuedFiles.splice(i, 1)" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-line-2 hover:text-danger ml-1 shrink-0">&times;</button>
+                <button @click="queuedFiles.splice(i, 1)" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0" aria-label="Remove file">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
               </div>
             </div>
             <label class="inline-block text-xs text-accent hover:underline cursor-pointer">
               Attach files
               <input type="file" @change="onQueueFiles" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
             </label>
+            </div><!-- /create-mode files wrapper -->
           </template>
 
         </div>
       </div>
 
       <!-- Sticky footer -->
-      <div class="flex items-center justify-between px-5 py-3 border-t border-line shrink-0">
-        <button
-          v-if="isEdit"
-          @click="confirmDelete"
-          class="py-2 text-sm text-danger hover:text-danger-hover font-medium"
-        >Delete</button>
-        <div v-else></div>
-        <div class="flex gap-2">
+      <div class="flex items-center justify-between px-5 py-4 border-t border-line shrink-0 min-h-[68px]">
+        <!-- Unsaved changes prompt -->
+        <template v-if="pendingClose">
+          <p class="text-sm text-ink-2">Unsaved changes</p>
+          <div class="flex gap-2">
+            <button
+              @click="pendingClose = false"
+              class="px-3 py-2 text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
+            >Keep editing</button>
+            <button
+              @click="doClose"
+              class="px-3 py-2 text-sm font-medium text-danger hover:text-danger-hover"
+            >Close anyway</button>
+          </div>
+        </template>
+        <!-- Delete confirmation -->
+        <template v-else-if="pendingDelete">
+          <p class="text-sm text-ink-2">Delete this application?</p>
+          <div class="flex gap-2">
+            <button
+              @click="pendingDelete = false"
+              class="px-3 py-2 text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
+            >Cancel</button>
+            <button
+              @click="confirmDelete"
+              class="px-3 py-2 text-sm font-medium text-accent-fg bg-danger hover:bg-danger-hover rounded-lg transition-colors"
+            >Delete</button>
+          </div>
+        </template>
+        <!-- Normal footer -->
+        <template v-else>
           <button
-            v-if="!isEdit"
-            @click="close"
-            class="px-3 py-2 text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
-          >Cancel</button>
-          <button
-            @click="save"
-            :disabled="saving"
-            class="px-4 py-2 text-sm font-medium text-accent-fg bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50"
-          >{{ saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Application') }}</button>
-        </div>
+            v-if="isEdit"
+            @click="confirmDelete"
+            class="py-2 text-sm text-danger hover:text-danger-hover font-medium"
+          >Delete</button>
+          <div v-else></div>
+          <div class="flex gap-2">
+            <button
+              v-if="!isEdit"
+              @click="close"
+              class="px-3 py-2 text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
+            >Cancel</button>
+            <button
+              @click="save"
+              :disabled="saving"
+              class="px-4 py-2 text-sm font-medium text-accent-fg bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50"
+            >{{ saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Application') }}</button>
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -413,6 +471,9 @@ import {
   fetchAttachments, uploadAttachments, getAttachmentUrl, deleteAttachment,
 } from '../api'
 import { computeSegments, stageColor, durationDays } from '../utils/timeline'
+import { useToast } from '../composables/useToast'
+
+const toast = useToast()
 
 marked.setOptions({ breaks: true })
 
@@ -519,8 +580,6 @@ function initForm() {
 
 initForm()
 
-onMounted(() => { if (props.panelApp?.id) loadAttachments() })
-
 watch(() => props.panelApp?.id, (newId) => {
   initForm()
   editingDateKey.value = null
@@ -554,34 +613,59 @@ async function close() {
     await addNote()
   }
   if (isDirty()) {
-    if (!confirm('You have unsaved changes. Close anyway?')) return
+    pendingClose.value = true
+    return
   }
+  doClose()
+}
+
+function doClose() {
+  pendingClose.value = false
+  pendingDelete.value = false
   visible.value = false
   setTimeout(() => emit('close'), 300)
 }
 
 async function onStatusClick(s) {
-  if (s !== form.status) {
+  const prevStatus = form.status
+  const appId = props.panelApp?.id
+  if (s !== prevStatus) {
     stampingStatus.value = s
     setTimeout(() => { stampingStatus.value = null }, 420)
   }
   form.status = s
   if (isEdit.value) {
     try {
-      await updateStatus(props.panelApp.id, s)
+      await updateStatus(appId, s)
       emit('saved')
+      if (s !== prevStatus) {
+        const label = s.charAt(0).toUpperCase() + s.slice(1)
+        toast.success(`Moved to ${label}`, {
+          actionLabel: 'Undo',
+          action: async () => {
+            try {
+              form.status = prevStatus
+              await updateStatus(appId, prevStatus)
+              emit('saved')
+            } catch { form.status = s }
+          },
+        })
+      }
     } catch (err) {
-      form.status = props.panelApp.status
-      alert('Error updating status: ' + (err.response?.data?.error || err.message))
+      form.status = prevStatus
+      toast.error('Error updating status: ' + (err.response?.data?.error || err.message))
     }
   }
 }
 
 const saving = ref(false)
+const pendingDelete = ref(false)
+const pendingClose = ref(false)
+const pendingDeleteNoteId = ref(null)
 
 async function save() {
   if (!form.company_name.trim() || !form.role_title.trim()) {
-    alert('Company name and role title are required.')
+    toast.error('Company name and role title are required.')
     return
   }
   saving.value = true
@@ -596,6 +680,7 @@ async function save() {
         job_location: form.job_location,
       })
       emit('saved')
+      toast.success('Changes saved')
     } else {
       const formData = new FormData()
       formData.append('company_name', form.company_name)
@@ -617,22 +702,28 @@ async function save() {
 
       emit('panel-app-updated', newApp)
       emit('saved')
+      toast.success('Application created')
     }
   } catch (err) {
-    alert('Error saving: ' + (err.response?.data?.error || err.message))
+    toast.error('Error saving: ' + (err.response?.data?.error || err.message))
   } finally {
     saving.value = false
   }
 }
 
 async function confirmDelete() {
-  if (!confirm(`Delete application for ${props.panelApp.company_name} – ${props.panelApp.role_title}?`)) return
+  if (!pendingDelete.value) {
+    pendingDelete.value = true
+    return
+  }
   try {
     await deleteApplication(props.panelApp.id)
+    pendingDelete.value = false
     visible.value = false
     setTimeout(() => { emit('saved'); emit('close') }, 300)
   } catch (err) {
-    alert('Error deleting: ' + (err.response?.data?.error || err.message))
+    pendingDelete.value = false
+    toast.error('Error deleting: ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -653,7 +744,7 @@ async function onDateChange(key, event) {
     await updateDates(props.panelApp.id, { [key]: isoValue })
     emit('saved')
   } catch (err) {
-    alert('Error updating date: ' + (err.response?.data?.error || err.message))
+    toast.error('Error updating date: ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -663,7 +754,7 @@ async function clearDate(key) {
     await updateDates(props.panelApp.id, { [key]: null })
     emit('saved')
   } catch (err) {
-    alert('Error clearing date: ' + (err.response?.data?.error || err.message))
+    toast.error('Error clearing date: ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -731,7 +822,7 @@ async function onAttachmentSelect(e) {
     await uploadAttachments(props.panelApp.id, files)
     await loadAttachments()
   } catch (err) {
-    alert('Upload failed: ' + (err.response?.data?.error || err.message))
+    toast.error('Upload failed: ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -740,7 +831,7 @@ async function removeAttachment(attachmentId) {
     await deleteAttachment(props.panelApp.id, attachmentId)
     attachments.value = attachments.value.filter(a => a.id !== attachmentId)
   } catch (err) {
-    alert('Error deleting attachment: ' + (err.response?.data?.error || err.message))
+    toast.error('Error deleting attachment: ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -769,16 +860,21 @@ async function addNote() {
     newNoteContent.value = ''
     emit('saved')
   } catch (err) {
-    alert('Error adding note: ' + (err.response?.data?.error || err.message))
+    toast.error('Error adding note: ' + (err.response?.data?.error || err.message))
   }
 }
 
 async function removeNote(noteId) {
+  if (pendingDeleteNoteId.value !== noteId) {
+    pendingDeleteNoteId.value = noteId
+    return
+  }
+  pendingDeleteNoteId.value = null
   try {
     await deleteNote(props.panelApp.id, noteId)
     emit('saved')
   } catch (err) {
-    alert('Error deleting note: ' + (err.response?.data?.error || err.message))
+    toast.error('Error deleting note: ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -802,7 +898,7 @@ async function saveEdit(noteId) {
     await updateNote(props.panelApp.id, noteId, { content, stage: editingStage.value })
     emit('saved')
   } catch (err) {
-    alert('Error updating note: ' + (err.response?.data?.error || err.message))
+    toast.error('Error updating note: ' + (err.response?.data?.error || err.message))
   }
 }
 
@@ -812,8 +908,13 @@ function cancelEdit() {
   editingStage.value = ''
 }
 
+const markdownCache = new Map()
 function renderMarkdown(content) {
-  return DOMPurify.sanitize(marked.parse(content || ''))
+  const key = content || ''
+  if (!markdownCache.has(key)) {
+    markdownCache.set(key, DOMPurify.sanitize(marked.parse(key)))
+  }
+  return markdownCache.get(key)
 }
 
 function formatDate(iso) {

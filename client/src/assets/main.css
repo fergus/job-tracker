@@ -182,6 +182,13 @@
 .c2 { animation-delay: 0.15s; }
 .c3 { animation-delay: 0.30s; }
 
+/* ─── Toast transitions ─────────────────────────────────────────── */
+.toast-enter-from { opacity: 0; transform: translateY(10px); }
+.toast-enter-active { transition: opacity 240ms var(--ease-out-expo), transform 240ms var(--ease-out-expo); }
+.toast-leave-to { opacity: 0; transform: translateY(-6px); }
+.toast-leave-active { transition: opacity 160ms var(--ease-in-expo), transform 160ms var(--ease-in-expo); }
+.toast-move { transition: transform 240ms var(--ease-out-expo); }
+
 /* ─── Base ───────────────────────────────────────────────────────── */
 html, body {
   background-color: var(--canvas);

@@ -1,9 +1,12 @@
 <template>
   <div
     class="fixed inset-0 z-50 outline-none"
-    @keydown.escape="$emit('close')"
+    @keydown="handleKeydown"
     tabindex="-1"
     ref="panelRoot"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Settings"
   >
     <!-- Backdrop -->
     <div
@@ -17,7 +20,7 @@
       class="absolute flex flex-col bg-panel shadow-xl
              inset-x-0 bottom-0 h-[92vh] rounded-t-2xl
              md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-[480px] md:rounded-none
-             transition-transform duration-300 ease-in-out"
+             transition-transform duration-300 ease-out-expo"
       :class="visible
         ? 'translate-y-0 md:translate-x-0'
         : 'translate-y-full md:translate-x-full'"
@@ -88,7 +91,7 @@
                 class="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-fg px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
               >{{ isGenerating ? 'Generating…' : 'Generate Key' }}</button>
             </div>
-            <p v-if="generateError" class="text-xs text-red-600 mb-3">{{ generateError }}</p>
+            <p v-if="generateError" role="alert" class="text-xs text-danger mb-3">{{ generateError }}</p>
 
             <!-- Key list -->
             <div v-if="keys.length === 0" class="text-sm text-ink-3 italic py-2">
@@ -143,8 +146,8 @@
       >
         <div class="w-full max-w-sm">
           <div class="text-center mb-4">
-            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-12 h-12 bg-accent-muted rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
             </div>
@@ -181,10 +184,30 @@ const props = defineProps({
   currentUser: Object,
   showAllUsers: Boolean,
 })
-defineEmits(['close', 'set-show-all'])
+const emit = defineEmits(['close', 'set-show-all'])
 
 const panelRoot = ref(null)
 const visible = ref(false)
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+function handleKeydown(event) {
+  if (event.key === 'Escape') {
+    emit('close')
+    return
+  }
+  if (event.key === 'Tab') {
+    const focusable = Array.from(panelRoot.value?.querySelectorAll(FOCUSABLE) ?? [])
+    if (!focusable.length) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (event.shiftKey) {
+      if (document.activeElement === first) { event.preventDefault(); last.focus() }
+    } else {
+      if (document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+  }
+}
 const keys = ref([])
 const newKey = ref(null)
 const generateLabel = ref('')

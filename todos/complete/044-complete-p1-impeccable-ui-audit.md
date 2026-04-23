@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 priority: p1
 issue_id: "044"
 tags: [design, accessibility, theming, performance]
@@ -60,17 +60,20 @@ against its "tactical, forward, sharp" brand brief.
 - [x] **`/adapt`** (P1) — Fix touch targets (min 44px); add container queries to `KanbanCard`
 - [x] **`/typeset`** (P2) — Replace system fonts with a distinctive pairing; establish type scale with real hierarchy
 - [x] **`/animate`** (P2) — Add purposeful motion to stage advancement and panel transitions
-- [ ] **`/layout`** (P2) — Break uniform spacing; create rhythm and hierarchy in panel and kanban
-- [ ] **`/polish`** (P3) — Blockquote style, redundant mount call, empty states
+- [x] **`/layout`** (P2) — Break uniform spacing; create rhythm and hierarchy in panel and kanban
+- [x] **`/polish`** (P3) — Blockquote style, redundant mount call, emoji → SVG icons in KanbanCard, `&times;` → SVG in ApplicationPanel, `text-line-2` token misuse fixed, `text-gray-300` hardcoded in TimelineView tooltip fixed
+- [x] **`/harden` (round 2)** — SettingsPanel: `role="dialog" aria-modal="true"`, focus trap, `role="alert"` on error; TimelineView rows: `@keydown.space`; App.vue Add button: `min-h-[44px]`
+- [x] **`/colorize` (round 2)** — SettingsPanel: `bg-green-100/text-green-600` → `bg-accent-muted/text-accent`; `text-red-600` → `text-danger`; `ease-in-out` → `ease-out-expo`
+- [x] **`/optimize`** — `renderMarkdown()` memoized with Map cache; `lastActivity()` pre-computed before sort in TableView
 
 ## Acceptance Criteria
 
-- [ ] Audit re-run scores ≥ 16/20
-- [ ] Dark mode works correctly on system preference change
-- [ ] No `text-gray-400` used for readable content
-- [ ] All interactive elements meet 44px touch target minimum
-- [ ] `aria-sort`, `aria-pressed`, form labels in place
-- [ ] Focus trapped within open overlays
+- [x] Audit re-run scores ≥ 16/20 — **scored 16/20 (2026-04-22); post-round-2 fixes estimated 18/20**
+- [x] Dark mode works correctly on system preference change
+- [x] No `text-gray-400` used for readable content
+- [x] All interactive elements meet 44px touch target minimum
+- [x] `aria-sort`, `aria-pressed`, form labels in place
+- [x] Focus trapped within open overlays
 
 ## Work Log
 
@@ -79,4 +82,5 @@ against its "tactical, forward, sharp" brand brief.
 - 2026-04-21: `/harden` complete — `aria-label` on company/role inputs; `aria-pressed` on status pills; focus trap (Tab wrapping) + `role="dialog" aria-modal="true"` in `ApplicationPanel` and `SidebarMenu`; `aria-sort` + `scope="col"` + `aria-label` on `TableView` table/headers; sort indicators marked `aria-hidden`; `TimelineView` empty state now has heading + descriptive CTA
 - 2026-04-21: `/adapt` complete — all `p-2` icon buttons (settings, menu, close buttons across `App.vue`, `ApplicationPanel`, `SettingsPanel`, `SidebarMenu`) lifted to `size-11` (44px); all `×` delete buttons in `ApplicationPanel` lifted to `min-h-[44px] min-w-[44px]`; `@container` added to kanban column div; `KanbanCard` now uses `p-2 @[200px]:p-3` padding and hides date/indicator row at columns narrower than 200px
 - 2026-04-21: `/typeset` complete — Barlow (400/500/600) + Barlow Condensed (600/700) loaded via Google Fonts in `index.html` with `font-display: swap`; `--font-sans` and `--font-condensed` registered in `@theme inline` in `main.css`; `font-condensed` applied to `App.vue` h1 (+ `tracking-wide`), `KanbanBoard` stage headers (+ `tracking-wider`), `KanbanCard` company name, `ApplicationPanel` company name input, `TableView` company cells; `tabular-nums` added to `TableView` date column
-- 2026-04-21: `/animate` complete — motion token section added to `main.css` (`--ease-out-expo`, `--ease-out-quart`, `--ease-in-expo`; `.stage-stamp` keyframe animation; `.view-enter/leave-active` crossfade classes; `.ease-out-expo/quart` utility classes; global `prefers-reduced-motion: reduce` rule); `ApplicationPanel.vue`: panel entrance uses `ease-out-expo` (replaces `ease-in-out`), `stampingStatus` ref triggers `.stage-stamp` pulse on status pill when advancing to a new stage; `KanbanCard.vue`: hover lift (`hover:-translate-y-0.5` + `transition-[transform,box-shadow] duration-200 ease-out-quart`); `App.vue`: `<Transition name="view" mode="out-in">` crossfade wraps Board/Table/Timeline views
+- 2026-04-21: `/animate` complete
+- 2026-04-22: `/layout` complete — removed uniform `space-y-5`; primary fields wrapped in `space-y-4`; dates section gets `mt-7 pt-5 border-t border-line` structural separator; journey `mt-4`, attachments `mt-6`, notes `mt-6`; note cards `p-2 → p-3`, add-form `gap-2 mb-3 → gap-3 mb-4`; header `pt-3/pb-3 → pt-5/pb-4`, status bar `py-2.5 → py-3`, footer `py-3 → py-4`; create-mode files section gets same `border-t` separator; KanbanCard padding `p-2 → p-3 @[200px]:p-4`, role `mt-0.5 → mt-1`, date row `mt-2 → mt-3`; KanbanBoard column gap `gap-4 → gap-5`, stage header `mb-3 → mb-4` — motion token section added to `main.css` (`--ease-out-expo`, `--ease-out-quart`, `--ease-in-expo`; `.stage-stamp` keyframe animation; `.view-enter/leave-active` crossfade classes; `.ease-out-expo/quart` utility classes; global `prefers-reduced-motion: reduce` rule); `ApplicationPanel.vue`: panel entrance uses `ease-out-expo` (replaces `ease-in-out`), `stampingStatus` ref triggers `.stage-stamp` pulse on status pill when advancing to a new stage; `KanbanCard.vue`: hover lift (`hover:-translate-y-0.5` + `transition-[transform,box-shadow] duration-200 ease-out-quart`); `App.vue`: `<Transition name="view" mode="out-in">` crossfade wraps Board/Table/Timeline views

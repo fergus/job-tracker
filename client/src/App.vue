@@ -49,7 +49,7 @@
           <!-- Always visible: Add button + settings + hamburger -->
           <button
             @click="openPanel()"
-            class="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            class="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium transition-colors"
           >+ Add Application</button>
           <button
             @click="showSettings = true"
@@ -126,12 +126,14 @@
       @close="showSettings = false"
       @set-show-all="setShowAll"
     />
+    <ToastContainer />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { fetchMe, fetchApplications, updateStatus } from './api'
+import { useToast } from './composables/useToast'
 import LogoBuild from './components/LogoBuild.vue'
 import KanbanBoard from './components/KanbanBoard.vue'
 import TableView from './components/TableView.vue'
@@ -139,6 +141,9 @@ import TimelineView from './components/TimelineView.vue'
 import ApplicationPanel from './components/ApplicationPanel.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
+import ToastContainer from './components/ToastContainer.vue'
+
+const toast = useToast()
 
 const version = __APP_VERSION__
 
@@ -188,11 +193,26 @@ async function handlePanelSaved() {
 }
 
 async function handleStatusChange(id, status) {
+  const prevStatus = applications.value.find(a => a.id === id)?.status
   await updateStatus(id, status)
   logoTrigger.value++
   await loadApplications()
   if (panelApp.value?.id === id) {
     panelApp.value = applications.value.find(a => a.id === id) ?? null
+  }
+  if (prevStatus && prevStatus !== status) {
+    const label = status.charAt(0).toUpperCase() + status.slice(1)
+    toast.success(`Moved to ${label}`, {
+      actionLabel: 'Undo',
+      action: async () => {
+        await updateStatus(id, prevStatus)
+        logoTrigger.value++
+        await loadApplications()
+        if (panelApp.value?.id === id) {
+          panelApp.value = applications.value.find(a => a.id === id) ?? null
+        }
+      },
+    })
   }
 }
 

@@ -34,6 +34,7 @@
         tabindex="0"
         @click="$emit('open-detail', app)"
         @keydown.enter="$emit('open-detail', app)"
+        @keydown.space.prevent="$emit('open-detail', app)"
       >
         <!-- Label -->
         <div
@@ -63,7 +64,7 @@
         :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px', transform: 'translate(-50%, -100%) translateY(-6px)' }"
       >
         <span class="capitalize font-medium">{{ tooltip.stage }}</span>
-        <span class="text-gray-300"> · {{ tooltip.startLabel }} – {{ tooltip.endLabel }} · {{ tooltip.days }} day{{ tooltip.days === 1 ? '' : 's' }}</span>
+        <span class="text-canvas/60"> · {{ tooltip.startLabel }} – {{ tooltip.endLabel }} · {{ tooltip.days }} day{{ tooltip.days === 1 ? '' : 's' }}</span>
       </div>
     </div>
   </div>

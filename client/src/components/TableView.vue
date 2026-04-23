@@ -95,18 +95,20 @@ function lastActivity(app) {
 
 const sorted = computed(() => {
   const arr = [...props.applications]
-  arr.sort((a, b) => {
-    let va, vb
-    if (sortKey.value === 'updated_at') {
-      va = lastActivity(a)
-      vb = lastActivity(b)
-    } else {
-      va = a[sortKey.value] || ''
-      vb = b[sortKey.value] || ''
-    }
-    const cmp = va < vb ? -1 : va > vb ? 1 : 0
-    return sortDir.value === 'asc' ? cmp : -cmp
-  })
+  if (sortKey.value === 'updated_at') {
+    const activity = new Map(arr.map(a => [a.id, lastActivity(a)]))
+    arr.sort((a, b) => {
+      const cmp = activity.get(a.id) < activity.get(b.id) ? -1 : activity.get(a.id) > activity.get(b.id) ? 1 : 0
+      return sortDir.value === 'asc' ? cmp : -cmp
+    })
+  } else {
+    arr.sort((a, b) => {
+      const va = a[sortKey.value] || ''
+      const vb = b[sortKey.value] || ''
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0
+      return sortDir.value === 'asc' ? cmp : -cmp
+    })
+  }
   return arr
 })
 
