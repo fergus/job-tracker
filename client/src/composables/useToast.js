@@ -12,6 +12,15 @@ function dismiss(id) {
   if (idx !== -1) toasts.value.splice(idx, 1)
 }
 
+function clearAll() {
+  for (const id of Object.keys(timers)) {
+    clearTimeout(timers[id])
+    delete timers[id]
+  }
+  toasts.value.splice(0, toasts.value.length)
+  _nextId = 0
+}
+
 function add(type, message, options = {}) {
   const id = ++_nextId
   if (toasts.value.length >= MAX_TOASTS) {
@@ -32,5 +41,6 @@ export function useToast() {
     error:   (msg, opts) => add('error',   msg, opts),
     info:    (msg, opts) => add('info',    msg, opts),
     dismiss,
+    clearAll,
   }
 }

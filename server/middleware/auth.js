@@ -32,6 +32,12 @@ const UPSERT_TTL_MS = 60_000;
 
 function cachedUpsertUser(email) {
   const now = Date.now();
+  // Prune stale entries when the cache grows past 1000
+  if (upsertCache.size > 1000) {
+    for (const [k, v] of upsertCache) {
+      if (now - v > UPSERT_TTL_MS) upsertCache.delete(k);
+    }
+  }
   const last = upsertCache.get(email);
   if (last && now - last < UPSERT_TTL_MS) return;
   upsertCache.set(email, now);
