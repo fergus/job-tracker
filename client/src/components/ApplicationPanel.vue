@@ -293,7 +293,7 @@
           <template v-if="isEdit">
 
             <!-- Dates grid -->
-            <details class="group mt-6 pt-5 border-t border-line">
+            <details :open="datesOpen" @toggle="datesOpen = $event.target.open" class="group mt-6 pt-5 border-t border-line">
               <summary class="flex items-center justify-between cursor-pointer list-none select-none">
                 <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Dates</span>
                 <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
@@ -333,7 +333,7 @@
             </details>
 
             <!-- Mini timeline -->
-            <details v-if="miniSegments.length" class="group mt-4 pt-4 border-t border-line">
+            <details v-if="miniSegments.length" :open="journeyOpen" @toggle="journeyOpen = $event.target.open" class="group mt-4 pt-4 border-t border-line">
               <summary class="flex items-center justify-between cursor-pointer list-none select-none">
                 <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Journey</span>
                 <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
@@ -358,7 +358,7 @@
             </details>
 
             <!-- Attachments -->
-            <details class="group mt-4 pt-4 border-t border-line">
+            <details :open="attachmentsOpen" @toggle="attachmentsOpen = $event.target.open" class="group mt-4 pt-4 border-t border-line">
               <summary class="flex items-center justify-between cursor-pointer list-none select-none">
                 <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Attachments</span>
                 <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
@@ -494,6 +494,11 @@ import { useToast } from '../composables/useToast'
 const toast = useToast()
 
 marked.setOptions({ breaks: true })
+
+const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768
+const datesOpen = ref(isDesktop)
+const journeyOpen = ref(isDesktop)
+const attachmentsOpen = ref(isDesktop)
 
 const props = defineProps({ panelApp: Object })
 const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
