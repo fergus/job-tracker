@@ -198,31 +198,24 @@ router.get('/:id/attachments', (req, res) => {
 });
 
 // Upload attachments (owner only)
-router.post('/:id/attachments', upload.array('files', 10), (req, res) => {
-  const existing = getOwnApp(req.params.id, req.userEmail);
-  if (!existing) {
-    if (req.files) req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
-    return res.status(404).json({ error: 'Not found' });
-  }
-  if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
-
-  const now = new Date().toISOString();
-  const inserted = [];
-
-  const insertAttachments = db.transaction(() => {
-    for (const file of req.files) {
-      const ext = path.extname(file.originalname).toLowerCase();
-      const mime = MIME_MAP[ext] || null;
-      const result = db.prepare(
-        'INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(req.params.id, file.originalname, file.filename, file.size, mime, now);
-      inserted.push({ id: result.lastInsertRowid, original_filename: file.originalname, file_size: file.size, mime_type: mime, created_at: now });
+router.post('/:id/attachments', (req, res, next) => {
+  upload.array('files', 10)(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
     }
-    db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
+    try {
+      if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
+      const files = req.files.map(f => ({ originalname: f.originalname, buffer: fs.readFileSync(f.path) }));
+      const inserted = svc.uploadAttachments(req.userEmail, req.params.id, files);
+      // Clean up temp multer files
+      req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
+      res.status(201).json(inserted);
+    } catch (e) {
+      // Clean up temp multer files on error
+      if (req.files) req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
+      handleError(res, e);
+    }
   });
-
-  insertAttachments();
-  res.status(201).json(inserted);
 });
 
 // Download a specific attachment (own or admin view)

@@ -1,6 +1,10 @@
 'use strict';
 const { randomUUID, createHmac } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { z } = require('zod');
@@ -182,12 +186,55 @@ function createMcpServer() {
     }
   );
 
+  server.tool(
+    'upload_attachment',
+    'Upload a file attachment to an existing job application.',
+    {
+      application_id: z.number().int().positive().describe('Application ID'),
+      file_path: z.string().min(1).describe('Absolute path to the file on disk'),
+    },
+    async (args, extra) => {
+      const userEmail = extra.authInfo?.clientId;
+      if (!userEmail) return { content: [{ type: 'text', text: 'Unauthorized' }], isError: true };
+      try {
+        if (!fs.existsSync(args.file_path)) {
+          return { content: [{ type: 'text', text: `File not found: ${args.file_path}` }], isError: true };
+        }
+        const buffer = fs.readFileSync(args.file_path);
+        const originalname = path.basename(args.file_path);
+        const result = svc.uploadAttachments(userEmail, args.application_id, [{ originalname, buffer }]);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (err) { return toolError(err); }
+    }
+  );
+
   return server;
 }
 
+// Single shared server instance — tools and schemas are built once, not per request.
+const mcpServer = createMcpServer();
+
 function startMcpServer(port) {
   const app = express();
-  app.use(express.json());
+  app.set('trust proxy', 1);
+
+  // Security headers — MCP is JSON-only, so CSP is disabled.
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  // Rate limiting — separate bucket from the main API.
+  const mcpLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: parseInt(process.env.RATE_LIMIT_MCP ?? '60', 10),
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(mcpLimiter);
+
+  // Body size cap — same limit as the main app.
+  app.use(express.json({ limit: '100kb' }));
 
   // Authenticate every request with an API key
   app.use((req, res, next) => {
@@ -222,7 +269,6 @@ function startMcpServer(port) {
           onsessioninitialized: (sid) => sessions.set(sid, transport),
           onsessionclosed: (sid) => sessions.delete(sid),
         });
-        const mcpServer = createMcpServer();
         await mcpServer.connect(transport);
         await transport.handleRequest(req, res, req.body);
       } else {

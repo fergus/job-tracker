@@ -619,15 +619,28 @@ watch(() => props.panelApp?.id, (newId) => {
 function isDirty() {
   const a = props.panelApp || {}
   if (!isEdit.value) {
-    return !!(form.company_name || form.role_title)
+    // Create mode: any filled field counts as dirty
+    return !!(
+      form.company_name ||
+      form.role_title ||
+      form.job_description ||
+      form.job_posting_url ||
+      form.company_website_url ||
+      form.job_location ||
+      form.salary_min ||
+      form.salary_max
+    )
   }
+  // Status is excluded because onStatusClick() persists it immediately.
   return (
     form.company_name !== (a.company_name || '') ||
     form.role_title !== (a.role_title || '') ||
     form.job_description !== (a.job_description || '') ||
     form.job_posting_url !== (a.job_posting_url || '') ||
     form.company_website_url !== (a.company_website_url || '') ||
-    form.job_location !== (a.job_location || '')
+    form.job_location !== (a.job_location || '') ||
+    form.salary_min !== (a.salary_min != null ? a.salary_min : '') ||
+    form.salary_max !== (a.salary_max != null ? a.salary_max : '')
   )
 }
 

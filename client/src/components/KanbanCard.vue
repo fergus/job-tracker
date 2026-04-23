@@ -84,6 +84,23 @@ const stalenessLabel = computed(() => {
 
 function formatDate(iso) {
   if (!iso) return ''
-  return new Date(iso).toLocaleDateString()
+  const date = new Date(iso)
+  const now = new Date()
+  const diffMs = now - date
+  const diffDays = Math.floor(diffMs / 86_400_000)
+
+  if (diffDays < 1) return 'today'
+  if (diffDays < 7) {
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+    return rtf.format(-diffDays, 'day')
+  }
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7)
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+    return rtf.format(-weeks, 'week')
+  }
+  const months = Math.floor(diffDays / 30)
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  return rtf.format(-months, 'month')
 }
 </script>

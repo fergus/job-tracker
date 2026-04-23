@@ -6,7 +6,7 @@ process.env.DB_PATH = ':memory:';
 process.env.RATE_LIMIT_API = '100000';
 process.env.RATE_LIMIT_UPLOADS = '100000';
 
-const { test, before, describe } = require('node:test');
+const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const supertest = require('supertest');
 const app = require('../app');
@@ -615,5 +615,113 @@ describe('Key management', () => {
       .delete(`/api/keys/${created.body.id}`)
       .set('Authorization', `Bearer ${created.body.key}`);
     assert.equal(res.status, 403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MCP Server security hardening
+// ---------------------------------------------------------------------------
+
+describe('MCP Server', () => {
+  let mcpServer;
+  let mcpReq;
+  let apiKey;
+
+  before(async () => {
+    // Create a valid API key for MCP auth
+    const keyRes = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', 'mcp-test@example.com')
+      .send({ label: 'mcp-test-key' });
+    assert.equal(keyRes.status, 201);
+    apiKey = keyRes.body.key;
+
+    // Start MCP server on a random port
+    const { startMcpServer } = require('../mcp');
+    mcpServer = startMcpServer(0);
+    await new Promise((resolve, reject) => {
+      mcpServer.on('listening', resolve);
+      mcpServer.on('error', reject);
+    });
+    mcpReq = supertest(mcpServer);
+  });
+
+  after(() => {
+    if (mcpServer) mcpServer.close();
+  });
+
+  test('rejects requests without Bearer token', async () => {
+    const res = await mcpReq.get('/');
+    assert.equal(res.status, 401);
+  });
+
+  test('rejects invalid Bearer token', async () => {
+    const res = await mcpReq.get('/').set('Authorization', 'Bearer invalid-key');
+    assert.equal(res.status, 401);
+  });
+
+  test('includes Helmet security headers', async () => {
+    const res = await mcpReq.get('/').set('Authorization', `Bearer ${apiKey}`);
+    assert.equal(res.headers['x-content-type-options'], 'nosniff');
+    assert.ok(res.headers['x-frame-options'], 'X-Frame-Options should be present');
+  });
+
+  test('rejects oversized JSON bodies with 413', async () => {
+    const bigBody = { data: 'x'.repeat(200 * 1024) };
+    const res = await mcpReq
+      .post('/')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send(bigBody);
+    assert.equal(res.status, 413);
+  });
+
+  test('rate limits excessive requests', async () => {
+    process.env.RATE_LIMIT_MCP = '2';
+    const { startMcpServer } = require('../mcp');
+    const limitedServer = startMcpServer(0);
+    await new Promise((resolve, reject) => {
+      limitedServer.on('listening', resolve);
+      limitedServer.on('error', reject);
+    });
+    const limitedReq = supertest(limitedServer);
+
+    const r1 = await limitedReq.get('/').set('Authorization', `Bearer ${apiKey}`);
+    const r2 = await limitedReq.get('/').set('Authorization', `Bearer ${apiKey}`);
+    const r3 = await limitedReq.get('/').set('Authorization', `Bearer ${apiKey}`);
+
+    // GET / with auth but no session ID returns 400; 429 means rate limited.
+    const notLimited = [400];
+    assert.ok(notLimited.includes(r1.status), `first request should not be rate limited (got ${r1.status})`);
+    assert.ok(notLimited.includes(r2.status), `second request should not be rate limited (got ${r2.status})`);
+    assert.equal(r3.status, 429, 'third request should be rate limited');
+
+    limitedServer.close();
+    delete process.env.RATE_LIMIT_MCP;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+describe('Attachments', () => {
+  test('POST /api/applications/:id/attachments uploads files', async () => {
+    const app = await createApp();
+    const res = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('test content'), 'test.txt');
+    assert.equal(res.status, 201);
+    assert.ok(Array.isArray(res.body));
+    assert.equal(res.body.length, 1);
+    assert.equal(res.body[0].original_filename, 'test.txt');
+    assert.equal(res.body[0].mime_type, 'text/plain');
+  });
+
+  test('POST /api/applications/:id/attachments rejects unknown file types', async () => {
+    const app = await createApp();
+    const res = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('test content'), 'test.exe');
+    assert.equal(res.status, 400);
   });
 });

@@ -1,5 +1,5 @@
 ---
-status: open
+status: complete
 priority: p2
 issue_id: "048"
 tags: [ui, kanban, communication]
@@ -12,4 +12,4 @@ dependencies: []
 
 ## Change
 
-Replace `toLocaleDateString()` with a relative formatter using `Intl.RelativeTimeFormat`. Thresholds: same day → "today", <7 days → "N days ago", <30 days → "N weeks ago", else → "N months ago".
+Replaced `toLocaleDateString()` with `Intl.RelativeTimeFormat` in `KanbanCard.vue`. Thresholds: same day → "today", <7 days → "N days ago", <30 days → "N weeks ago", else → "N months ago".

@@ -24,6 +24,16 @@ const STATUS_DATE_MAP = {
   rejected: 'closed_at',
 };
 
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.md', '.txt'];
+
+const MIME_MAP = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.md': 'text/plain',
+  '.txt': 'text/plain',
+};
+
 const LIMITS = {
   company_name: 200,
   role_title: 200,
@@ -304,6 +314,36 @@ function addNote(userEmail, appId, { stage, content }) {
   return db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(result.lastInsertRowid);
 }
 
+function uploadAttachments(userEmail, appId, files) {
+  const existing = getOwnApp(appId, userEmail);
+  if (!existing) throw new ServiceError(404, 'Not found');
+  if (!files || files.length === 0) throw new ServiceError(400, 'No files uploaded');
+
+  const now = new Date().toISOString();
+  const inserted = [];
+
+  const insertAttachments = db.transaction(() => {
+    for (const file of files) {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        throw new ServiceError(400, `File type not allowed: ${ext}`);
+      }
+      const mime = MIME_MAP[ext] || null;
+      const storedFilename = Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
+      const destPath = path.join(uploadsDir, storedFilename);
+      fs.writeFileSync(destPath, file.buffer);
+      const result = db.prepare(
+        'INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(appId, file.originalname, storedFilename, file.buffer.length, mime, now);
+      inserted.push({ id: result.lastInsertRowid, original_filename: file.originalname, file_size: file.buffer.length, mime_type: mime, created_at: now });
+    }
+    db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, appId);
+  });
+
+  insertAttachments();
+  return inserted;
+}
+
 function listAttachments(userEmail, appId, { isAdmin = false } = {}) {
   const existing = isAdmin
     ? db.prepare('SELECT * FROM applications WHERE id = ?').get(appId)
@@ -341,4 +381,5 @@ module.exports = {
   addNote,
   listAttachments,
   getAttachment,
+  uploadAttachments,
 };

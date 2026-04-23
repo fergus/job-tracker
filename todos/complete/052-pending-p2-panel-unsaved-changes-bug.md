@@ -1,5 +1,5 @@
 ---
-status: open
+status: complete
 priority: p2
 issue_id: "052"
 tags: [bug, ui, client, vue]
@@ -72,21 +72,22 @@ The salary fields, however, are definitely lost.
 
 ## Recommended Actions
 
-- [ ] Add `salary_min` and `salary_max` to `isDirty()` comparison
-- [ ] Add `status` to `isDirty()` comparison (or document why it's excluded)
-- [ ] Expand create-mode dirty check to include any non-empty field
-- [ ] Consider centralising dirty-state tracking with a deep-equal of the full form
+- [x] Add `salary_min` and `salary_max` to `isDirty()` comparison
+- [x] `status` is excluded from `isDirty()` because `onStatusClick()` persists it immediately; documented inline
+- [x] Expand create-mode dirty check to include any non-empty field
 
 ## Acceptance Criteria
 
-- [ ] Changing `salary_min` or `salary_max` and clicking the backdrop shows the
+- [x] Changing `salary_min` or `salary_max` and clicking the backdrop shows the
   "Unsaved changes" prompt
-- [ ] Changing `status` and clicking the backdrop either shows the prompt or
-  clearly indicates the change was auto-saved
-- [ ] In create mode, filling any field and closing triggers the prompt
-- [ ] Existing dirty-check behaviour for text fields is unchanged
-- [ ] Client build passes; no Vue warnings
+- [x] Changing `status` auto-saves immediately via `onStatusClick()`; no data loss on close
+- [x] In create mode, filling any field and closing triggers the prompt
+- [x] Existing dirty-check behaviour for text fields is unchanged
+- [x] Client build passes; no Vue warnings
 
 ## Work Log
 
 - 2026-04-23: Created from code-review UX audit of `ApplicationPanel.vue`
+- 2026-04-23: Fixed `isDirty()` to compare `salary_min`, `salary_max`, and all
+  create-mode fields. Status excluded with inline comment (auto-saved). Client
+  build and server tests pass (56/56).

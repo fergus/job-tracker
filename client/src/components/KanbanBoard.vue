@@ -1,9 +1,10 @@
 <template>
-  <div class="flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
+  <!-- Desktop: 7 columns -->
+  <div class="hidden md:flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
     <div
       v-for="stage in stages"
       :key="stage.value"
-      class="@container snap-start shrink-0 w-[85vw] md:shrink md:flex-1 md:min-w-[200px]"
+      class="@container snap-start shrink-0 flex-1 min-w-[200px]"
     >
       <div class="flex items-center gap-2 mb-4">
         <span
@@ -17,6 +18,7 @@
         v-model="columns[stage.value]"
         group="applications"
         item-key="id"
+        :delay="100"
         class="space-y-2 min-h-[100px] bg-sunken rounded-lg p-2"
         @change="(evt) => onChange(evt, stage.value)"
       >
@@ -24,6 +26,44 @@
           <KanbanCard :application="element" :showUser="showUser" @select="$emit('select', element)" />
         </template>
       </draggable>
+    </div>
+  </div>
+
+  <!-- Mobile: 2 groups (Active + Closed) -->
+  <div class="flex md:hidden gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
+    <div
+      v-for="group in mobileGroups"
+      :key="group.label"
+      class="snap-start shrink-0 w-[85vw]"
+    >
+      <div class="flex items-center gap-2 mb-4">
+        <h3 class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider">{{ group.label }}</h3>
+        <span class="text-xs text-ink-3 ml-auto">{{ groupCount(group) }}</span>
+      </div>
+      <div class="space-y-4">
+        <div v-for="stage in group.stages" :key="stage.value">
+          <div class="flex items-center gap-2 mb-2">
+            <span
+              class="w-2 h-2 rounded-full inline-block"
+              :style="{ backgroundColor: `var(--stage-${stage.value})` }"
+            ></span>
+            <h4 class="text-xs font-semibold font-condensed text-ink-2 uppercase tracking-wider">{{ stage.label }}</h4>
+            <span class="text-xs text-ink-3 ml-auto">{{ columns[stage.value].length }}</span>
+          </div>
+          <draggable
+            v-model="columns[stage.value]"
+            group="applications"
+            item-key="id"
+            :delay="100"
+            class="space-y-2 min-h-[60px] bg-sunken rounded-lg p-2"
+            @change="(evt) => onChange(evt, stage.value)"
+          >
+            <template #item="{ element }">
+              <KanbanCard :application="element" :showUser="showUser" @select="$emit('select', element)" />
+            </template>
+          </draggable>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -53,6 +93,26 @@ const stages = [
   { value: 'rejected', label: 'Rejected' },
 ]
 
+const mobileGroups = [
+  {
+    label: 'Active',
+    stages: [
+      { value: 'interested', label: 'Interested' },
+      { value: 'applied', label: 'Applied' },
+      { value: 'screening', label: 'Screening' },
+      { value: 'interview', label: 'Interview' },
+      { value: 'offer', label: 'Offer' },
+    ],
+  },
+  {
+    label: 'Closed',
+    stages: [
+      { value: 'accepted', label: 'Accepted' },
+      { value: 'rejected', label: 'Rejected' },
+    ],
+  },
+]
+
 const columns = reactive({
   interested: [],
   applied: [],
@@ -68,6 +128,10 @@ watch(() => props.applications, (apps) => {
     columns[s.value] = apps.filter(a => a.status === s.value)
   }
 }, { immediate: true })
+
+function groupCount(group) {
+  return group.stages.reduce((sum, s) => sum + columns[s.value].length, 0)
+}
 
 function onChange(evt, status) {
   if (evt.added) {

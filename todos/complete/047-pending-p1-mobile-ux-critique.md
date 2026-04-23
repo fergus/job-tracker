@@ -46,11 +46,11 @@ make the mobile experience significantly worse than desktop:
   3. Keep create mode unchanged
   4. No API changes — purely presentational
 
-- [ ] **`/adapt`** (P1) — Fix Kanban on mobile. 7-column 85vw snap-scroll breaks
-  the "scan at a glance" use case. Explore: 2-column collapsed view (Active + Closed),
-  denser compact card mode that fits 4 columns, or auto-switching to Table on
-  `window.innerWidth < 600` (768 already defaults to Table on first load but
-  users can switch back). Preserve drag-and-drop on touch if possible.
+- [x] **`/adapt`** (P1) — Fix Kanban on mobile. Collapsed to 2-group view
+  (Active: interested→offer, Closed: accepted+rejected) on `<md` screens.
+  Each group is 85vw with vertically-stacked stage sub-columns. All 7
+  draggable lists share `group="applications"` so DnD is preserved.
+  Added `:delay="100"` to distinguish scroll from drag on touch.
 
 - [x] **`/delight`** (P1) — Replace all `alert()` / `confirm()` calls with a toast
   notification system. Toast delivers: success feedback ("Moved to Interview"),
@@ -62,7 +62,7 @@ make the mobile experience significantly worse than desktop:
 
 - [x] Tapping a Kanban card, changing status, and adding a note takes ≤ 3 taps
   and ≤ 2 scrolls on a 390px-wide phone
-- [ ] Full pipeline is visible (or navigable in ≤ 2 swipes) on mobile Kanban
+- [x] Full pipeline is visible (or navigable in ≤ 2 swipes) on mobile Kanban
 - [x] All `alert()` and `confirm()` calls replaced with toasts / inline confirmations
 - [x] Status changes show a toast with an undo action; undo successfully reverts
 - [x] Note deletion requires confirmation (currently instant; all other destructive
@@ -91,6 +91,11 @@ make the mobile experience significantly worse than desktop:
   Attachments. Notes are immediately accessible without scrolling. Dates, Journey,
   and Attachments are collapsible `<details>` panels closed by default. Create mode
   unchanged. No API changes. Client build and server tests pass (51/51).
+- 2026-04-23: Completed `/adapt` — mobile Kanban now renders 2 horizontal groups
+  (Active + Closed) below `md` breakpoint. Desktop keeps 7-column layout.
+  Stages within each group stack vertically. Drag-and-drop preserved across all
+  lists via shared `group="applications"`. Touch delay added (`:delay="100"`).
+  Client build and server tests pass (51/51).
 
 ## Learnings (from /delight implementation)
 
