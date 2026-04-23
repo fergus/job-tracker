@@ -87,7 +87,7 @@ cp -r uploads/ uploads-backup/
 - **Hamburger menu** — slide-in sidebar with the view switcher and account info; an "Always use menu" toggle (persisted per browser) controls whether the view switcher also appears inline in the header
 - **Settings panel** — manage API keys; admins can toggle between personal and all-users view
 - **API keys** — generate personal API keys for programmatic access without the browser OAuth flow; scoped to your account, shown once at creation
-- **File attachments** — upload any file type (PDF, DOC, DOCX, etc. up to 10MB) as generic attachments
+- **File attachments** — upload PDF, DOC, DOCX, MD, or TXT files (up to 10MB each) as attachments; CV and cover letter can also be attached directly to an application
 - **Salary tracking** — min/max salary range and job location per application
 - **Date tracking** — timestamps auto-set when you move applications between stages; all dates are editable
 - **Stage notes** — per-stage timestamped notes with markdown rendering and colored stage badges

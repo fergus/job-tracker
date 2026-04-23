@@ -105,6 +105,10 @@ erDiagram
         INTEGER salary_min
         INTEGER salary_max
         TEXT job_location
+        TEXT cv_filename
+        TEXT cv_path
+        TEXT cover_letter_filename
+        TEXT cover_letter_path
         TEXT created_at
         TEXT interested_at
         TEXT applied_at
@@ -165,7 +169,11 @@ Stage notes and attachments cascade-delete when their parent application is dele
 | `PATCH` | `/api/applications/:id/dates` | Manually edit stage date fields |
 | `DELETE` | `/api/applications/:id` | Delete application and all files (cascades) |
 | `GET` | `/api/applications/:id/attachments` | List attachments |
-| `POST` | `/api/applications/:id/attachments` | Upload attachments (up to 10 files, PDF/DOC/DOCX, 10MB each) |
+| `POST` | `/api/applications/:id/cv` | Upload or replace CV file (PDF/DOC/DOCX/MD/TXT, 10MB) |
+| `GET` | `/api/applications/:id/cv` | Download CV file |
+| `POST` | `/api/applications/:id/cover-letter` | Upload or replace cover letter (PDF/DOC/DOCX/MD/TXT, 10MB) |
+| `GET` | `/api/applications/:id/cover-letter` | Download cover letter |
+| `POST` | `/api/applications/:id/attachments` | Upload generic attachments (up to 10 files, PDF/DOC/DOCX/MD/TXT, 10MB each) |
 | `GET` | `/api/applications/:id/attachments/:attachmentId` | Download attachment |
 | `DELETE` | `/api/applications/:id/attachments/:attachmentId` | Delete attachment |
 | `POST` | `/api/applications/:id/notes` | Create a stage note |

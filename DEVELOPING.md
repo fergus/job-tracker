@@ -174,7 +174,8 @@ Content-Type: multipart/form-data
 
 Required: company_name, role_title
 Optional: status, job_description, job_posting_url, company_website_url,
-          interview_notes, prep_work, salary_min, salary_max, job_location
+          interview_notes, prep_work, salary_min, salary_max, job_location,
+          cv (file), cover_letter (file)
 ```
 
 Returns `201` with the created application.
@@ -237,7 +238,43 @@ DELETE /api/applications/:id
 
 Deletes the application, its stage notes and attachments (FK cascade), and any uploaded files from disk.
 
+### CV and Cover Letter
+
+Each application has optional single-file slots for a CV and cover letter, stored directly on the application row.
+
+#### Upload or replace CV
+
+```
+POST /api/applications/:id/cv
+Content-Type: multipart/form-data
+
+Field: cv (single file, max 10MB, .pdf/.doc/.docx/.md/.txt)
+```
+
+#### Download CV
+
+```
+GET /api/applications/:id/cv
+```
+
+#### Upload or replace cover letter
+
+```
+POST /api/applications/:id/cover-letter
+Content-Type: multipart/form-data
+
+Field: cover_letter (single file, max 10MB, .pdf/.doc/.docx/.md/.txt)
+```
+
+#### Download cover letter
+
+```
+GET /api/applications/:id/cover-letter
+```
+
 ### Attachments
+
+Generic attachments (any number of supporting files) separate from CV/cover letter.
 
 #### List attachments
 
@@ -251,7 +288,7 @@ GET /api/applications/:id/attachments
 POST /api/applications/:id/attachments
 Content-Type: multipart/form-data
 
-Field: files[] (up to 10 files, max 10MB each, .pdf/.doc/.docx)
+Field: files[] (up to 10 files, max 10MB each, .pdf/.doc/.docx/.md/.txt)
 ```
 
 Returns `201` with an array of created attachment objects.
