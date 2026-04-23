@@ -25,14 +25,14 @@ The script prints the new version — no need to read `package.json` separately.
 
 ### 3. Commit
 
-Stage only the three package.json files that the version script touches:
+If there are uncommited changes, use AskUserQuestion if available, otherwise ask in chat about what to do with them and wait for the reply. If the user wants to commit them, stage all changes and commit with an appropriate commit message. If they want to ignore, stash or discard, do that instead and proceed without committing.
+
+Ensure you always stage the following three package.json files that the version script touches:
 
 ```bash
 git add package.json client/package.json server/package.json
 git commit -m "chore: bump version to v<NEW_VERSION>"
 ```
-
-Do not include Co-Authored-By or any Claude attribution in the commit message.
 
 ### 4. Push
 

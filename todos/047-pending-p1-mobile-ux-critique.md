@@ -35,11 +35,16 @@ make the mobile experience significantly worse than desktop:
 
 ## Recommended Actions (in order)
 
-- [ ] **`/shape`** (P1) — Restructure ApplicationPanel edit-mode for mobile: reorder
-  sections so Status + Notes appear first (before salary/URL fields and dates);
-  add collapsible disclosure panels for Dates / Journey / Attachments so daily
-  check-in is 1–2 scrolls, not 6. Create-mode is already lighter — this is edit
-  mode specifically.
+- [x] **`/shape`** (P1) — Restructure ApplicationPanel edit-mode for mobile and
+  desktop: reorder sections so Status + Notes appear first (before salary/URL
+  fields and dates); add collapsible disclosure panels for Dates / Journey /
+  Attachments so daily check-in is 1–2 scrolls, not 6. Create-mode is already
+  lighter — this is edit mode specifically.
+  **Plan:**
+  1. Reorder edit-mode sections: Header → Status bar → Notes → Primary fields → Dates → Journey → Attachments
+  2. Wrap Dates, Journey (timeline), and Attachments in collapsible `<details>`/`<summary>` disclosure panels (closed by default)
+  3. Keep create mode unchanged
+  4. No API changes — purely presentational
 
 - [ ] **`/adapt`** (P1) — Fix Kanban on mobile. 7-column 85vw snap-scroll breaks
   the "scan at a glance" use case. Explore: 2-column collapsed view (Active + Closed),
@@ -55,7 +60,7 @@ make the mobile experience significantly worse than desktop:
 
 ## Acceptance Criteria
 
-- [ ] Tapping a Kanban card, changing status, and adding a note takes ≤ 3 taps
+- [x] Tapping a Kanban card, changing status, and adding a note takes ≤ 3 taps
   and ≤ 2 scrolls on a 390px-wide phone
 - [ ] Full pipeline is visible (or navigable in ≤ 2 swipes) on mobile Kanban
 - [x] All `alert()` and `confirm()` calls replaced with toasts / inline confirmations
@@ -77,6 +82,15 @@ make the mobile experience significantly worse than desktop:
   user chose Mobile UX cluster, top 3 issues only
 - 2026-04-23: Completed `/delight` task (toast system + inline confirmations). See
   learnings below.
+- 2026-04-23: Scoped `/shape` task — both mobile and desktop, `/shape` before `/adapt`.
+- 2026-04-23: Completed `/shape` — Notes moved above primary fields in edit mode;
+  Dates, Journey, and Attachments wrapped in collapsible `<details>` panels with
+  chevron rotation; Safari marker hidden; client build and server tests pass.
+- 2026-04-23: Verified `/shape` implementation against acceptance criteria. Edit-mode
+  section order is Header → Status → Notes → Primary fields → Dates → Journey →
+  Attachments. Notes are immediately accessible without scrolling. Dates, Journey,
+  and Attachments are collapsible `<details>` panels closed by default. Create mode
+  unchanged. No API changes. Client build and server tests pass (51/51).
 
 ## Learnings (from /delight implementation)
 

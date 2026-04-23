@@ -32,7 +32,7 @@ Run the gather script to collect all project state in one shot:
 
 The script outputs eight labelled sections: pending todos, ideation docs, brainstorm docs, plan docs, source TODOs/FIXMEs, outdated client packages, outdated server packages, and recent commits. Read the content of any pending todo files, ideation docs, brainstorms, or plans that look relevant to understand the full context.
 
-Files in `todos/` are named `NNN-(complete|pending)-pN-description.md`. A todo is open if it contains `-pending-` in the filename. Priority is `p1` (critical) through `p3` (minor).
+Files in `todos/` are named `NNN-(complete|pending)-pN-description.md`. A todo is open if it contains `-pending-` in the filename. Priority is `p1` (critical) through `p3` (minor). IF you find complete todos that are still open, report them to the user as potential cleanup items.
 
 Files in `docs/ideation/` are early-stage exploration docs — ideas that haven't been committed to yet. Files in `docs/brainstorms/` are deeper requirement/design explorations. Files in `docs/plans/` are implementation plans ready (or nearly ready) to execute. Read any of these that look relevant to understand scope and status.
 

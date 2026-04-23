@@ -81,8 +81,107 @@
       <div class="flex-1 overflow-y-auto">
         <div class="px-5 py-4">
 
+          <!-- Edit mode: Notes first -->
+          <template v-if="isEdit">
+            <!-- Notes -->
+            <div class="mt-2">
+              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-4">Notes</h3>
+              <div class="flex flex-col gap-3 mb-4">
+                <div class="flex items-center gap-2">
+                  <select
+                    v-model="newNoteStage"
+                    class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
+                  >
+                    <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                  </select>
+                  <button
+                    @click="addNote"
+                    class="text-sm text-accent hover:text-accent-hover font-medium px-2 ml-auto"
+                  >Add</button>
+                </div>
+                <textarea
+                  v-model="newNoteContent"
+                  @keydown.ctrl.enter="addNote"
+                  @keydown.meta.enter="addNote"
+                  placeholder="Add a note... (supports markdown, Ctrl+Enter to submit)"
+                  rows="3"
+                  class="w-full border border-line bg-raised rounded-lg px-2 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden resize-y"
+                />
+              </div>
+              <div v-if="sortedNotes.length === 0" class="text-sm text-ink-3 py-2">No notes yet.</div>
+              <div v-for="note in sortedNotes" :key="note.id" class="bg-raised rounded-lg p-3 mb-2">
+                <div v-if="editingNoteId === note.id" class="flex flex-col gap-2">
+                  <div class="flex items-center gap-2">
+                    <select
+                      v-model="editingStage"
+                      class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
+                    >
+                      <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                    </select>
+                    <div class="ml-auto flex gap-2">
+                      <button
+                        @click="saveEdit(note.id)"
+                        class="text-xs text-accent-fg bg-accent hover:bg-accent-hover font-medium px-3 py-1.5 rounded"
+                      >Save</button>
+                      <button
+                        @click="cancelEdit"
+                        class="text-xs text-ink-2 hover:text-ink font-medium px-3 py-1.5 rounded bg-sunken hover:bg-line"
+                      >Cancel</button>
+                    </div>
+                  </div>
+                  <textarea
+                    v-model="editingContent"
+                    @keydown.escape="cancelEdit"
+                    @keydown.ctrl.enter="saveEdit(note.id)"
+                    @keydown.meta.enter="saveEdit(note.id)"
+                    rows="4"
+                    class="w-full text-sm text-ink border border-accent rounded px-1.5 py-0.5 focus:ring-2 focus:ring-accent outline-hidden resize-y bg-panel"
+                    ref="editTextarea"
+                  />
+                </div>
+                <div v-else class="flex items-start justify-between">
+                  <div class="flex items-start gap-3 flex-1 min-w-0">
+                    <span
+                      :style="stageBadgeStyle(note.stage)"
+                      class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 shrink-0"
+                    >{{ note.stage }}</span>
+                    <div class="flex-1 min-w-0">
+                      <div
+                        class="text-sm text-ink-2 prose prose-sm max-w-none cursor-pointer hover:text-accent"
+                        v-html="renderMarkdown(note.content)"
+                        @click="startEdit(note)"
+                      />
+                      <div class="text-xs text-ink-3 mt-1 flex gap-2">
+                        <span>{{ formatDateTime(note.created_at) }}</span>
+                        <span v-if="note.updated_at && note.updated_at !== note.created_at">· Edited: {{ formatDateTime(note.updated_at) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="pendingDeleteNoteId === note.id" class="flex items-center gap-1 ml-1 shrink-0">
+                    <button
+                      @click="removeNote(note.id)"
+                      class="text-xs font-medium text-danger hover:text-danger-hover px-2 py-1.5 rounded transition-colors"
+                    >Delete</button>
+                    <button
+                      @click="pendingDeleteNoteId = null"
+                      class="text-xs font-medium text-ink-3 hover:text-ink px-2 py-1.5 rounded transition-colors"
+                    >Cancel</button>
+                  </div>
+                  <button
+                    v-else
+                    @click="removeNote(note.id)"
+                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
+                    aria-label="Delete note"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+
           <!-- Primary fields: always visible, tightly grouped -->
-          <div class="space-y-4">
+          <div class="space-y-4" :class="isEdit ? 'mt-6 pt-5 border-t border-line' : ''">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-ink-3 mb-1">Job Posting URL</label>
@@ -194,188 +293,107 @@
           <template v-if="isEdit">
 
             <!-- Dates grid -->
-            <div class="mt-7 pt-5 border-t border-line">
-              <p class="text-xs font-medium text-ink-3 mb-3 uppercase tracking-wide">Dates</p>
-              <div class="grid grid-cols-3 gap-4">
-                <div v-for="d in dates" :key="d.key">
-                  <p class="text-xs text-ink-3 uppercase tracking-wide">{{ d.label }}</p>
-                  <p v-if="d.key === 'created_at'" class="text-sm text-ink">{{ formatDate(panelApp[d.key]) }}</p>
-                  <div v-else-if="editingDateKey === d.key" class="flex items-center gap-1">
-                    <input
-                      type="date"
-                      :value="toDateInputValue(panelApp[d.key])"
-                      @change="onDateChange(d.key, $event)"
-                      @blur="editingDateKey = null"
-                      @keydown.escape="editingDateKey = null"
-                      class="text-sm border border-accent rounded px-1 py-0.5 focus:ring-2 focus:ring-accent outline-hidden w-full bg-raised text-ink"
-                    />
-                    <button
-                      v-if="panelApp[d.key]"
-                      @mousedown.prevent="clearDate(d.key)"
-                      class="p-1 rounded text-ink-3 hover:text-danger flex items-center justify-center shrink-0"
-                      title="Clear date"
-                      aria-label="Clear date"
-                    >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+            <details class="group mt-6 pt-5 border-t border-line">
+              <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+                <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Dates</span>
+                <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </summary>
+              <div class="mt-3">
+                <div class="grid grid-cols-3 gap-4">
+                  <div v-for="d in dates" :key="d.key">
+                    <p class="text-xs text-ink-3 uppercase tracking-wide">{{ d.label }}</p>
+                    <p v-if="d.key === 'created_at'" class="text-sm text-ink">{{ formatDate(panelApp[d.key]) }}</p>
+                    <div v-else-if="editingDateKey === d.key" class="flex items-center gap-1">
+                      <input
+                        type="date"
+                        :value="toDateInputValue(panelApp[d.key])"
+                        @change="onDateChange(d.key, $event)"
+                        @blur="editingDateKey = null"
+                        @keydown.escape="editingDateKey = null"
+                        class="text-sm border border-accent rounded px-1 py-0.5 focus:ring-2 focus:ring-accent outline-hidden w-full bg-raised text-ink"
+                      />
+                      <button
+                        v-if="panelApp[d.key]"
+                        @mousedown.prevent="clearDate(d.key)"
+                        class="p-1 rounded text-ink-3 hover:text-danger flex items-center justify-center shrink-0"
+                        title="Clear date"
+                        aria-label="Clear date"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                    <p
+                      v-else
+                      @click="editingDateKey = d.key"
+                      class="text-sm text-ink cursor-pointer hover:text-accent"
+                    >{{ formatDate(panelApp[d.key]) }}</p>
                   </div>
-                  <p
-                    v-else
-                    @click="editingDateKey = d.key"
-                    class="text-sm text-ink cursor-pointer hover:text-accent"
-                  >{{ formatDate(panelApp[d.key]) }}</p>
                 </div>
               </div>
-            </div>
+            </details>
 
             <!-- Mini timeline -->
-            <div v-if="miniSegments.length" class="mt-4">
-              <p class="text-xs text-ink-3 uppercase tracking-wide mb-2">Journey</p>
-              <div class="relative h-5 rounded overflow-hidden bg-sunken">
-                <div
-                  v-for="seg in miniSegments"
-                  :key="seg.stage"
-                  class="absolute top-0 h-full rounded"
-                  :style="miniSegmentStyle(seg)"
-                  :title="`${seg.stage} · ${formatShortDate(seg.start)} – ${formatShortDate(seg.end)} · ${miniDays(seg)} day${miniDays(seg) === 1 ? '' : 's'}`"
-                ></div>
-              </div>
-              <div class="flex gap-3 mt-2 flex-wrap">
-                <div v-for="seg in miniSegments" :key="seg.stage" class="flex items-center gap-1">
-                  <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" :style="{ backgroundColor: stageColor(seg.stage) }"></span>
-                  <span class="text-xs text-ink-3 capitalize">{{ seg.stage }}</span>
+            <details v-if="miniSegments.length" class="group mt-4 pt-4 border-t border-line">
+              <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+                <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Journey</span>
+                <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </summary>
+              <div class="mt-3">
+                <div class="relative h-5 rounded overflow-hidden bg-sunken">
+                  <div
+                    v-for="seg in miniSegments"
+                    :key="seg.stage"
+                    class="absolute top-0 h-full rounded"
+                    :style="miniSegmentStyle(seg)"
+                    :title="`${seg.stage} · ${formatShortDate(seg.start)} – ${formatShortDate(seg.end)} · ${miniDays(seg)} day${miniDays(seg) === 1 ? '' : 's'}`"
+                  ></div>
+                </div>
+                <div class="flex gap-3 mt-2 flex-wrap">
+                  <div v-for="seg in miniSegments" :key="seg.stage" class="flex items-center gap-1">
+                    <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" :style="{ backgroundColor: stageColor(seg.stage) }"></span>
+                    <span class="text-xs text-ink-3 capitalize">{{ seg.stage }}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            </details>
 
             <!-- Attachments -->
-            <div class="mt-6">
-              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-3">Attachments</h3>
-              <div v-if="attachmentsLoading" class="text-sm text-ink-3">Loading...</div>
-              <div v-else>
-                <div v-if="attachments.length === 0" class="text-sm text-ink-3 mb-2">No attachments.</div>
-                <div
-                  v-for="att in attachments"
-                  :key="att.id"
-                  class="flex items-center justify-between py-2 border-b border-line last:border-0"
-                >
-                  <a
-                    :href="getAttachmentUrl(panelApp.id, att.id)"
-                    class="text-sm text-accent hover:underline truncate"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >{{ att.original_filename }}</a>
-                  <button
-                    @click="removeAttachment(att.id)"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
-                    title="Delete attachment"
-                    aria-label="Delete attachment"
+            <details class="group mt-4 pt-4 border-t border-line">
+              <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+                <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Attachments</span>
+                <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </summary>
+              <div class="mt-3">
+                <div v-if="attachmentsLoading" class="text-sm text-ink-3">Loading...</div>
+                <div v-else>
+                  <div v-if="attachments.length === 0" class="text-sm text-ink-3 mb-2">No attachments.</div>
+                  <div
+                    v-for="att in attachments"
+                    :key="att.id"
+                    class="flex items-center justify-between py-2 border-b border-line last:border-0"
                   >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              </div>
-              <label class="mt-2 inline-block text-xs text-accent hover:underline cursor-pointer">
-                Upload files
-                <input type="file" @change="onAttachmentSelect" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
-              </label>
-            </div>
-
-            <!-- Notes -->
-            <div class="mt-6">
-              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-4">Notes</h3>
-              <div class="flex flex-col gap-3 mb-4">
-                <div class="flex items-center gap-2">
-                  <select
-                    v-model="newNoteStage"
-                    class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
-                  >
-                    <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-                  </select>
-                  <button
-                    @click="addNote"
-                    class="text-sm text-accent hover:text-accent-hover font-medium px-2 ml-auto"
-                  >Add</button>
-                </div>
-                <textarea
-                  v-model="newNoteContent"
-                  @keydown.ctrl.enter="addNote"
-                  @keydown.meta.enter="addNote"
-                  placeholder="Add a note... (supports markdown, Ctrl+Enter to submit)"
-                  rows="3"
-                  class="w-full border border-line bg-raised rounded-lg px-2 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden resize-y"
-                />
-              </div>
-              <div v-if="sortedNotes.length === 0" class="text-sm text-ink-3 py-2">No notes yet.</div>
-              <div v-for="note in sortedNotes" :key="note.id" class="bg-raised rounded-lg p-3 mb-2">
-                <div v-if="editingNoteId === note.id" class="flex flex-col gap-2">
-                  <div class="flex items-center gap-2">
-                    <select
-                      v-model="editingStage"
-                      class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
+                    <a
+                      :href="getAttachmentUrl(panelApp.id, att.id)"
+                      class="text-sm text-accent hover:underline truncate"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >{{ att.original_filename }}</a>
+                    <button
+                      @click="removeAttachment(att.id)"
+                      class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
+                      title="Delete attachment"
+                      aria-label="Delete attachment"
                     >
-                      <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-                    </select>
-                    <div class="ml-auto flex gap-2">
-                      <button
-                        @click="saveEdit(note.id)"
-                        class="text-xs text-accent-fg bg-accent hover:bg-accent-hover font-medium px-3 py-1.5 rounded"
-                      >Save</button>
-                      <button
-                        @click="cancelEdit"
-                        class="text-xs text-ink-2 hover:text-ink font-medium px-3 py-1.5 rounded bg-sunken hover:bg-line"
-                      >Cancel</button>
-                    </div>
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                   </div>
-                  <textarea
-                    v-model="editingContent"
-                    @keydown.escape="cancelEdit"
-                    @keydown.ctrl.enter="saveEdit(note.id)"
-                    @keydown.meta.enter="saveEdit(note.id)"
-                    rows="4"
-                    class="w-full text-sm text-ink border border-accent rounded px-1.5 py-0.5 focus:ring-2 focus:ring-accent outline-hidden resize-y bg-panel"
-                    ref="editTextarea"
-                  />
                 </div>
-                <div v-else class="flex items-start justify-between">
-                  <div class="flex items-start gap-3 flex-1 min-w-0">
-                    <span
-                      :style="stageBadgeStyle(note.stage)"
-                      class="px-2 py-0.5 rounded-full text-xs font-medium capitalize mt-0.5 shrink-0"
-                    >{{ note.stage }}</span>
-                    <div class="flex-1 min-w-0">
-                      <div
-                        class="text-sm text-ink-2 prose prose-sm max-w-none cursor-pointer hover:text-accent"
-                        v-html="renderMarkdown(note.content)"
-                        @click="startEdit(note)"
-                      />
-                      <div class="text-xs text-ink-3 mt-1 flex gap-2">
-                        <span>{{ formatDateTime(note.created_at) }}</span>
-                        <span v-if="note.updated_at && note.updated_at !== note.created_at">· Edited: {{ formatDateTime(note.updated_at) }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-if="pendingDeleteNoteId === note.id" class="flex items-center gap-1 ml-1 shrink-0">
-                    <button
-                      @click="removeNote(note.id)"
-                      class="text-xs font-medium text-danger hover:text-danger-hover px-2 py-1.5 rounded transition-colors"
-                    >Delete</button>
-                    <button
-                      @click="pendingDeleteNoteId = null"
-                      class="text-xs font-medium text-ink-3 hover:text-ink px-2 py-1.5 rounded transition-colors"
-                    >Cancel</button>
-                  </div>
-                  <button
-                    v-else
-                    @click="removeNote(note.id)"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
-                    aria-label="Delete note"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
+                <label class="mt-2 inline-block text-xs text-accent hover:underline cursor-pointer">
+                  Upload files
+                  <input type="file" @change="onAttachmentSelect" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
+                </label>
               </div>
-            </div>
+            </details>
 
           </template>
 
@@ -952,4 +970,5 @@ function formatDateTime(iso) {
 .prose :deep(th) { background: var(--sunken); font-weight: 600; color: var(--ink); }
 .prose :deep(td) { color: var(--ink-2); }
 .prose :deep(tr:nth-child(even) td) { background: var(--sunken); }
+details > summary::-webkit-details-marker { display: none; }
 </style>

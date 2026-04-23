@@ -9,11 +9,12 @@ Check all dependencies across the project, automatically apply safe patch-level 
 
 ## Scope
 
-This skill checks four categories:
+This skill checks five categories:
 1. **npm packages** — `server/` and `client/` (via `npm outdated`)
 2. **npm security** — `npm audit` in both directories
 3. **GitHub Actions** — versions pinned in `.github/workflows/*.yml`
 4. **Docker images** — base image in `Dockerfile` and third-party images in `docker-compose.yml`
+5. **Impeccable skill** — `.claude/skills/impeccable/` (via GitHub raw check)
 
 ## Safe vs. Prompt
 
@@ -41,6 +42,12 @@ For GitHub Actions, read all workflow files in `.github/workflows/` and extract 
 
 For Docker images, read `Dockerfile` for `FROM` lines and `docker-compose.yml` for `image:` lines.
 
+For the Impeccable skill, read the local `SKILL.md` version and compare against the latest on GitHub:
+```bash
+local_version=$(grep -E '^version:' .claude/skills/impeccable/SKILL.md | sed 's/version: //')
+remote_version=$(curl -s https://raw.githubusercontent.com/pbakaus/impeccable/main/.claude/skills/impeccable/SKILL.md | grep -E '^version:' | sed 's/version: //')
+```
+
 ### 2. Categorise findings
 
 Build four lists:
@@ -62,6 +69,20 @@ GitHub Actions version bumps and Docker image version bumps. For each:
   - GitHub Actions: `gh api repos/<owner>/<repo>/releases/latest --jq '.tag_name'`
   - Docker Hub / Quay images: use the registry API or `curl` the tags endpoint
   - Node.js Docker image: check `https://hub.docker.com/v2/repositories/library/node/tags` filtering for `XX-alpine` tags
+
+**E. Prompt items (Impeccable skill)**
+If `remote_version` differs from `local_version`, present the update with:
+- Current installed version and latest available version
+- Options: **Update now**, **Create a todo**, **Skip**
+
+For "Update now":
+```bash
+cd /tmp && rm -rf impeccable && git clone --depth 1 https://github.com/pbakaus/impeccable.git
+cp -r /tmp/impeccable/.claude/skills/* /home/fstevens/code/job-tracker/.claude/skills/
+# Re-run cleanup and remove post-update section as per skill instructions
+node .claude/skills/impeccable/scripts/cleanup-deprecated.mjs
+```
+Then remove the `<post-update-cleanup>` section from `.claude/skills/impeccable/SKILL.md` if it exists.
 
 ### 3. Auto-apply patch updates
 
@@ -210,6 +231,11 @@ Print a markdown table of all findings and their outcomes:
 |------------------|---------|---------|---------|--------------|
 | node alpine      | Docker  | 22      | 24      | Updated      |
 | actions/checkout | Actions | v6      | v7      | Skipped      |
+
+### Skills
+| Skill      | Current | Latest | Action       |
+|------------|---------|--------|--------------|
+| impeccable | 2.1.1   | 2.2.0  | Updated      |
 
 ### Notes
 - List any caveats, skipped items, or things to be aware of
