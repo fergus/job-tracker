@@ -60,7 +60,7 @@
       </div>
 
       <!-- Sticky status bar -->
-      <div class="px-5 py-3 border-b border-line shrink-0 overflow-x-auto">
+      <div class="px-5 py-2 border-b border-line shrink-0 overflow-x-auto scrollbar-none">
         <div class="flex gap-1.5 min-w-max">
           <button
             v-for="s in statuses"
@@ -78,7 +78,7 @@
       </div>
 
       <!-- Scrollable body -->
-      <div class="flex-1 overflow-y-auto">
+      <div class="flex-1 overflow-y-auto overflow-x-hidden">
         <div class="px-5 py-4">
 
           <!-- Edit mode: Notes first -->
@@ -166,11 +166,11 @@
                   <div v-if="pendingDeleteNoteId === note.id" class="flex items-center gap-1 ml-1 shrink-0">
                     <button
                       @click="removeNote(note.id)"
-                      class="text-xs font-medium text-danger hover:text-danger-hover px-2 py-1.5 rounded transition-colors"
+                      class="text-xs font-medium text-danger hover:text-danger-hover px-2 py-1.5 min-h-[44px] inline-flex items-center rounded transition-colors"
                     >Delete</button>
                     <button
                       @click="pendingDeleteNoteId = null"
-                      class="text-xs font-medium text-ink-3 hover:text-ink px-2 py-1.5 rounded transition-colors"
+                      class="text-xs font-medium text-ink-3 hover:text-ink px-2 py-1.5 min-h-[44px] inline-flex items-center rounded transition-colors"
                     >Cancel</button>
                   </div>
                   <button
@@ -188,7 +188,7 @@
 
           <!-- Primary fields: always visible, tightly grouped -->
           <div class="space-y-4" :class="isEdit ? 'mt-6 pt-5 border-t border-line' : ''">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="space-y-3">
             <div>
               <label class="block text-xs font-medium text-ink-3 mb-1">Job Posting URL</label>
               <div class="flex items-center gap-1">
@@ -235,6 +235,8 @@
                 </a>
               </div>
             </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-medium text-ink-3 mb-1">Min Salary</label>
               <input
@@ -309,7 +311,7 @@
                 <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
               </summary>
               <div class="mt-3">
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-2 gap-4">
                   <div v-for="d in dates" :key="d.key">
                     <p class="text-xs text-ink-3 uppercase tracking-wide">{{ d.label }}</p>
                     <p v-if="d.key === 'created_at'" class="text-sm text-ink">{{ formatDate(panelApp[d.key]) }}</p>

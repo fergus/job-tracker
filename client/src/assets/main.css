@@ -191,6 +191,15 @@
 .toast-leave-active { transition: opacity 160ms var(--ease-in-expo), transform 160ms var(--ease-in-expo); }
 .toast-move { transition: transform 240ms var(--ease-out-expo); }
 
+/* ─── Scrollbar utilities ───────────────────────────────────────── */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* ─── Base ───────────────────────────────────────────────────────── */
 html, body {
   background-color: var(--canvas);

@@ -47,7 +47,7 @@
       </div>
 
       <!-- Scrollable body -->
-      <div class="flex-1 overflow-y-auto">
+      <div class="flex-1 overflow-y-auto overflow-x-hidden">
         <div class="px-5 py-5 space-y-6">
 
           <!-- Data Scope section (admins only) -->
