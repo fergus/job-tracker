@@ -8,8 +8,11 @@ process.env.RATE_LIMIT_UPLOADS = '100000';
 
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const supertest = require('supertest');
 const app = require('../app');
+const { uploadsDir } = require('../services/applications');
 
 const req = supertest(app);
 
@@ -723,5 +726,88 @@ describe('Attachments', () => {
       .post(`/api/applications/${app.id}/attachments`)
       .attach('files', Buffer.from('test content'), 'test.exe');
     assert.equal(res.status, 400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// File cleanup consistency
+// ---------------------------------------------------------------------------
+
+describe('File cleanup', () => {
+  test('DELETE /api/applications/:id removes CV file from disk', async () => {
+    const created = await req
+      .post('/api/applications')
+      .field('company_name', 'TestCo')
+      .field('role_title', 'Engineer')
+      .attach('cv', Buffer.from('cv content'), 'cv.txt');
+
+    assert.equal(created.status, 201);
+    const cvPath = path.join(uploadsDir, created.body.cv_path);
+    assert.ok(fs.existsSync(cvPath), 'CV file should exist on disk');
+
+    const del = await req.delete(`/api/applications/${created.body.id}`);
+    assert.equal(del.status, 200);
+
+    // Allow async file deletion to complete
+    await new Promise(r => setTimeout(r, 50));
+    assert.ok(!fs.existsSync(cvPath), 'CV file should be deleted from disk');
+  });
+
+  test('DELETE /api/applications/:id removes attachment files from disk', async () => {
+    const app = await createApp();
+    const attachRes = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('attachment content'), 'attach.txt');
+    assert.equal(attachRes.status, 201);
+
+    const storedFilename = attachRes.body[0].stored_filename;
+    const filePath = path.join(uploadsDir, storedFilename);
+    assert.ok(fs.existsSync(filePath), 'Attachment file should exist on disk');
+
+    const del = await req.delete(`/api/applications/${app.id}`);
+    assert.equal(del.status, 200);
+
+    await new Promise(r => setTimeout(r, 50));
+    assert.ok(!fs.existsSync(filePath), 'Attachment file should be deleted from disk');
+  });
+
+  test('POST /api/applications/:id/cv replaces old CV file on disk', async () => {
+    const created = await req
+      .post('/api/applications')
+      .field('company_name', 'TestCo')
+      .field('role_title', 'Engineer')
+      .attach('cv', Buffer.from('old cv'), 'old.txt');
+    assert.equal(created.status, 201);
+
+    const oldPath = path.join(uploadsDir, created.body.cv_path);
+    assert.ok(fs.existsSync(oldPath), 'Old CV should exist');
+
+    const replace = await req
+      .post(`/api/applications/${created.body.id}/cv`)
+      .attach('cv', Buffer.from('new cv'), 'new.txt');
+    assert.equal(replace.status, 200);
+
+    await new Promise(r => setTimeout(r, 50));
+    assert.ok(!fs.existsSync(oldPath), 'Old CV should be deleted after replacement');
+    assert.ok(fs.existsSync(path.join(uploadsDir, replace.body.cv_path)), 'New CV should exist');
+  });
+
+  test('DELETE /api/applications/:id/attachments/:attachmentId removes file from disk', async () => {
+    const app = await createApp();
+    const attachRes = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('attachment content'), 'attach.txt');
+    assert.equal(attachRes.status, 201);
+
+    const attachmentId = attachRes.body[0].id;
+    const storedFilename = attachRes.body[0].stored_filename;
+    const filePath = path.join(uploadsDir, storedFilename);
+    assert.ok(fs.existsSync(filePath), 'Attachment file should exist on disk');
+
+    const del = await req.delete(`/api/applications/${app.id}/attachments/${attachmentId}`);
+    assert.equal(del.status, 200);
+
+    await new Promise(r => setTimeout(r, 50));
+    assert.ok(!fs.existsSync(filePath), 'Attachment file should be deleted from disk');
   });
 });

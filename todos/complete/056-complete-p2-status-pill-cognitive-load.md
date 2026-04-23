@@ -1,5 +1,5 @@
 ---
-status: open
+status: complete
 priority: p2
 issue_id: "056"
 tags: [ux, application-panel, cognitive-load, status]

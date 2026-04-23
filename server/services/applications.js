@@ -1,6 +1,7 @@
 'use strict';
 const db = require('../db');
 const fs = require('fs');
+const fsPromises = require('fs').promises;
 const path = require('path');
 
 class ServiceError extends Error {
@@ -70,6 +71,16 @@ function safePath(base, filename) {
     return null;
   }
   return resolved;
+}
+
+async function safeDeleteFile(filePath) {
+  try {
+    if (fs.existsSync(filePath)) {
+      await fsPromises.unlink(filePath);
+    }
+  } catch (err) {
+    console.error('[cleanup] Failed to delete file:', filePath, err.message);
+  }
 }
 
 function getOwnApp(id, userEmail) {
@@ -288,7 +299,7 @@ function deleteApplication(userEmail, id) {
 
   for (const filename of filesToDelete) {
     const filePath = safePath(uploadsDir, filename);
-    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    if (filePath) safeDeleteFile(filePath);
   }
 
   return { success: true };
@@ -335,7 +346,7 @@ function uploadAttachments(userEmail, appId, files) {
       const result = db.prepare(
         'INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
       ).run(appId, file.originalname, storedFilename, file.buffer.length, mime, now);
-      inserted.push({ id: result.lastInsertRowid, original_filename: file.originalname, file_size: file.buffer.length, mime_type: mime, created_at: now });
+      inserted.push({ id: result.lastInsertRowid, original_filename: file.originalname, stored_filename: storedFilename, file_size: file.buffer.length, mime_type: mime, created_at: now });
     }
     db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, appId);
   });
@@ -372,6 +383,7 @@ module.exports = {
   VALID_STATUSES,
   uploadsDir,
   safePath,
+  safeDeleteFile,
   listApplications,
   getApplication,
   createApplication,

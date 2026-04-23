@@ -1,5 +1,5 @@
 ---
-status: open
+status: complete
 priority: p1
 issue_id: "047"
 tags: [design, mobile, ux, accessibility]

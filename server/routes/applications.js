@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db');
 const svc = require('../services/applications');
-const { ServiceError, VALID_STATUSES, uploadsDir, safePath } = svc;
+const { ServiceError, VALID_STATUSES, uploadsDir, safePath, safeDeleteFile } = svc;
 
 const router = express.Router();
 
@@ -120,13 +120,12 @@ router.post('/:id/cv', upload.single('cv'), (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  if (existing.cv_path) {
-    const oldPath = safePath(uploadsDir, existing.cv_path);
-    if (oldPath && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-  }
+  const oldPath = existing.cv_path ? safePath(uploadsDir, existing.cv_path) : null;
 
   db.prepare('UPDATE applications SET cv_filename = ?, cv_path = ?, updated_at = ? WHERE id = ? AND user_email = ?')
     .run(req.file.originalname, req.file.filename, new Date().toISOString(), req.params.id, req.userEmail);
+
+  if (oldPath) safeDeleteFile(oldPath);
 
   res.json(db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id));
 });
@@ -158,13 +157,12 @@ router.post('/:id/cover-letter', upload.single('cover_letter'), (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Not found' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  if (existing.cover_letter_path) {
-    const oldPath = safePath(uploadsDir, existing.cover_letter_path);
-    if (oldPath && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-  }
+  const oldPath = existing.cover_letter_path ? safePath(uploadsDir, existing.cover_letter_path) : null;
 
   db.prepare('UPDATE applications SET cover_letter_filename = ?, cover_letter_path = ?, updated_at = ? WHERE id = ? AND user_email = ?')
     .run(req.file.originalname, req.file.filename, new Date().toISOString(), req.params.id, req.userEmail);
+
+  if (oldPath) safeDeleteFile(oldPath);
 
   res.json(db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id));
 });
@@ -250,7 +248,7 @@ router.delete('/:id/attachments/:attachmentId', (req, res) => {
   db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
 
   const filePath = safePath(uploadsDir, attachment.stored_filename);
-  if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  if (filePath) safeDeleteFile(filePath);
 
   res.json({ success: true });
 });

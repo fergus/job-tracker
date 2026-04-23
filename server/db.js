@@ -202,4 +202,40 @@ db.countApiKeysByUser = db.prepare(
   `SELECT COUNT(*) as count FROM api_keys WHERE user_email = ?`
 );
 
+// Orphaned file sweeper: remove files in uploads/ not referenced by DB
+function runOrphanedFileSweep() {
+  if (dbPath === ':memory:') return;
+  const uploadsDir = path.join(__dirname, '..', 'uploads');
+  if (!fs.existsSync(uploadsDir)) return;
+
+  const referenced = new Set();
+  const apps = db.prepare('SELECT cv_path, cover_letter_path FROM applications').all();
+  for (const app of apps) {
+    if (app.cv_path) referenced.add(app.cv_path);
+    if (app.cover_letter_path) referenced.add(app.cover_letter_path);
+  }
+  const attachments = db.prepare('SELECT stored_filename FROM attachments').all();
+  for (const att of attachments) {
+    referenced.add(att.stored_filename);
+  }
+
+  const files = fs.readdirSync(uploadsDir);
+  let removed = 0;
+  for (const file of files) {
+    if (!referenced.has(file)) {
+      try {
+        fs.unlinkSync(path.join(uploadsDir, file));
+        removed++;
+      } catch (err) {
+        console.error('[cleanup] Failed to remove orphaned file:', file, err.message);
+      }
+    }
+  }
+  if (removed > 0) {
+    console.log(`[cleanup] Removed ${removed} orphaned file(s) from uploads/`);
+  }
+}
+
+runOrphanedFileSweep();
+
 module.exports = db;

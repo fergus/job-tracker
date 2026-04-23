@@ -1,5 +1,5 @@
 ---
-status: open
+status: complete
 priority: p2
 issue_id: "054"
 tags: [bug, data-consistency, filesystem, server]
