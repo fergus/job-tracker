@@ -23,7 +23,11 @@
           v-for="app in sorted"
           :key="app.id"
           @click="$emit('select', app)"
-          class="border-b border-line hover:bg-accent-muted cursor-pointer transition-colors"
+          @keydown.enter="$emit('select', app)"
+          @keydown.space.prevent="$emit('select', app)"
+          role="button"
+          tabindex="0"
+          class="border-b border-line hover:bg-accent-muted cursor-pointer transition-colors focus-visible:bg-accent-muted focus-visible:outline-none"
         >
           <td class="px-4 py-3 font-medium font-condensed text-ink">{{ app.company_name }}</td>
           <td class="px-4 py-3 text-ink-2">{{ app.role_title }}</td>

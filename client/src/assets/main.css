@@ -2,6 +2,8 @@
 
 /* ─── Design tokens ─────────────────────────────────────────────── */
 :root {
+  color-scheme: light dark;
+
   /* Accent — amber-bronze, "tactical, forward, sharp" */
   --accent:        oklch(65%  0.18  52);
   --accent-hover:  oklch(57%  0.18  52);
@@ -148,13 +150,13 @@
 
 /* ─── Logo colour tokens ─────────────────────────────────────────── */
 :root {
-  --logo-bg:      #D97848;
-  --logo-chevron: #FFFFFF;
+  --logo-bg:      var(--accent);
+  --logo-chevron: var(--panel);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --logo-bg:      #2A231C;
-    --logo-chevron: #E88A56;
+    --logo-bg:      var(--accent-muted);
+    --logo-chevron: var(--accent);
   }
 }
 

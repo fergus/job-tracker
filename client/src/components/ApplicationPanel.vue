@@ -72,7 +72,7 @@
               stampingStatus === s ? 'stage-stamp' : ''
             ]"
             :style="statusPillStyle(s)"
-            class="px-2.5 py-1.5 rounded-full text-xs font-medium capitalize transition-all"
+            class="px-2.5 py-1.5 min-h-[44px] inline-flex items-center rounded-full text-xs font-medium capitalize transition-all"
           >{{ s }}</button>
         </div>
       </div>
@@ -90,13 +90,14 @@
                 <div class="flex items-center gap-2">
                   <select
                     v-model="newNoteStage"
+                    aria-label="Note stage"
                     class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
                   >
                     <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
                   </select>
                   <button
                     @click="addNote"
-                    class="text-sm text-accent hover:text-accent-hover font-medium px-2 ml-auto"
+                    class="text-sm text-accent hover:text-accent-hover font-medium px-2 py-1.5 min-h-[44px] inline-flex items-center ml-auto"
                   >Add</button>
                 </div>
                 <textarea
@@ -114,6 +115,7 @@
                   <div class="flex items-center gap-2">
                     <select
                       v-model="editingStage"
+                      aria-label="Edit note stage"
                       class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
                     >
                       <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
@@ -121,11 +123,11 @@
                     <div class="ml-auto flex gap-2">
                       <button
                         @click="saveEdit(note.id)"
-                        class="text-xs text-accent-fg bg-accent hover:bg-accent-hover font-medium px-3 py-1.5 rounded"
+                        class="text-xs text-accent-fg bg-accent hover:bg-accent-hover font-medium px-3 py-1.5 min-h-[44px] inline-flex items-center rounded"
                       >Save</button>
                       <button
                         @click="cancelEdit"
-                        class="text-xs text-ink-2 hover:text-ink font-medium px-3 py-1.5 rounded bg-sunken hover:bg-line"
+                        class="text-xs text-ink-2 hover:text-ink font-medium px-3 py-1.5 min-h-[44px] inline-flex items-center rounded bg-sunken hover:bg-line"
                       >Cancel</button>
                     </div>
                   </div>
@@ -147,9 +149,13 @@
                     >{{ note.stage }}</span>
                     <div class="flex-1 min-w-0">
                       <div
-                        class="text-sm text-ink-2 prose prose-sm max-w-none cursor-pointer hover:text-accent"
+                        class="text-sm text-ink-2 prose prose-sm max-w-none cursor-pointer hover:text-accent focus-visible:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded px-1 -mx-1"
                         v-html="renderMarkdown(note.content)"
                         @click="startEdit(note)"
+                        @keydown.enter="startEdit(note)"
+                        @keydown.space.prevent="startEdit(note)"
+                        tabindex="0"
+                        aria-label="Edit note"
                       />
                       <div class="text-xs text-ink-3 mt-1 flex gap-2">
                         <span>{{ formatDateTime(note.created_at) }}</span>
@@ -264,19 +270,23 @@
               <button
                 v-if="isEdit && form.job_description && !editingJobDesc"
                 @click="editingJobDesc = true"
-                class="text-xs text-accent hover:text-accent-hover"
+                class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center px-2 py-1"
               >Edit</button>
               <button
                 v-if="editingJobDesc"
                 @click="editingJobDesc = false"
-                class="text-xs text-accent hover:text-accent-hover"
+                class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center px-2 py-1"
               >Done</button>
             </div>
             <div
               v-if="isEdit && form.job_description && !editingJobDesc"
-              class="prose prose-sm max-w-none text-sm text-ink-2 border border-line rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-line-2"
+              class="prose prose-sm max-w-none text-sm text-ink-2 border border-line rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-line-2 focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               v-html="renderMarkdown(form.job_description)"
               @click="editingJobDesc = true"
+              @keydown.enter="editingJobDesc = true"
+              @keydown.space.prevent="editingJobDesc = true"
+              tabindex="0"
+              aria-label="Edit job description"
             />
             <textarea
               v-else
@@ -315,7 +325,7 @@
                       <button
                         v-if="panelApp[d.key]"
                         @mousedown.prevent="clearDate(d.key)"
-                        class="p-1 rounded text-ink-3 hover:text-danger flex items-center justify-center shrink-0"
+                        class="p-1 rounded text-ink-3 hover:text-danger flex items-center justify-center shrink-0 min-h-[44px] min-w-[44px]"
                         title="Clear date"
                         aria-label="Clear date"
                       >
@@ -431,11 +441,11 @@
           <div class="flex gap-2">
             <button
               @click="pendingClose = false"
-              class="px-3 py-2 text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
+              class="px-3 py-2 min-h-[44px] inline-flex items-center text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
             >Keep editing</button>
             <button
               @click="doClose"
-              class="px-3 py-2 text-sm font-medium text-danger hover:text-danger-hover"
+              class="px-3 py-2 min-h-[44px] inline-flex items-center text-sm font-medium text-danger hover:text-danger-hover"
             >Close anyway</button>
           </div>
         </template>
@@ -445,11 +455,11 @@
           <div class="flex gap-2">
             <button
               @click="pendingDelete = false"
-              class="px-3 py-2 text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
+              class="px-3 py-2 min-h-[44px] inline-flex items-center text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
             >Cancel</button>
             <button
               @click="confirmDelete"
-              class="px-3 py-2 text-sm font-medium text-accent-fg bg-danger hover:bg-danger-hover rounded-lg transition-colors"
+              class="px-3 py-2 min-h-[44px] inline-flex items-center text-sm font-medium text-accent-fg bg-danger hover:bg-danger-hover rounded-lg transition-colors"
             >Delete</button>
           </div>
         </template>
@@ -458,19 +468,19 @@
           <button
             v-if="isEdit"
             @click="confirmDelete"
-            class="py-2 text-sm text-danger hover:text-danger-hover font-medium"
+            class="py-2 px-2 min-h-[44px] inline-flex items-center text-sm text-danger hover:text-danger-hover font-medium"
           >Delete</button>
           <div v-else></div>
           <div class="flex gap-2">
             <button
               v-if="!isEdit"
               @click="close"
-              class="px-3 py-2 text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
+              class="px-3 py-2 min-h-[44px] inline-flex items-center text-sm font-medium text-ink-2 bg-sunken hover:bg-line rounded-lg transition-colors"
             >Cancel</button>
             <button
               @click="save"
               :disabled="saving"
-              class="px-4 py-2 text-sm font-medium text-accent-fg bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50"
+              class="px-4 py-2 min-h-[44px] inline-flex items-center text-sm font-medium text-accent-fg bg-accent hover:bg-accent-hover rounded-lg transition-colors disabled:opacity-50"
             >{{ saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Application') }}</button>
           </div>
         </template>
@@ -944,11 +954,16 @@ function cancelEdit() {
   editingStage.value = ''
 }
 
+const MAX_MARKDOWN_CACHE = 100
 const markdownCache = new Map()
 function renderMarkdown(content) {
   const key = content || ''
   if (!markdownCache.has(key)) {
     markdownCache.set(key, DOMPurify.sanitize(marked.parse(key)))
+    if (markdownCache.size > MAX_MARKDOWN_CACHE) {
+      const firstKey = markdownCache.keys().next().value
+      markdownCache.delete(firstKey)
+    }
   }
   return markdownCache.get(key)
 }

@@ -1,5 +1,13 @@
 <template>
   <div class="min-h-screen flex flex-col">
+    <!-- Skip link -->
+    <a
+      href="#main-content"
+      class="absolute -top-10 left-4 z-[60] bg-accent text-accent-fg px-4 py-2 rounded-lg text-sm font-medium transition-all focus:top-4"
+    >
+      Skip to main content
+    </a>
+
     <!-- Top bar -->
     <header class="bg-panel shadow-xs border-b border-line">
       <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -18,12 +26,12 @@
             <button
               @click="setShowAll(false)"
               :class="!showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+              class="px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-md transition-colors"
             >My Applications</button>
             <button
               @click="setShowAll(true)"
               :class="showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+              class="px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-md transition-colors"
             >All Applications</button>
           </div>
 
@@ -32,17 +40,17 @@
             <button
               @click="view = 'kanban'"
               :class="view === 'kanban' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+              class="px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-md transition-colors"
             >Board</button>
             <button
               @click="view = 'table'"
               :class="view === 'table' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+              class="px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-md transition-colors"
             >Table</button>
             <button
               @click="view = 'timeline'"
               :class="view === 'timeline' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+              class="px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-md transition-colors"
             >Timeline</button>
           </div>
 
@@ -75,7 +83,7 @@
     </header>
 
     <!-- Main content -->
-    <main class="flex-1 px-4 py-4">
+    <main id="main-content" class="flex-1 px-4 py-4">
       <Transition name="view" mode="out-in">
         <KanbanBoard
           v-if="view === 'kanban'"
@@ -132,7 +140,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { fetchMe, fetchApplications, updateStatus } from './api'
+import { fetchMe, fetchApplications, fetchApplication, updateStatus } from './api'
 import { useToast } from './composables/useToast'
 import LogoBuild from './components/LogoBuild.vue'
 import KanbanBoard from './components/KanbanBoard.vue'
@@ -186,9 +194,41 @@ function closePanel() {
 }
 
 async function handlePanelSaved() {
-  await loadApplications()
   if (panelApp.value?.id) {
-    panelApp.value = applications.value.find(a => a.id === panelApp.value.id) ?? null
+    const exists = applications.value.some(a => a.id === panelApp.value.id)
+    if (exists) {
+      await refreshApplication(panelApp.value.id)
+    } else {
+      applications.value = [...applications.value, panelApp.value]
+    }
+  }
+}
+
+async function refreshApplication(id) {
+  try {
+    const updated = await fetchApplication(id)
+    const idx = applications.value.findIndex(a => a.id === id)
+    if (idx !== -1) {
+      applications.value = [
+        ...applications.value.slice(0, idx),
+        updated,
+        ...applications.value.slice(idx + 1)
+      ]
+    } else {
+      applications.value = [...applications.value, updated]
+    }
+    if (panelApp.value?.id === id) {
+      panelApp.value = updated
+    }
+  } catch (err) {
+    if (err.response?.status === 404) {
+      applications.value = applications.value.filter(a => a.id !== id)
+      if (panelApp.value?.id === id) {
+        panelApp.value = null
+      }
+    } else {
+      toast.error('Error refreshing application: ' + (err.response?.data?.error || err.message))
+    }
   }
 }
 
@@ -196,10 +236,7 @@ async function handleStatusChange(id, status) {
   const prevStatus = applications.value.find(a => a.id === id)?.status
   await updateStatus(id, status)
   logoTrigger.value++
-  await loadApplications()
-  if (panelApp.value?.id === id) {
-    panelApp.value = applications.value.find(a => a.id === id) ?? null
-  }
+  await refreshApplication(id)
   if (prevStatus && prevStatus !== status) {
     const label = status.charAt(0).toUpperCase() + status.slice(1)
     toast.success(`Moved to ${label}`, {
@@ -207,10 +244,7 @@ async function handleStatusChange(id, status) {
       action: async () => {
         await updateStatus(id, prevStatus)
         logoTrigger.value++
-        await loadApplications()
-        if (panelApp.value?.id === id) {
-          panelApp.value = applications.value.find(a => a.id === id) ?? null
-        }
+        await refreshApplication(id)
       },
     })
   }
