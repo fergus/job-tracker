@@ -47,11 +47,14 @@ defineEmits(['select'])
 
 const STALE_STAGES = new Set(['applied', 'screening', 'interview'])
 
-const stalenessLevel = computed(() => {
+const staleDays = computed(() => {
   if (!STALE_STAGES.has(props.application.status)) return 0
-  const days = (Date.now() - new Date(props.application.updated_at)) / 86_400_000
-  if (days >= 30) return 2
-  if (days >= 14) return 1
+  return (Date.now() - new Date(props.application.updated_at)) / 86_400_000
+})
+
+const stalenessLevel = computed(() => {
+  if (staleDays.value >= 30) return 2
+  if (staleDays.value >= 14) return 1
   return 0
 })
 
@@ -66,10 +69,17 @@ const stalenessDotClass = computed(() => {
   return 'bg-accent'
 })
 
+function formatStaleDuration(days) {
+  if (days >= 60) return `${Math.round(days / 30)} months`
+  if (days >= 30) return '1 month'
+  return `${Math.round(days)} days`
+}
+
 const stalenessLabel = computed(() => {
-  if (stalenessLevel.value === 2) return 'No movement in 30+ days — worth following up'
-  if (stalenessLevel.value === 1) return 'No movement in 14+ days'
-  return ''
+  if (stalenessLevel.value === 0) return ''
+  const duration = formatStaleDuration(staleDays.value)
+  if (stalenessLevel.value === 2) return `No movement in ${duration} — worth following up`
+  return `No movement in ${duration}`
 })
 
 function formatDate(iso) {
