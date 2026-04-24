@@ -20,13 +20,27 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: server/package-lock.json
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
 
       - name: Install server dependencies
         run: cd server && npm ci
 
       - name: Run API tests
         run: cd server && npm test
+
+      - name: Install client dependencies
+        run: cd client && npm ci
+
+      - name: Build client
+        run: npm run build:client
+
+      - name: Install Playwright browsers
+        run: cd client && npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: cd client && npm run test:e2e
 
   docker-build:
     runs-on: ubuntu-latest

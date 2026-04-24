@@ -7,7 +7,8 @@
     "generate-icons": "node generate-icons.js",
     "dev": "vite",
     "build": "npm run generate-icons && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "axios": "^1.15.0",
@@ -17,6 +18,7 @@
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.0",
     "@vitejs/plugin-vue": "^6.0.4",
     "sharp": "^0.34.5",

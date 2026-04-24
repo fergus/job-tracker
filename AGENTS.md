@@ -68,7 +68,7 @@ job-tracker/
 ├── .github/workflows/
 │   └── build.yml            # CI: test → docker build → push on v* tags
 ├── package.json             # Root orchestrator (dev scripts, version bump helpers)
-└── docs/                    # Architecture diagrams, screenshots, planning docs
+└── docs/                    # Architecture diagrams, screenshots, planning docs, documented solutions (docs/solutions/)
 ```
 
 ---
@@ -98,7 +98,8 @@ npm run build:client
 Run tests:
 
 ```bash
-cd server && npm test   # node --test test/api.test.js
+cd server && npm test           # backend API tests
+npm run build:client && cd client && npm run test:e2e   # frontend E2E tests
 ```
 
 The backend **does not auto-restart** in dev. Stop and re-run `npm run dev:server`, or use `npx nodemon server/index.js`.
@@ -223,7 +224,11 @@ The project uses Node.js built-in `node:test` with `supertest`.
 cd server && npm test
 ```
 
-Tests run against an **in-memory** database (`DB_PATH=:memory:`) with rate limiting disabled. There is no frontend test suite.
+Tests run against an **in-memory** database (`DB_PATH=:memory:`) with rate limiting disabled.
+
+**Backend tests** (`server/test/api.test.js`) use Node.js built-in `node:test` with `supertest`.
+
+**Frontend E2E tests** (`client/e2e/`) use Playwright to verify view rendering in a real browser — they catch DOM/transition issues that unit tests miss.
 
 Quick smoke test via curl (dev mode):
 
@@ -237,7 +242,7 @@ curl -s http://localhost:3000/api/applications -H 'X-Forwarded-Email: dev@localh
 
 GitHub Actions workflow (`.github/workflows/build.yml`):
 
-1. **Test job**: installs server deps with `npm ci`, runs `npm test`.
+1. **Test job**: installs server and client deps with `npm ci`, runs backend tests, builds the client, installs Playwright browsers, and runs E2E tests.
 2. **Docker build job**: depends on test. Runs `docker compose build`.
 3. **Push**: on `v*` tag push, logs into GHCR and pushes `ghcr.io/fergus/job-tracker:<version>` and `:latest`.
 

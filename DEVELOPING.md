@@ -436,6 +436,41 @@ GitHub Actions workflow at `.github/workflows/build.yml`:
 
 The GitHub Actions workflow will automatically build and push the Docker image when a version tag is pushed.
 
+## Testing
+
+### Backend tests
+
+The server uses Node.js built-in `node:test` with `supertest`. Tests run against an in-memory database (`DB_PATH=:memory:`) with rate limiting disabled.
+
+```bash
+cd server && npm test
+```
+
+### Frontend E2E tests
+
+Playwright E2E tests verify that all views render correctly in a real browser. They catch rendering issues that unit tests miss — such as Vue `<Transition>` bugs with multi-root components.
+
+```bash
+# 1. Build the client (the E2E server serves static files from client/dist)
+npm run build:client
+
+# 2. Install Playwright browsers (one-time)
+cd client && npx playwright install chromium
+
+# 3. Run E2E tests
+cd client && npm run test:e2e
+```
+
+The E2E suite (`client/e2e/views.spec.js`) tests:
+- Kanban board renders applications
+- Table view renders after switching from kanban
+- Timeline view renders after switching from kanban
+- Mobile viewport renders data
+
+Tests run against a temporary server on port 3456 with an in-memory database, started automatically by Playwright's `webServer` config in `client/playwright.config.js`.
+
+
+
 ## Testing with curl
 
 Quick smoke test against a running server (adjust port/host as needed):
