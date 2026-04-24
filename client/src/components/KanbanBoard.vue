@@ -1,6 +1,7 @@
 <template>
-  <!-- Desktop: 7 columns -->
-  <div class="hidden md:flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
+  <div>
+    <!-- Desktop: 7 columns -->
+    <div class="hidden md:flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
     <div
       v-for="stage in stages"
       :key="stage.value"
@@ -66,6 +67,7 @@
       </div>
     </div>
   </div>
+</div>
 </template>
 
 <script setup>
