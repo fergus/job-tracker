@@ -67,7 +67,7 @@
             @change="onAcceptedAdded"
           >
             <template #item="{ element }">
-              <KanbanCard v-show="showClosed && (isRecent(element) || showOlder)" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+              <KanbanCard v-show="showClosed && isRecent(element)" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
             </template>
           </draggable>
 
@@ -82,7 +82,7 @@
             @change="onRejectedAdded"
           >
             <template #item="{ element }">
-              <KanbanCard v-show="showClosed && (isRecent(element) || showOlder)" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+              <KanbanCard v-show="showClosed && isRecent(element)" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
             </template>
           </draggable>
 
@@ -93,6 +93,18 @@
           >
             {{ showOlder ? 'Show less' : `Show ${olderCount} older` }}
           </button>
+
+          <!-- Older cards expand below the button, not above -->
+          <div v-if="showClosed && showOlder" class="space-y-2 mt-1">
+            <KanbanCard
+              v-for="app in olderCards"
+              :key="app.id"
+              :application="app"
+              :showUser="showUser"
+              :quiet="isQuieted(app.status)"
+              @select="$emit('select', app)"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -218,7 +230,6 @@ const activeStages = [
   { value: 'applied', label: 'Applied' },
   { value: 'screening', label: 'Screening' },
   { value: 'interview', label: 'Interview' },
-  { value: 'offer', label: 'Offer' },
 ]
 
 const mobileActiveGroup = {
@@ -228,7 +239,6 @@ const mobileActiveGroup = {
     { value: 'applied', label: 'Applied' },
     { value: 'screening', label: 'Screening' },
     { value: 'interview', label: 'Interview' },
-    { value: 'offer', label: 'Offer' },
   ],
 }
 
@@ -245,7 +255,6 @@ const columns = reactive({
   applied: [],
   screening: [],
   interview: [],
-  offer: [],
   accepted: [],
   rejected: [],
 })
@@ -273,9 +282,17 @@ const olderCount = computed(() => {
   return all.filter(app => !isRecent(app)).length
 })
 
+const olderCards = computed(() => {
+  return [...columns.accepted, ...columns.rejected].filter(app => !isRecent(app))
+})
+
 watch(() => props.applications, (apps) => {
   for (const s of activeStages) {
-    columns[s.value] = apps.filter(a => a.status === s.value)
+    if (s.value === 'interview') {
+      columns.interview = apps.filter(a => a.status === 'interview' || a.status === 'offer')
+    } else {
+      columns[s.value] = apps.filter(a => a.status === s.value)
+    }
   }
   columns.accepted = apps.filter(a => a.status === 'accepted')
   columns.rejected = apps.filter(a => a.status === 'rejected')

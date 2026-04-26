@@ -10,6 +10,11 @@
     <!-- Quiet cards brighten on hover so the muted company name becomes fully readable -->
     <p :class="['font-semibold font-condensed text-sm truncate transition-colors duration-200', quiet ? 'text-ink-3 hover:text-ink' : 'text-ink']">{{ application.company_name }}</p>
     <p :class="['text-xs truncate mt-1', quiet ? 'text-ink-3' : 'text-ink-2']">{{ application.role_title }}</p>
+    <span
+      v-if="application.status === 'offer'"
+      class="inline-block mt-1.5 px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide"
+      :style="{ backgroundColor: 'var(--stage-offer)', color: 'oklch(98% 0.005 100)' }"
+    >Offer</span>
     <p v-if="showUser" :class="['text-xs truncate mt-0.5', quiet ? 'text-ink-3 opacity-60' : 'text-ink-3']">{{ application.user_email }}</p>
     <!-- Hidden on narrow columns (<200px); shown when column is wide enough to breathe -->
     <div class="hidden @[200px]:flex items-center justify-between mt-3">
@@ -46,7 +51,7 @@ import { computed } from 'vue'
 const props = defineProps({ application: Object, showUser: Boolean, quiet: Boolean })
 defineEmits(['select'])
 
-const STALE_STAGES = new Set(['applied', 'screening', 'interview'])
+const STALE_STAGES = new Set(['applied', 'screening', 'interview', 'offer'])
 
 const staleDays = computed(() => {
   if (!STALE_STAGES.has(props.application.status)) return 0
