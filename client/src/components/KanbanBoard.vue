@@ -57,8 +57,9 @@
 
         <!-- Drop targets: always mounted, visibility toggled -->
         <div :class="['space-y-4 rounded-lg p-2', showClosed ? 'min-h-[60px] bg-sunken' : '']">
-          <div v-show="showClosed">
-            <div class="flex items-center gap-2 mb-2">
+          <!-- Accepted — header hidden when closed is collapsed, draggable always in DOM -->
+          <div>
+            <div v-show="showClosed" class="flex items-center gap-2 mb-2">
               <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" :style="{ backgroundColor: 'var(--stage-accepted)' }"></span>
               <h4 class="text-xs font-semibold font-condensed text-ink-2 uppercase tracking-wider">Accepted</h4>
               <span class="text-xs text-ink-3 ml-auto">{{ columns.accepted.length }}</span>
@@ -69,17 +70,18 @@
               :sort="false"
               item-key="id"
               :delay="100"
-              class="space-y-2 min-h-[60px]"
+              :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
               @change="onAcceptedAdded"
             >
               <template #item="{ element }">
-                <KanbanCard :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
               </template>
             </draggable>
           </div>
 
-          <div v-show="showClosed">
-            <div class="flex items-center gap-2 mb-2">
+          <!-- Rejected — same pattern -->
+          <div>
+            <div v-show="showClosed" class="flex items-center gap-2 mb-2">
               <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" :style="{ backgroundColor: 'var(--stage-rejected)' }"></span>
               <h4 class="text-xs font-semibold font-condensed text-ink-2 uppercase tracking-wider">Rejected</h4>
               <span class="text-xs text-ink-3 ml-auto">{{ columns.rejected.length }}</span>
@@ -90,12 +92,12 @@
               :sort="false"
               item-key="id"
               :delay="100"
-              class="space-y-2 min-h-[60px]"
+              :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
               data-testid="closed-drop-zone"
               @change="onRejectedAdded"
             >
               <template #item="{ element }">
-                <KanbanCard :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
               </template>
             </draggable>
           </div>
