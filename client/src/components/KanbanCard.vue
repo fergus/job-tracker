@@ -13,7 +13,7 @@
     <span
       v-if="application.status === 'offer'"
       class="inline-block mt-1.5 px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide"
-      :style="{ backgroundColor: 'var(--stage-offer)', color: 'oklch(98% 0.005 100)' }"
+      :style="{ backgroundColor: 'var(--stage-offer-bg)', color: 'var(--stage-offer-fg)' }"
     >Offer</span>
     <p v-if="showUser" :class="['text-xs truncate mt-0.5', quiet ? 'text-ink-3 opacity-60' : 'text-ink-3']">{{ application.user_email }}</p>
     <!-- Hidden on narrow columns (<200px); shown when column is wide enough to breathe -->

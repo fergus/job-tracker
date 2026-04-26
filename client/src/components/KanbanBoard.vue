@@ -56,35 +56,49 @@
         </div>
 
         <!-- Drop targets: always mounted, visibility toggled -->
-        <div :class="['space-y-2 rounded-lg p-2', showClosed ? 'min-h-[60px] bg-sunken' : '']">
-          <draggable
-            v-model="columns.accepted"
-            group="applications"
-            :sort="false"
-            item-key="id"
-            :delay="100"
-            class="space-y-2"
-            @change="onAcceptedAdded"
-          >
-            <template #item="{ element }">
-              <KanbanCard v-show="showClosed && isRecent(element)" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
-            </template>
-          </draggable>
+        <div :class="['space-y-4 rounded-lg p-2', showClosed ? 'min-h-[60px] bg-sunken' : '']">
+          <div v-show="showClosed">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" :style="{ backgroundColor: 'var(--stage-accepted)' }"></span>
+              <h4 class="text-xs font-semibold font-condensed text-ink-2 uppercase tracking-wider">Accepted</h4>
+              <span class="text-xs text-ink-3 ml-auto">{{ columns.accepted.length }}</span>
+            </div>
+            <draggable
+              v-model="recentClosedAccepted"
+              group="applications"
+              :sort="false"
+              item-key="id"
+              :delay="100"
+              class="space-y-2 min-h-[60px]"
+              @change="onAcceptedAdded"
+            >
+              <template #item="{ element }">
+                <KanbanCard :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+              </template>
+            </draggable>
+          </div>
 
-          <draggable
-            v-model="columns.rejected"
-            group="applications"
-            :sort="false"
-            item-key="id"
-            :delay="100"
-            class="space-y-2"
-            data-testid="closed-drop-zone"
-            @change="onRejectedAdded"
-          >
-            <template #item="{ element }">
-              <KanbanCard v-show="showClosed && isRecent(element)" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
-            </template>
-          </draggable>
+          <div v-show="showClosed">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" :style="{ backgroundColor: 'var(--stage-rejected)' }"></span>
+              <h4 class="text-xs font-semibold font-condensed text-ink-2 uppercase tracking-wider">Rejected</h4>
+              <span class="text-xs text-ink-3 ml-auto">{{ columns.rejected.length }}</span>
+            </div>
+            <draggable
+              v-model="recentClosedRejected"
+              group="applications"
+              :sort="false"
+              item-key="id"
+              :delay="100"
+              class="space-y-2 min-h-[60px]"
+              data-testid="closed-drop-zone"
+              @change="onRejectedAdded"
+            >
+              <template #item="{ element }">
+                <KanbanCard :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+              </template>
+            </draggable>
+          </div>
 
           <button
             v-show="showClosed && olderCount > 0"
@@ -286,6 +300,11 @@ const olderCards = computed(() => {
   return [...columns.accepted, ...columns.rejected].filter(app => !isRecent(app))
 })
 
+// Filtered refs for the desktop closed-column draggables — only recent cards,
+// so older cards are never duplicated in the DOM alongside the static older list.
+const recentClosedAccepted = ref([])
+const recentClosedRejected = ref([])
+
 watch(() => props.applications, (apps) => {
   for (const s of activeStages) {
     if (s.value === 'interview') {
@@ -296,6 +315,8 @@ watch(() => props.applications, (apps) => {
   }
   columns.accepted = apps.filter(a => a.status === 'accepted')
   columns.rejected = apps.filter(a => a.status === 'rejected')
+  recentClosedAccepted.value = columns.accepted.filter(isRecent)
+  recentClosedRejected.value = columns.rejected.filter(isRecent)
 }, { immediate: true })
 
 function groupCount(group) {
