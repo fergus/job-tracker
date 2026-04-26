@@ -27,10 +27,10 @@
           @keydown.space.prevent="$emit('select', app)"
           role="button"
           tabindex="0"
-          class="border-b border-line hover:bg-accent-muted cursor-pointer transition-colors focus-visible:bg-accent-muted focus-visible:outline-none"
+          :class="['border-b border-line hover:bg-accent-muted cursor-pointer transition-colors focus-visible:bg-accent-muted focus-visible:outline-none', isQuieted(app.status) ? 'text-ink-3' : '']"
         >
-          <td class="px-4 py-3 font-medium font-condensed text-ink">{{ app.company_name }}</td>
-          <td class="px-4 py-3 text-ink-2">{{ app.role_title }}</td>
+          <td :class="['px-4 py-3 font-medium font-condensed', isQuieted(app.status) ? 'text-ink-3' : 'text-ink']">{{ app.company_name }}</td>
+          <td class="px-4 py-3" :class="isQuieted(app.status) ? 'text-ink-3' : 'text-ink-2'">{{ app.role_title }}</td>
           <td class="px-4 py-3">
             <span :style="statusStyle(app.status)" class="px-2 py-0.5 rounded-full text-xs font-medium capitalize">
               {{ app.status }}
@@ -41,7 +41,17 @@
           <td class="hidden md:table-cell px-4 py-3 text-ink-3 text-xs tabular-nums">{{ formatDate(lastActivity(app)) }}</td>
         </tr>
         <tr v-if="applications.length === 0">
-          <td :colspan="columns.length" class="px-4 py-8 text-center text-ink-3">No applications yet. Click "+ Add Application" to get started.</td>
+          <td :colspan="columns.length" class="px-4 py-8 text-center text-ink-3">
+            <template v-if="closedCount > 0">
+              All your applications are closed —
+              <button @click="$emit('toggle-show-closed')" class="underline hover:text-ink transition-colors">
+                show {{ closedCount }} closed
+              </button>
+            </template>
+            <template v-else>
+              No applications yet. Click "+ Add Application" to get started.
+            </template>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -50,9 +60,10 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { isTerminal, isQuieted } from '../utils/timeline.js'
 
-const props = defineProps({ applications: Array, showUserColumn: Boolean })
-defineEmits(['select'])
+const props = defineProps({ applications: Array, showUserColumn: Boolean, showClosed: Boolean, closedCount: Number })
+const emit = defineEmits(['select', 'toggle-show-closed'])
 
 const baseColumns = [
   { key: 'company_name', label: 'Company' },

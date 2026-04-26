@@ -1,0 +1,94 @@
+{
+  "reviewer": "performance",
+  "run_id": "20260425-014645-369bc251",
+  "findings": [
+    {
+      "title": "pulseTimeout stored as ref() causes unnecessary reactivity on every status-change ghost-pulse",
+      "severity": "P3",
+      "file": "client/src/App.vue",
+      "line": 194,
+      "why_it_matters": "pulseTimeout is declared as ref(null) but is never read in the template — it is only read and written in script logic (triggerGhostPulse and onUnmounted). Every time a card is dragged to a terminal stage with showClosed=false, Vue's reactivity system processes two ref writes (set, then clear after 1500ms) and schedules a flush even though no component depends on pulseTimeout. For typical usage this adds a trivial but unnecessary scheduler round-trip on each qualifying status change. More importantly, it sets a code-quality precedent of using reactive state for non-reactive data.",
+      "autofix_class": "safe_auto",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "confidence": 100,
+      "pre_existing": false,
+      "evidence": [
+        "Line 194: `const pulseTimeout = ref(null)` — declared as reactive ref",
+        "Line 287-289: `if (pulseTimeout.value) clearTimeout(pulseTimeout.value); pulseTimeout.value = setTimeout(...)` — two reactive writes on every ghost pulse trigger",
+        "Line 330: `if (pulseTimeout.value) clearTimeout(pulseTimeout.value)` — third reactive read in onUnmounted",
+        "grep confirms pulseTimeout never appears in the template section — no component depends on it",
+        "A plain `let pulseTimeout = null` (or shallowRef at most) would be semantically identical without reactivity cost"
+      ],
+      "suggested_fix": "Replace `const pulseTimeout = ref(null)` with `let pulseTimeout = null` and replace all `.value` accesses with direct variable reads/writes. This removes three unnecessary reactive writes from the status-change hot path."
+    },
+    {
+      "title": "rebuildClosedApps allocates three new arrays on every applications prop update",
+      "severity": "P3",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 246,
+      "why_it_matters": "The watch on props.applications calls rebuildClosedApps() on every application list update (including every drag-and-drop status change, each of which triggers refreshApplication → loadApplications). rebuildClosedApps creates `[...columns.accepted, ...columns.rejected]` (spread allocation), then partitionClosed creates two more arrays internally (recent=[], older=[]). With 10-200 apps this is negligible GC pressure, but the function also calls Date.now() inside partitionClosed on every invocation with no caching. The real concern is structural: the 14-day threshold is recomputed on every prop change even though the partition result for most items will not change between rapid successive updates (e.g. dragging multiple cards in sequence).",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "KanbanBoard.vue line 246-251: rebuildClosedApps spreads both closed columns and calls partitionClosed(all) which internally creates two new arrays on each call",
+        "KanbanBoard.vue line 253-261: watch fires on the full applications array — this includes every status change that triggers refreshApplication",
+        "closedPartition.js line 3: `export function partitionClosed(apps, now = Date.now())` — Date.now() called fresh every invocation, no caching",
+        "App.vue lines 282-293: handleStatusChange calls refreshApplication after every drag, which updates applications.value, which fires the KanbanBoard watch",
+        "For a user actively dragging 10 cards in sequence: 10 × rebuildClosedApps calls, each allocating 3 arrays"
+      ],
+      "suggested_fix": "Cache the Date.now() threshold once at component mount and invalidate it on a timer (or accept the existing behavior as acceptable for 10-200 items — this is an advisory, not a blocking issue). Alternatively, debounce rebuildClosedApps with a leading-edge flag so rapid successive updates from drag operations coalesce into a single rebuild."
+    },
+    {
+      "title": "displayApplications and closedCount in App.vue iterate applications.value twice independently on every reactive change",
+      "severity": "P3",
+      "file": "client/src/App.vue",
+      "line": 199,
+      "why_it_matters": "displayApplications (line 199) and closedCount (line 204) are two separate computed properties that each independently iterate the full applications array and call TERMINAL_STAGES.includes() on every item. TERMINAL_STAGES is a 2-element array so .includes() is O(2) — but these two computeds fire on every applications.value change (i.e. every API refresh). They could be combined into a single computed that returns both filtered and counted results in one pass, or closedCount could be derived from displayApplications length subtraction. At 200 applications this is two O(n) passes vs one — not a user-visible issue, but worth flagging as an easy cleanup.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "App.vue line 199-202: displayApplications filters applications.value with TERMINAL_STAGES.includes() for each item",
+        "App.vue line 204-206: closedCount separately filters and counts the same array with the same predicate",
+        "Both computeds depend on applications.value — they both re-run on every loadApplications() call",
+        "A single computed returning `{ active, closedCount }` or deriving closedCount as `applications.value.length - displayApplications.value.length` would halve the iterations"
+      ],
+      "suggested_fix": "Derive closedCount from the applications array length minus displayApplications length: `const closedCount = computed(() => applications.value.length - displayApplications.value.length)`. This avoids the second full-array scan and eliminates the second TERMINAL_STAGES.includes call per item."
+    },
+    {
+      "title": "today is captured at TimelineView setup time — stale after midnight without remount",
+      "severity": "P3",
+      "file": "client/src/components/TimelineView.vue",
+      "line": 88,
+      "why_it_matters": "const today = new Date().toISOString() is assigned once when the component is set up. If a user leaves the browser tab open overnight, the timeline's right-hand axis will be anchored to the previous day, causing all bars to extend past the visible range. This is a pre-existing behavioral issue that becomes newly visible because the diff adds muted rejected-bar rendering — a bar for a rejection that happened 'today' (but after midnight) would render off-screen. The fix is either a computed based on a reactive date, or an interval that updates a ref.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": true,
+      "confidence": 75,
+      "pre_existing": true,
+      "evidence": [
+        "TimelineView.vue line 88: `const today = new Date().toISOString()` — plain const, not reactive",
+        "Line 98: `const maxDate = computed(() => today)` — computed of a constant string, never updates",
+        "Line 135: getSegments passes the stale `today` to computeSegments, which uses it as the trailing-segment end",
+        "If user adds a new application after midnight without refreshing, the timeline's right boundary stays at the previous day"
+      ],
+      "suggested_fix": "Replace `const today = new Date().toISOString()` with a ref updated by a daily interval, or simply use `computed(() => new Date().toISOString())` for maxDate and getSegments. This is a minor fix with negligible cost since maxDate is used only as a string comparison."
+    }
+  ],
+  "residual_risks": [
+    "The double-array iteration in closedApps rebuild (rebuildClosedApps creates spread + partitionClosed creates two arrays) is not a perf risk at current data sizes but establishes a pattern that could become visible if application counts grow to 500+.",
+    "pulseTimeout as ref() is not observable as a user-visible issue, but sets a precedent in the codebase for storing non-reactive data in reactive state.",
+    "The stale `today` in TimelineView is a pre-existing issue that the diff does not worsen, but it interacts with the new muted-rejected rendering in an edge case."
+  ],
+  "testing_gaps": [
+    "No test covers the rebuildClosedApps trigger frequency under rapid drag-and-drop sequences.",
+    "No test verifies that the timeline renders correctly when an application is added after midnight in a long-running session.",
+    "The E2E test uses waitForTimeout(600) for view transitions — if the transition duration changes, the test may give false-positive passes before the view settles."
+  ]
+}

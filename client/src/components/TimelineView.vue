@@ -2,8 +2,16 @@
   <div class="max-w-screen-2xl mx-auto px-4 py-4">
     <!-- Empty state -->
     <div v-if="sortedApps.length === 0" class="text-center py-20">
-      <p class="text-ink-2 font-medium mb-1">No applications to track yet</p>
-      <p class="text-sm text-ink-3">Add your first application to see your job search timeline here.</p>
+      <template v-if="closedCount > 0">
+        <p class="text-ink-2 font-medium mb-1">All your applications are closed</p>
+        <button @click="$emit('toggle-show-closed')" class="text-sm text-accent hover:underline transition-colors">
+          Show {{ closedCount }} closed
+        </button>
+      </template>
+      <template v-else>
+        <p class="text-ink-2 font-medium mb-1">No applications to track yet</p>
+        <p class="text-sm text-ink-3">Add your first application to see your job search timeline here.</p>
+      </template>
     </div>
 
     <div v-else>
@@ -40,8 +48,8 @@
         <div
           class="shrink-0 w-24 sm:w-36 md:w-[200px] pr-3 text-right"
         >
-          <span class="text-xs text-ink-2 font-medium leading-tight block truncate">{{ app.company_name }}</span>
-          <span class="text-xs text-ink-3 leading-tight block truncate">{{ app.role_title }}</span>
+          <span :class="['text-xs font-medium leading-tight block truncate', isQuieted(app.status) ? 'text-ink-3' : 'text-ink-2']">{{ app.company_name }}</span>
+          <span :class="['text-xs leading-tight block truncate', isQuieted(app.status) ? 'text-ink-3 opacity-60' : 'text-ink-3']">{{ app.role_title }}</span>
         </div>
 
         <!-- Bar area -->
@@ -50,7 +58,7 @@
             v-for="seg in getSegments(app)"
             :key="seg.stage"
             class="absolute top-0 h-full rounded"
-            :style="segmentStyle(seg)"
+            :style="segmentStyle(seg, isQuieted(app.status))"
             @mouseenter="showTooltip($event, seg)"
             @mouseleave="hideTooltip"
           ></div>
@@ -72,10 +80,10 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { computeSegments, durationDays } from '../utils/timeline'
+import { computeSegments, durationDays, isTerminal, isQuieted } from '../utils/timeline'
 
-const props = defineProps({ applications: Array })
-const emit = defineEmits(['open-detail'])
+const props = defineProps({ applications: Array, showClosed: Boolean, closedCount: Number })
+const emit = defineEmits(['open-detail', 'toggle-show-closed'])
 
 const today = new Date().toISOString()
 
@@ -127,7 +135,7 @@ function getSegments(app) {
   return computeSegments(app, today)
 }
 
-function segmentStyle(seg) {
+function segmentStyle(seg, isTerminalStage) {
   const left = Math.max(0, pctOf(seg.start))
   const right = Math.min(100, pctOf(seg.end))
   const width = Math.max(right - left, 0.3)
@@ -144,11 +152,17 @@ function segmentStyle(seg) {
     }
   }
 
-  return {
+  const baseStyle = {
     left: left + '%',
     width: width + '%',
     backgroundColor: colorVar,
   }
+
+  if (isTerminalStage) {
+    baseStyle.filter = 'grayscale(0.4) brightness(0.85)'
+  }
+
+  return baseStyle
 }
 
 function formatShortDate(iso) {

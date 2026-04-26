@@ -1,0 +1,26 @@
+{
+  "reviewer": "project-standards",
+  "run_id": "20260425-014645-369bc251",
+  "intent": "Add collapsible Closed column to Kanban, showClosed toggle persisted in localStorage, visual quieting of rejected cards/rows/segments across all three views.",
+  "standards_checked": [
+    "All state lives as a flat `applications` ref in `App.vue` — no Vuex/Pinia",
+    "Child components receive data via props and emit events back to `App.vue`",
+    "All API calls go through `client/src/api.js` (Axios)",
+    "localStorage key naming pattern: `jobtracker_<snake_case>`"
+  ],
+  "findings": [],
+  "standards_compliance_summary": {
+    "state_in_app_vue": "PASS — showClosed, displayApplications, closedCount, pulseGhost, and pulseTimeout are all declared in App.vue script setup. No state added to child components.",
+    "props_and_emit_pattern": "PASS — KanbanBoard, TableView, and TimelineView all receive showClosed/closedCount via props and emit 'toggle-show-closed' back to App.vue, which owns the toggleShowClosed handler. The intentional deviation (KanbanBoard receives full `applications` rather than `displayApplications`) is explicitly justified in a code comment explaining that vuedraggable requires all columns mounted in the DOM.",
+    "api_calls_through_api_js": "PASS — No new API calls introduced in components. The `updateStatus` call in handleStatusChange continues to go through `./api`. The new `closedPartition.js` utility is pure client-side logic with no HTTP calls.",
+    "localstorage_key_naming": "PASS — New key `jobtracker_show_closed` follows the existing `jobtracker_compact_header` pattern documented in CLAUDE.md (jobtracker_ prefix, snake_case suffix)."
+  },
+  "residual_risks": [
+    "KanbanBoard receives the unfiltered `applications` prop while TableView and TimelineView receive `displayApplications`. This asymmetry is intentional (vuedraggable constraint) but is not documented in CLAUDE.md, so future developers may accidentally change it. The inline comment mitigates this.",
+    "The `closedPartition.js` utility is imported only by KanbanBoard. If TableView or TimelineView later need similar partitioning logic, the import pattern should be consistent — they should import from `../utils/` not inline the logic."
+  ],
+  "testing_gaps": [
+    "The E2E test for showClosed persistence does not verify that a page reload (not just a view switch) preserves the preference — which is the core promise of localStorage persistence.",
+    "The unit test script added to package.json (`test:unit`) runs `closedPartition.test.js` directly with `node --test` but there is no equivalent for `timeline.test.js`. CLAUDE.md documents no automated test runner, so this is an inconsistency in test discoverability, not a standards violation."
+  ]
+}

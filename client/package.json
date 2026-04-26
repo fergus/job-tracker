@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "npm run generate-icons && vite build",
     "preview": "vite preview",
+    "test:unit": "node --test src/utils/closedPartition.test.js",
     "test:e2e": "playwright test"
   },
   "dependencies": {

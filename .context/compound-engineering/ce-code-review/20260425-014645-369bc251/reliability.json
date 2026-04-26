@@ -1,0 +1,132 @@
+{
+  "reviewer": "reliability",
+  "run_id": "20260425-014645-369bc251",
+  "findings": [
+    {
+      "id": "R-01",
+      "title": "localStorage.getItem at module evaluation throws SecurityError in Safari private browsing, crashing app init",
+      "severity": "P1",
+      "file": "client/src/App.vue",
+      "line": 196,
+      "why_it_matters": "Line 196 executes `localStorage.getItem(SHOW_CLOSED_KEY)` at module evaluation time (outside any function, directly in the `<script setup>` body). In Safari private browsing, `localStorage` access throws a `SecurityError` synchronously. Because this is not inside a try/catch, the entire module fails to initialise, the app never mounts, and the user sees a blank screen. This is a self-hosted app; iOS Safari private browsing is a plausible runtime environment.",
+      "autofix_class": "safe_auto",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "App.vue line 196: `const _stored = localStorage.getItem(SHOW_CLOSED_KEY)` — bare call, no try/catch, at module-level script setup evaluation",
+        "App.vue line 210: `localStorage.setItem(SHOW_CLOSED_KEY, String(showClosed.value))` — also bare, will throw on the same toggle action",
+        "App.vue line 323: `localStorage.getItem(COMPACT_KEY)` — same pattern for compact header; pre-existing but same class of bug",
+        "App.vue line 228: `localStorage.setItem(COMPACT_KEY, ...)` — same pattern for compact header write",
+        "Safari private browsing throws SecurityError on any localStorage access per the HTML spec (storage quota = 0, throws on getItem too in some versions)"
+      ],
+      "suggested_fix": "Wrap all localStorage access in a helper:\n```js\nfunction safeStorage(fn, fallback) {\n  try { return fn() } catch { return fallback }\n}\nconst _stored = safeStorage(() => localStorage.getItem(SHOW_CLOSED_KEY), null)\n```\nUse the same wrapper in `toggleShowClosed` and `toggleCompact`."
+    },
+    {
+      "id": "R-02",
+      "title": "handleStatusChange does not catch updateStatus failure — drag-and-drop silently corrupts UI state on API error",
+      "severity": "P1",
+      "file": "client/src/App.vue",
+      "line": 293,
+      "why_it_matters": "When the user drags a card to a new column, `handleStatusChange` calls `await updateStatus(id, status)` with no try/catch. If the PATCH fails (network blip, 401 token expiry, 500 from server), the promise rejects and propagates as an unhandled rejection. Meanwhile vuedraggable has already moved the card in the local `columns` reactive state inside KanbanBoard. The watch on `props.applications` only fires when the parent reloads data, but `refreshApplication` is never called because the await threw. The card stays in the wrong column visually while the server has the old status. The user has no feedback that anything went wrong.",
+      "autofix_class": "manual",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "App.vue lines 293-312: `handleStatusChange` — `await updateStatus(id, status)` at line 295, no surrounding try/catch",
+        "App.vue line 295: if updateStatus throws, lines 296-311 never execute — no toast, no rollback, no refresh",
+        "KanbanBoard.vue lines 269-276: `onChange` emits `status-change` after vuedraggable has already mutated `columns[status]` locally",
+        "KanbanBoard.vue lines 253-261: columns are rebuilt only when `props.applications` changes; a failed API call means the parent never reloads, so the column stays in the mutated state",
+        "No global axios error interceptor in api.js that would surface the error"
+      ],
+      "suggested_fix": "Wrap the updateStatus call in try/catch:\n```js\nasync function handleStatusChange(id, status) {\n  const prevStatus = applications.value.find(a => a.id === id)?.status\n  try {\n    await updateStatus(id, status)\n  } catch (err) {\n    toast.error('Failed to move application: ' + (err.response?.data?.error || err.message))\n    await loadApplications() // force re-sync to undo optimistic UI\n    return\n  }\n  // ... rest of function\n}\n```"
+    },
+    {
+      "id": "R-03",
+      "title": "Undo action in toast also lacks error handling — second API call failure is an unhandled rejection",
+      "severity": "P2",
+      "file": "client/src/App.vue",
+      "line": 304,
+      "why_it_matters": "The undo action callback at lines 305-309 calls `await updateStatus(id, prevStatus)` inside an async lambda with no try/catch. If the undo PATCH fails, the promise rejection escapes the toast system. The user clicked Undo, got no response, and the application is now in an indeterminate state that requires a page reload to recover.",
+      "autofix_class": "manual",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "App.vue lines 304-310: `action: async () => { await updateStatus(id, prevStatus); logoTrigger.value++; await refreshApplication(id) }` — no try/catch",
+        "useToast composable is not shown but undo callbacks are typically fire-and-forget; the rejection would be unhandled"
+      ],
+      "suggested_fix": "Add try/catch inside the undo action:\n```js\naction: async () => {\n  try {\n    await updateStatus(id, prevStatus)\n    logoTrigger.value++\n    await refreshApplication(id)\n  } catch (err) {\n    toast.error('Undo failed: ' + (err.response?.data?.error || err.message))\n  }\n},\n```"
+    },
+    {
+      "id": "R-04",
+      "title": "scrollIntoView race: closedGroupRef may be null when showClosed watcher fires on mobile",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 304,
+      "why_it_matters": "The watcher on `props.showClosed` at line 304 calls `closedGroupRef.value?.scrollIntoView(...)` after `nextTick`. The ref is bound via `bindClosedRef` to the closed group `<div>` which is rendered with `v-if=\"showClosed\"`. Vue's `v-if` insertion and the ref callback run during the same flush as the watcher's `nextTick`. In practice the optional chaining (`?.`) masks a null ref silently — the scroll just does nothing. The user taps 'Show X closed' on mobile and the closed panel appears but doesn't scroll into view, requiring a manual scroll to find the new content. This is not a crash but a silent UX failure.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": true,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "KanbanBoard.vue lines 304-309: watcher fires when `props.showClosed` becomes true, awaits nextTick, then calls `closedGroupRef.value?.scrollIntoView`",
+        "KanbanBoard.vue line 132: the closed group div is rendered with `v-if=\"showClosed\"` — it is not in the DOM when showClosed is false",
+        "KanbanBoard.vue lines 296-298: `bindClosedRef` is the template ref callback; it is only called once the v-if condition renders the element",
+        "nextTick guarantees the DOM is updated but the timing of `bindClosedRef` call relative to the watcher callback execution needs verification"
+      ],
+      "suggested_fix": "Use a `watchEffect` or `watch` with `flush: 'post'` to ensure the ref is resolved after the DOM update:\n```js\nwatch(() => props.showClosed, async (val) => {\n  if (val) {\n    await nextTick()\n    // additional tick may be needed if v-if rendering is deferred\n    await nextTick()\n    closedGroupRef.value?.scrollIntoView({ behavior: 'smooth' })\n  }\n}, { flush: 'post' })\n```\nAlternatively verify the ref is populated before calling scrollIntoView and log a warning if not."
+    },
+    {
+      "id": "R-05",
+      "title": "onClosedChange emits status-change for dragged-in card without checking for in-flight status change",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 287,
+      "why_it_matters": "When a card is dragged from an active column into the closed drop zone, `onClosedChange` fires with `evt.added`. The code emits `status-change` to set the status to 'rejected' (line 290). However, the closed draggable has `put: false` on its group config (line 63), which means vuedraggable should prevent drops into it — but the drop target accepts items without validation of their current status against double-emission. If a rapid drag triggers both `onChange` (from the source column's `removed` event) and `onClosedChange` (from the target's `added` event), two `status-change` emissions can fire in quick succession for the same card. The second PATCH would race with the first.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": true,
+      "confidence": 50,
+      "pre_existing": false,
+      "evidence": [
+        "KanbanBoard.vue line 63: `:group=\"{ name: 'applications', pull: true, put: false }\"` — `put: false` means cards cannot be dropped INTO the closed zone from outside; this means `evt.added` in `onClosedChange` should never fire for external drags",
+        "KanbanBoard.vue lines 287-293: the `evt.added` branch in `onClosedChange` emits status-change to 'rejected' — this path is only reachable if put:false is somehow bypassed",
+        "Requires verification: confirm whether vuedraggable `put: false` fully prevents `added` events from firing for external group drags"
+      ]
+    },
+    {
+      "id": "R-06",
+      "title": "TimelineView: segmentStyle passes `isTerminalStage` based only on app.status === 'rejected', ignoring 'accepted'",
+      "severity": "P3",
+      "file": "client/src/components/TimelineView.vue",
+      "line": 61,
+      "why_it_matters": "The template calls `segmentStyle(seg, app.status === 'rejected')` at line 61. This means the grayscale/brightness filter (lines 161-163) is only applied to rejected applications, not accepted ones. The intent stated in the review context is to visually quiet 'rejected' cards/segments. This is intentional per the design spec ('accepted' = success = full colour). However, if the intent changes, the hardcoded equality check is fragile. This is a minor design consistency note, not a reliability issue.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "confidence": 100,
+      "pre_existing": false,
+      "evidence": [
+        "TimelineView.vue line 61: `segmentStyle(seg, app.status === 'rejected')` — only rejected gets the muted filter",
+        "TimelineView.vue lines 51-52: label classes use `app.status === 'rejected'` for quieting, consistent with the segment style approach",
+        "This is aligned with design intent (accepted = positive outcome = full colour) but differs from isTerminal() which covers both"
+      ]
+    }
+  ],
+  "residual_risks": [
+    "The `loadApplications` function in App.vue (line 232) has no error handling — if fetchApplications throws on initial load, `applications.value` stays as an empty array and the user sees an empty board with no error message. This is pre-existing.",
+    "The `onMounted` handler (line 320) calls `loadApplications()` without await and without catch — a load failure during mount produces an unhandled rejection. Pre-existing.",
+    "The `closedPartition.js` utility is imported in KanbanBoard but not reviewed here — any edge cases in partition logic could silently mis-categorize cards."
+  ],
+  "testing_gaps": [
+    "No test covers the Safari private browsing localStorage failure path — the E2E tests run in Chromium/Firefox where localStorage works.",
+    "No test verifies that a failed PATCH in handleStatusChange results in a toast and re-sync — the drag interaction in E2E tests does not simulate network errors.",
+    "The scrollIntoView behaviour on mobile (closedGroupRef race) has no automated assertion — the E2E test only checks visibility, not scroll position."
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "reviewer": "julik-frontend-races",
+  "run_id": "20260425-014645-369bc251",
+  "residual_risks": [
+    "The single-nextTick scrollIntoView path is not covered by any automated test — it can only be verified manually on a real mobile device.",
+    "The pulseGhost badge-overlap scenario (ghost button becomes visible while pulse is still active) requires a 1.5s window and concurrent user action to reproduce; no E2E test covers it.",
+    "The desktop Closed draggable uses put:false, meaning dropping an active card onto the Closed zone routes it to 'rejected'. This policy is not tested in E2E and could confuse users who intend to accept."
+  ],
+  "testing_gaps": [
+    "No test exercises the scrollIntoView path on mobile (handleToggle → emit → prop update → v-if mount → bindClosedRef → scrollIntoView).",
+    "No test for the pulseGhost badge overlap with v-show=false ghost button (desktop) or the reduced-motion gate.",
+    "No test for dragging a card to the Closed zone while showClosed=false on desktop (drop target exists but is visually hidden).",
+    "The E2E persistence test uses waitForTimeout(600) magic sleeps instead of a reliable visibility assertion — brittle under CI load."
+  ],
+  "findings": [
+    {
+      "title": "Single nextTick insufficient for v-if remount + callback ref population on mobile scroll",
+      "severity": "P1",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 304,
+      "why_it_matters": "The watch on props.showClosed calls nextTick() once, then reads closedGroupRef.value. The Closed group div is rendered via v-if=\"showClosed\" (line 132). The sequence is: (1) handleToggle emits 'toggle-show-closed', (2) App.vue mutates showClosed.value in toggleShowClosed, (3) Vue schedules a parent re-render, (4) that re-render queues a child prop update, (5) KanbanBoard re-renders and the v-if branch mounts the element, (6) Vue calls the callback ref (bindClosedRef) with the DOM element. In Vue 3 Composition API, a single nextTick() after the parent mutation guarantees that the current microtask flush is complete, but the parent state change → child prop propagation → child template re-render → callback ref invocation typically requires TWO flush cycles in a parent-emit-then-prop path. The timing scenario: user taps 'Show N closed' on mobile, emit fires, App.vue's toggleShowClosed runs synchronously, showClosed.value becomes true, the watch fires, nextTick resolves after the first flush (parent DOM updated), but the child KanbanBoard prop update and v-if branch mount may not have committed yet, so bindClosedRef has not fired, closedGroupRef.value is still null, and scrollIntoView is silently skipped (the ?. guard suppresses the error). The user sees the column appear but no automatic scroll occurs.",
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "KanbanBoard.vue line 132: `v-if=\"showClosed\"` on the mobile Closed group div — the element unmounts/remounts on toggle.",
+        "KanbanBoard.vue line 296-298: bindClosedRef callback ref sets closedGroupRef.value — only called when element mounts.",
+        "KanbanBoard.vue lines 304-309: `watch(() => props.showClosed, async (val) => { if (val) { await nextTick(); closedGroupRef.value?.scrollIntoView(...) } })` — single nextTick.",
+        "Vue 3 reactivity docs: a parent data mutation → child prop change requires the parent's render effect to flush first, then the child's render effect to flush. These are two separate queued effects; a single nextTick may only drain one flush cycle depending on scheduler state at emit time.",
+        "The emit path (child emits → parent handles → parent state mutates → Vue scheduler queues parent render → parent renders → child re-renders) traverses two render boundaries, making double-tick the safe pattern."
+      ],
+      "suggested_fix": "Replace the single `await nextTick()` with two awaited nextTick calls, or use a watch with `flush: 'post'` and verify the ref is populated:\n```js\nwatch(() => props.showClosed, async (val) => {\n  if (val) {\n    await nextTick()\n    await nextTick()  // second tick ensures child v-if mount + callback ref have fired\n    closedGroupRef.value?.scrollIntoView({ behavior: 'smooth' })\n  }\n})\n```\nAlternatively, replace the callback ref pattern with a watchEffect that reacts when closedGroupRef becomes non-null, eliminating the timing dependency entirely."
+    },
+    {
+      "title": "pulseGhost animation class persists on the ghost button after it transitions from hidden to visible within the 1500ms window",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 52,
+      "why_it_matters": "triggerGhostPulse() in App.vue sets pulseGhost=true and clears it 1500ms later. The ghost button (the 'N Closed ›' summary button) renders only when `!showClosed && closedCount > 0` (v-else-if on line 46-55 of KanbanBoard). A race scenario: (1) user drags an active card to the Closed drop zone, (2) handleStatusChange triggers triggerGhostPulse (pulseGhost=true), (3) within the 1500ms window the user also clicks the ghost button to show the Closed column (showClosed becomes true), (4) the v-else-if condition flips — the ghost button unmounts and the full Closed header mounts — but pulseGhost is still true for up to another ~1400ms. The pulse class `motion-safe:animate-pulse motion-safe:ring-2 motion-safe:ring-accent` is applied to the badge span inside the ghost button. Since that button unmounts when showClosed becomes true, the animation class is cleaned up correctly via DOM removal. However the inverse scenario is more subtle: if the user hides Closed again (showClosed → false) while pulseGhost is still true, the ghost button re-mounts with pulseGhost=true still bound, causing an unexpected pulse animation on a freshly revealed ghost button that the user did not just trigger a status-change on. The visual result is a pulsing badge on the ghost button even though no drag just occurred, which could mislead the user into thinking a card just moved.",
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "App.vue lines 285-291: triggerGhostPulse sets pulseGhost=true, clears after 1500ms via setTimeout.",
+        "App.vue lines 293-299: handleStatusChange calls triggerGhostPulse only when status is terminal AND !showClosed.value — pulse is gated on hidden state at the moment of the drag.",
+        "KanbanBoard.vue line 52: pulse classes applied reactively to the badge span — they will re-apply if the ghost button re-mounts while pulseGhost is still true.",
+        "The 1500ms window is long enough for a user to toggle showClosed (hide then show again) within it, especially on a device with a fast tap.",
+        "No explicit reset of pulseGhost when showClosed becomes true, so the ghost button can re-appear still pulsing."
+      ],
+      "suggested_fix": "In App.vue's toggleShowClosed, clear pulseGhost when the user opens the Closed column:\n```js\nfunction toggleShowClosed() {\n  showClosed.value = !showClosed.value\n  localStorage.setItem(SHOW_CLOSED_KEY, String(showClosed.value))\n  if (showClosed.value && pulseTimeout.value) {\n    clearTimeout(pulseTimeout.value)\n    pulseGhost.value = false\n  }\n}\n```\nThis ensures the animation is always tied to an actual status-change event visible to the user."
+    },
+    {
+      "title": "Closed drop zone accepts drops while showClosed=false (desktop): dragged card silently changes status without user confirmation",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 60,
+      "why_it_matters": "On desktop, the Closed column draggable (lines 60-73) is always mounted (v-show controls card visibility, not the draggable container itself). The group configuration is `{ name: 'applications', pull: true, put: false }` — pull:true, put:false. put:false means no cards can be dropped INTO the Closed zone, which is correct for preventing accidental closure. However, active-stage draggables use `group=\"applications\"` (a string, which means pull:true, put:true). Sortable.js resolves the put policy using the TARGET group's put value, so dropping onto the Closed zone is correctly blocked. What IS possible: the Closed draggable has pull:true, which means cards CAN be dragged OUT of the Closed zone when showClosed=false — the cards are v-show=false so they are invisible but still in the DOM and potentially still participating in drag. On touch devices with vuedraggable's delay:100 tap-to-drag, a user could long-press on a spot that coincidentally overlaps a v-show=false closed card (since the card occupies zero visible height but the draggable container has min-h-[40px]). This is an edge case but the min-h-[40px] area is tappable and could initiate a drag of a hidden card. More critically: the @change onClosedChange handler (lines 278-294) will fire for any evt.removed event, immediately mutating columns.accepted/rejected without emitting a status-change. This local mutation without API persistence is a pre-existing bug in the architecture, but the new v-show=false surface area makes it reachable without the user knowing they're interacting with a hidden element.",
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "KanbanBoard.vue lines 59-73: the Closed draggable is always mounted (no v-if); v-show on the KanbanCard items keeps them invisible but in DOM.",
+        "KanbanBoard.vue line 62: group `{ pull: true, put: false }` — pull:true means the Closed zone can be a drag source.",
+        "KanbanBoard.vue line 66: `:class` applies `min-h-[40px]` when showClosed=false, creating a 40px tall invisible drop/drag surface.",
+        "KanbanBoard.vue line 71: `<KanbanCard v-show=\"showClosed\" ...>` — card is in DOM but zero-height visually when showClosed=false.",
+        "KanbanBoard.vue lines 278-293: onClosedChange handles evt.removed by mutating columns directly without emitting status-change to parent — no API call on removal from Closed zone."
+      ],
+      "suggested_fix": "Set `min-h-[40px]` only when the drop zone is intended to be interactive. When showClosed=false, reduce to `min-h-0` or `h-0 overflow-hidden` to prevent unintentional interaction with the hidden zone. Alternatively add `:disabled=\"!showClosed\"` or toggle the group's pull value dynamically: `:group=\"showClosed ? { name: 'applications', pull: true, put: false } : { name: 'closed-hidden', pull: false, put: false }`."
+    },
+    {
+      "title": "reduced-motion gate on pulseGhost uses Tailwind motion-safe: prefix — correct, but only applies to CSS animation, not ring classes",
+      "severity": "P3",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 52,
+      "why_it_matters": "The pulse animation classes are `motion-safe:animate-pulse motion-safe:ring-2 motion-safe:ring-accent`. The `motion-safe:` prefix on `animate-pulse` is correct and will suppress the CSS animation when `prefers-reduced-motion: reduce` is set. However, `motion-safe:ring-2` and `motion-safe:ring-accent` are also gated — this means the ring highlight also disappears under reduced-motion, which is overly conservative. A ring highlight (static outline) carries no motion and could be preserved under reduced-motion as a static visual affordance. The current implementation is not incorrect but removes a useful visual cue unnecessarily for users who have reduced motion enabled. This is a minor design/accessibility point rather than a bug.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "KanbanBoard.vue line 52: `pulseGhost ? 'motion-safe:animate-pulse motion-safe:ring-2 motion-safe:ring-accent' : ''` — all three classes are motion-safe gated.",
+        "CSS spec: `prefers-reduced-motion: reduce` is intended to suppress animation and transitions, not static visual states like box-shadow/ring outlines.",
+        "The ring is a static CSS property (box-shadow) that does not animate — gating it behind motion-safe is functionally harmless but removes a static affordance from reduced-motion users."
+      ],
+      "suggested_fix": "Separate the animation from the ring:\n```html\n:class=\"['px-1.5 py-0.5 rounded-full bg-panel text-xs font-semibold',\n  pulseGhost ? 'motion-safe:animate-pulse ring-2 ring-accent' : ''\n]\"\n```\nThis preserves the static ring highlight for all users while still suppressing the pulse animation under reduced-motion."
+    },
+    {
+      "title": "onClosedChange removes item from columns.accepted/rejected without emitting status-change: local state diverges from server on drag-out of Closed zone",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 278,
+      "why_it_matters": "When a card is dragged FROM the Closed zone into an active stage, two @change events fire: onClosedChange (evt.removed) and onChange for the target stage (evt.added). The onChange handler correctly emits 'status-change' with the new status, which triggers an API call in App.vue and a full applications reload. But onClosedChange's evt.removed branch (lines 279-285) also mutates columns.accepted/columns.rejected by filtering out the moved card — this is a local mutation that happens BEFORE the API call completes. If the API call fails (network error, 5xx), the card has been removed from the local closed columns state but not added to the target column (because onChange's emit went to the parent which failed). The result is a 'lost card' in local state until the next full reload. This is a pre-existing risk pattern in the component's design (optimistic local mutation without rollback), but the new onClosedChange code introduces it specifically for the Closed zone which did not exist before.",
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "KanbanBoard.vue lines 278-293: onClosedChange mutates columns.accepted/columns.rejected directly on evt.removed.",
+        "KanbanBoard.vue lines 269-276: onChange emits 'status-change' which eventually triggers refreshApplication in App.vue — this is the only path that re-syncs from server.",
+        "App.vue lines 293-311: handleStatusChange calls updateStatus then refreshApplication — if updateStatus throws, refreshApplication is not called and local state remains at whatever vuedraggable set it to.",
+        "The local mutation in onClosedChange removes the card from closedApps immediately via rebuildClosedApps(), but if the status-change API call fails, the card does not re-appear in either location."
+      ],
+      "suggested_fix": "Avoid eagerly mutating columns.accepted/columns.rejected on evt.removed. Instead, let the parent's refreshApplication (triggered by the evt.added → onChange → emit → API path) perform the authoritative state update. The local mutation is only needed to prevent a visual double-render while the API call is in flight; a simpler approach is to let vuedraggable's own optimistic v-model handle the intermediate state and rely on the applications prop watch to correct it when the parent reloads."
+    }
+  ]
+}

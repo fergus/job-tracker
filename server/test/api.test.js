@@ -165,6 +165,15 @@ describe('Status changes', () => {
     assert.equal(res.status, 200);
     assert.ok(res.body.closed_at);
   });
+
+  test('status:accepted sets closed_at', async () => {
+    const created = await createApp();
+    const res = await req
+      .patch(`/api/applications/${created.id}/status`)
+      .send({ status: 'accepted' });
+    assert.equal(res.status, 200);
+    assert.ok(res.body.closed_at);
+  });
 });
 
 // ---------------------------------------------------------------------------

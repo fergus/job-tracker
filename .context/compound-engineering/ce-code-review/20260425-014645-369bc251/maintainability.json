@@ -1,0 +1,164 @@
+{
+  "reviewer": "maintainability",
+  "run_id": "20260425-014645-369bc251",
+  "findings": [
+    {
+      "id": "M-01",
+      "title": "Dead-code ternary: both branches of role_title quieting return the same class",
+      "severity": "P2",
+      "file": "client/src/components/TimelineView.vue",
+      "line": 52,
+      "confidence": 100,
+      "autofix_class": "safe_auto",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "pre_existing": false,
+      "detail": "`:class=\"['text-xs leading-tight block truncate', app.status === 'rejected' ? 'text-ink-3' : 'text-ink-3']\"` — both branches produce `text-ink-3`. The condition is evaluated at runtime on every render but never changes the output. This is almost certainly a copy-paste error: the non-rejected branch should likely be `text-ink-3` (unchanged from before) while the rejected branch should have been a lighter token, OR the intent was to match the `company_name` pattern where the non-rejected branch is `text-ink-2`. Either way the conditional buys nothing and misleads the reader.",
+      "suggested_fix": "If the intent is uniform muting: `class=\"text-xs leading-tight block truncate text-ink-3\"`. If the intent is differential muting to match company_name: `app.status === 'rejected' ? 'text-ink-3' : 'text-ink-3'` → `app.status === 'rejected' ? 'text-ink-3' : 'text-ink-2'`. Confirm design intent before choosing."
+    },
+    {
+      "id": "M-02",
+      "title": "Dead-code ternary: showUser text colour conditional always resolves to the same class in KanbanCard",
+      "severity": "P2",
+      "file": "client/src/components/KanbanCard.vue",
+      "line": 12,
+      "confidence": 100,
+      "autofix_class": "safe_auto",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "pre_existing": false,
+      "detail": "`:class=\"['text-xs truncate mt-0.5', quiet ? 'text-ink-3' : 'text-ink-3']\"` — both branches are `text-ink-3`. Same category of mistake as M-01. This element probably should not be quieted at all (it's the user email, always a secondary detail), or the non-quiet branch should stay `text-ink-3` while the quiet branch uses a lighter alias that doesn't exist yet. The conditional adds cognitive load with zero runtime effect.",
+      "suggested_fix": "Collapse to `class=\"text-xs truncate mt-0.5 text-ink-3\"` and remove the ternary entirely."
+    },
+    {
+      "id": "M-03",
+      "title": "`app.status === 'rejected'` scattered across 3+ files instead of using the exported TERMINAL_STAGES",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 117,
+      "confidence": 100,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "pre_existing": false,
+      "detail": "The quieting predicate `app.status === 'rejected'` appears inline in: KanbanBoard.vue (`:quiet=\"element.status === 'rejected'\"` in two draggable templates), TableView.vue (two class bindings), and TimelineView.vue (two span class bindings and one segmentStyle call). Meanwhile `TERMINAL_STAGES` is now exported from `timeline.js`. Quieting semantics should track the business concept 'closed/terminal', not the specific string 'rejected'. If 'accepted' entries should also be visually quiet (or quiet-able in future), every callsite needs updating. Centralisation would be a one-line change.",
+      "suggested_fix": "Import `TERMINAL_STAGES` where needed and replace `app.status === 'rejected'` with `TERMINAL_STAGES.includes(app.status)`. Or add and export a helper `isTerminal(status)` from timeline.js so the intent is self-documenting at each callsite."
+    },
+    {
+      "id": "M-04",
+      "title": "Module-level `pulseTimeout` leaks between component instances and sidesteps Vue's reactivity lifecycle",
+      "severity": "P2",
+      "file": "client/src/App.vue",
+      "line": 195,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "pre_existing": false,
+      "detail": "`let pulseTimeout = null` is declared at module scope (outside `setup`). For a singleton app component this is functionally safe today — there will only ever be one instance — but it is architecturally misleading: module-level mutable state outlives component unmount/remount cycles and does not participate in Vue's `onUnmounted` cleanup. If the component is ever hot-reloaded or used in tests more than once, the old timeout will fire against a stale ref. It is also an implicit coupling: the variable is not collocated with `pulseGhost` in any way that makes the relationship visible.",
+      "suggested_fix": "Move `pulseTimeout` inside `setup` as a plain `let` local variable, or use `onUnmounted(() => clearTimeout(pulseTimeout))` at minimum. Using a `useTimeout` composable or Vue's `watchEffect` with cleanup would be the canonical pattern. At very least: `onUnmounted(() => { if (pulseTimeout) clearTimeout(pulseTimeout) })`."
+    },
+    {
+      "id": "M-05",
+      "title": "KanbanBoard maintains a duplicate local copy of closed-column state that drifts from props",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 243,
+      "confidence": 75,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "detail": "`recentClosed` and `olderClosed` are local `ref`s populated by a `watch` on `props.applications`. They are also mutated directly by vuedraggable's v-model when the user drags a card. But `onClosedChange` only emits `status-change` — it does not reset or reconcile `recentClosed`/`olderClosed` from the source of truth. The watch will re-run when `applications` prop updates (after the parent refreshes), but between drag-end and parent refresh, the local arrays are in a temporarily-diverged state. Worse, the partition logic (14-day cutoff) is applied only on the watch re-run, so dragging an older card into the Closed column places it in `recentClosed` until the next prop update. This is the classic 'local copy of derived state' anti-pattern.",
+      "suggested_fix": "Make `recentClosed` and `olderClosed` computed properties derived from `props.applications`, or eliminate the watch and use computed getters. If vuedraggable requires a writable ref (v-model), use a writable computed or a thin wrapper. Alternatively, keep the local copy but explicitly reset it from the watch after every drag event."
+    },
+    {
+      "id": "M-06",
+      "title": "`closedCount` prop is redundant — KanbanBoard can derive it from its own columns",
+      "severity": "P3",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 207,
+      "confidence": 75,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "pre_existing": false,
+      "detail": "`closedCount` is passed as a prop from `App.vue` but KanbanBoard already has `columns.accepted` and `columns.rejected` populated from the same `props.applications` watch. `closedCount` could be computed locally as `columns.accepted.length + columns.rejected.length` (or as `recentClosed.length + olderClosed.length`). The current approach creates a data flow: App computes `closedCount` → passes it as prop → KanbanBoard reads it. This is not wrong, but it's a redundant dependency that adds surface area to the component interface. TableView and TimelineView genuinely need `closedCount` as a prop (they don't hold per-stage column data), so the pattern is justified there but not in KanbanBoard.",
+      "suggested_fix": "Remove the `closedCount` prop from KanbanBoard and compute it locally: `const closedCount = computed(() => columns.accepted.length + columns.rejected.length)`. Update the template references accordingly."
+    },
+    {
+      "id": "M-07",
+      "title": "`showClosed` prop flows into KanbanBoard but the component's filtering abstraction is inconsistent with TableView/TimelineView",
+      "severity": "P3",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 205,
+      "confidence": 75,
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "pre_existing": false,
+      "detail": "TableView and TimelineView receive `displayApplications` (already filtered) and use `showClosed` only for empty-state messaging. KanbanBoard receives the full unfiltered `applications` prop and uses `showClosed` to toggle visibility in the template. This split means KanbanBoard is responsible for a filtering-like concern (hiding the closed column) while its siblings delegate that responsibility to the parent. If a third view is added, the author must remember which pattern to follow. The asymmetry is defensible because vuedraggable requires all columns to be mounted for drag to work, but this reasoning is not documented.",
+      "suggested_fix": "Add a code comment in KanbanBoard explaining why it receives the raw applications and handles show/hide internally rather than receiving pre-filtered data. This is an advisory; the asymmetry is a deliberate technical constraint, not a bug."
+    },
+    {
+      "id": "M-08",
+      "title": "`partitionClosed` belongs in a utility module, not inline in KanbanBoard",
+      "severity": "P3",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 255,
+      "confidence": 50,
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "pre_existing": false,
+      "detail": "`partitionClosed` is a pure function: it takes an array of apps and a threshold (14 days, hardcoded) and returns `{ recent, older }`. It has no dependency on component state or Vue reactivity. Pure utility functions in component `<script setup>` blocks are harder to test, harder to find when searching for business logic, and harder to reuse. The 14-day threshold is also a magic number with no named constant.",
+      "suggested_fix": "Move to `client/src/utils/timeline.js` (or a new `client/src/utils/applications.js`) and export it. Name the threshold: `const RECENT_CLOSED_DAYS = 14`. Import in KanbanBoard."
+    },
+    {
+      "id": "M-09",
+      "title": "`hover:text-ink transition-colors duration-200` on company_name in KanbanCard has no effect when quiet=true",
+      "severity": "P3",
+      "file": "client/src/components/KanbanCard.vue",
+      "line": 10,
+      "confidence": 75,
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "pre_existing": false,
+      "detail": "The class binding is `['font-semibold font-condensed text-sm truncate', quiet ? 'text-ink-3' : 'text-ink', 'hover:text-ink transition-colors duration-200']`. When `quiet=true`, the element starts at `text-ink-3` and on hover transitions to `text-ink` — an intentional affordance. But `hover:text-ink` is always in the array regardless of `quiet`, meaning non-quiet cards (already at `text-ink`) also apply the hover rule with no visible effect. This is not a bug but adds unnecessary CSS specificity noise. More importantly: is the hover-brightening on quiet cards intentional UX (on hover, the muted card becomes fully visible)? If so it should be documented; if not it should be removed.",
+      "suggested_fix": "If hover brightening on quiet cards is intentional, make it explicit: move `hover:text-ink` inside the `quiet` branch. If not intentional, remove it. Either way, document the design intent with a comment."
+    }
+  ],
+  "residual_risks": [
+    {
+      "risk": "Drag-and-drop to Closed column silently forces status to 'rejected' regardless of the card's prior stage. If a user drags an 'accepted' card to the Closed column (intending to re-group it visually), `onClosedChange` emits `status-change(..., 'rejected')` because `!TERMINAL_STAGES.includes(app.status)` is false for accepted — wait, actually for accepted it IS in TERMINAL_STAGES so no emit. But for an active card dragged to Closed, it becomes 'rejected' with no confirmation, no undo prompt, and no distinction from 'accepted'. This is an existing design choice but a usability landmine worth flagging.",
+      "severity": "P2"
+    },
+    {
+      "risk": "`triggerGhostPulse` is only called when `!showClosed.value` at the moment `handleStatusChange` runs. If `showClosed` changes between the API call and the resolution of `refreshApplication`, the pulse may or may not fire. This is a benign race for a purely cosmetic feature, but the pulse timeout cleanup in `onUnmounted` is missing (M-04), so a stale timeout could flip `pulseGhost` after the component is gone.",
+      "severity": "P3"
+    }
+  ],
+  "testing_gaps": [
+    {
+      "gap": "No test verifies that dragging a card into the Closed column emits the correct status-change event. The distinction between 'card already terminal (no emit)' and 'card active (emit rejected)' is load-bearing but untested.",
+      "file": "client/src/components/KanbanBoard.vue",
+      "severity": "P2"
+    },
+    {
+      "gap": "No test covers the panelApp coherence watcher: closing showClosed while a terminal application's detail panel is open should close the panel. This is a non-obvious stateful interaction.",
+      "file": "client/src/App.vue",
+      "severity": "P2"
+    },
+    {
+      "gap": "`partitionClosed` uses `Date.now()` directly, making it non-deterministic in tests. Moving it to a utility (M-08) would also make it testable with an injected 'now' parameter.",
+      "file": "client/src/components/KanbanBoard.vue",
+      "severity": "P3"
+    },
+    {
+      "gap": "The localStorage persistence of `showClosed` is not tested. The default value when no key exists is `true` (show closed), but this is a string comparison (`_stored === 'true'`). If localStorage is corrupted or contains an unexpected value, behaviour is undefined.",
+      "file": "client/src/App.vue",
+      "severity": "P3"
+    }
+  ]
+}

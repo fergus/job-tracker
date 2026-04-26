@@ -1,5 +1,13 @@
-const STAGE_ORDER = ['interested', 'applied', 'screening', 'interview', 'offer']
-const TERMINAL_STAGES = ['accepted', 'rejected']
+export const STAGE_ORDER = ['interested', 'applied', 'screening', 'interview', 'offer']
+export const TERMINAL_STAGES = ['accepted', 'rejected']
+
+export function isTerminal(status) {
+  return TERMINAL_STAGES.includes(status)
+}
+
+export function isQuieted(status) {
+  return status === 'rejected'
+}
 
 const STAGE_DATE_MAP = {
   interested: 'interested_at',

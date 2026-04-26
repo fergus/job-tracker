@@ -1,0 +1,148 @@
+{
+  "reviewer": "adversarial",
+  "run_id": "20260425-014645-369bc251",
+  "findings": [
+    {
+      "id": "ADV-01",
+      "title": "No UI rollback when API call fails after drag to Closed column",
+      "severity": "P1",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 278,
+      "why_it_matters": "When a user drags an active card to the Closed column, onClosedChange immediately emits 'status-change'. handleStatusChange in App.vue then calls updateStatus() and awaits it. If the API call fails, handleStatusChange throws (updateStatus returns a rejected Promise that propagates), but vuedraggable has already mutated the closedApps ref and the card is visually in the Closed column. Neither onClosedChange nor handleStatusChange rolls back the columns or closedApps to the pre-drag state. The card appears closed in the UI but the server has the old status. On the next page refresh (or if loadApplications() is triggered by something else), the card snaps back — until then the UI is inconsistent with server state. The toast error from refreshApplication is shown but it refers to 'Error refreshing application', not the underlying status-change failure, and the card stays in the wrong column.",
+      "autofix_class": "manual",
+      "owner": "review-fixer",
+      "requires_verification": false,
+      "confidence": 100,
+      "pre_existing": false,
+      "evidence": [
+        "onClosedChange (line 278) mutates closedApps and emits status-change but has no try/catch and no rollback snapshot",
+        "handleStatusChange (App.vue line 293) does 'await updateStatus(id, status)' — if this rejects the Promise bubbles uncaught to the caller (onClosedChange has no .catch)",
+        "refreshApplication is only called after updateStatus succeeds (await chain), so a failed updateStatus leaves local state permanently dirty",
+        "vuedraggable v-model mutation is synchronous and happens before the emit, so there is no pre-drag snapshot to restore"
+      ],
+      "suggested_fix": "Capture a snapshot of columns.accepted, columns.rejected, and closedApps before emitting status-change. Wrap the emit/await in a try/catch and restore the snapshot on failure, then call rebuildClosedApps()."
+    },
+    {
+      "id": "ADV-02",
+      "title": "Card dragged back before API completes leaves duplicate in source column",
+      "severity": "P1",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 278,
+      "why_it_matters": "Scenario: user drags Card A (status=applied) to the Closed column. onClosedChange fires, emits status-change(A, 'rejected'), and the async handleStatusChange is in-flight (updateStatus pending). Before the API responds, the user drags Card A back to the Applied column. onChange fires for the Applied column (evt.added), sees app.status === 'applied' (server hasn't responded yet — the local object still carries the old status), so it does NOT emit a second status-change. refreshApplication then completes and writes status='rejected' into applications.value. The applications watcher re-runs and populates columns.applied WITHOUT card A and columns.rejected WITH card A. But vuedraggable has already placed card A in columns.applied via its own mutation. Result: card A appears in both Applied and Closed/rejected simultaneously in the local reactive state, and the columns counter is wrong. The UI is in a split-brain state until full reload.",
+      "autofix_class": "manual",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "onChange checks 'if (app.status !== status)' (line 272) using the stale local status, not the in-flight server status",
+        "handleStatusChange is async; there is no in-progress guard to block concurrent drags on the same card",
+        "refreshApplication replaces the applications.value entry, triggering the watch that rebuilds all columns from server data, overwriting whatever vuedraggable placed",
+        "No locking or busy state on individual cards during status updates"
+      ]
+    },
+    {
+      "id": "ADV-03",
+      "title": "Dragging an accepted card out of Closed to an active column silently does nothing",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 329,
+      "why_it_matters": "The Closed draggable is configured with ':group=\"{ name: 'applications', pull: true, put: false }\"'. pull:true means cards CAN be dragged OUT of the Closed list. When this happens, onClosedChange fires with evt.removed. The handler removes the card from columns.accepted or columns.rejected locally. But it never emits a status-change — there is no status re-assignment for the destination. The destination active column's onChange fires with evt.added, and because app.status is 'accepted' (not equal to the destination stage), it DOES emit status-change. So a status change IS emitted. However: if the accepted card is dragged back from Closed to an active column, the status-change to e.g. 'interested' is emitted and the API call proceeds correctly. The real bug is the onClosedChange evt.removed handler does *not* wait for a potential evt.added pairing — it preemptively removes from columns.accepted/rejected and calls rebuildClosedApps(). If the drag is cancelled (Escape key, or drop on invalid target), vuedraggable fires evt.removed but no evt.added, so the card disappears from the UI permanently until reload.",
+      "autofix_class": "manual",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "onClosedChange handles evt.removed by removing from columns.accepted/rejected (lines 279-285) without checking whether a corresponding evt.added exists in the same event",
+        "Drag cancellation (Escape key) in vuedraggable 4.x fires a 'removed' event on the source list but no 'added' event anywhere",
+        "rebuildClosedApps() is called after the premature removal, so the card is gone from closedApps too",
+        "The card only reappears on next loadApplications() or refreshApplication() call"
+      ]
+    },
+    {
+      "id": "ADV-04",
+      "title": "showClosed toggle during active drag can hide the drop zone mid-flight",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 66,
+      "why_it_matters": "The Closed draggable list is always mounted but its visible height changes based on showClosed: when showClosed=false the class is 'min-h-[40px]', when showClosed=true it is 'min-h-[60px] bg-sunken'. The toggle button in the App.vue header is visible on ≥sm viewports independently of the drag state. If a user begins dragging a card and simultaneously clicks the header toggle (e.g. with a second finger on touch), showClosed flips. The drop zone shrinks to 40px with no background. vuedraggable's Sortable.js computes drop coordinates on mousemove/touchmove — if the zone reflows to a smaller size, the hit-test area shrinks and the card may 'miss' the zone. This is not a data corruption issue, but can silently fail the drop, and the drag ghost disappears with no feedback. Low-frequency but reachable on touch devices where header and drag interact.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": true,
+      "confidence": 50,
+      "pre_existing": false,
+      "evidence": [
+        "Header toggle button has no drag-in-progress guard (App.vue line 62)",
+        "Closed draggable min-h and bg change reactively on showClosed (KanbanBoard.vue line 66)",
+        "vuedraggable 4.x uses Sortable.js which caches element dimensions at drag-start, but recalculates on scroll/resize events — a reactive class change triggers a DOM reflow"
+      ]
+    },
+    {
+      "id": "ADV-05",
+      "title": "Two rapid drags to Closed emits two concurrent status-change calls, second may overwrite first",
+      "severity": "P2",
+      "file": "client/src/App.vue",
+      "line": 293,
+      "why_it_matters": "If the user drags Card A and Card B to the Closed column in quick succession (both non-terminal), two independent handleStatusChange(A, 'rejected') and handleStatusChange(B, 'rejected') calls run concurrently. Each does: await updateStatus, await refreshApplication. refreshApplication replaces the matching entry in applications.value with a fresh fetch. Because both calls share the same applications ref and run interleaved, the second refreshApplication(A) (if it completes after refreshApplication(B)) re-triggers the applications watcher which rebuilds all columns. This is mostly safe because each refresh only replaces its own card. However, the logoTrigger is incremented twice (non-issue), and — more importantly — if the two API calls return out of order, the final applications.value snapshot may reflect a mix of server states. For this personal single-user tool this is low-probability, but the API latency window means it's reachable with slow network.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": true,
+      "confidence": 50,
+      "pre_existing": false,
+      "evidence": [
+        "handleStatusChange has no concurrency guard (no per-id lock, no queue)",
+        "applications.value is reassembled via splice-and-replace in refreshApplication (lines 262-264) — two concurrent replacements on different ids are safe, but there is no ordering guarantee on the resulting array",
+        "Per review-context: 'The status change triggers an async API call' with no serialisation"
+      ]
+    },
+    {
+      "id": "ADV-06",
+      "title": "closedApps v-model is a subset (recent only) but both accepted and rejected columns are shared drag-group — cards in 'older' partition are invisible but still drag-source candidates",
+      "severity": "P2",
+      "file": "client/src/components/KanbanBoard.vue",
+      "line": 61,
+      "why_it_matters": "rebuildClosedApps populates closedApps with only 'recent' cards (< 14 days) when showOlder=false. The draggable list's v-model is closedApps (the subset). However columns.accepted and columns.rejected still contain ALL cards, including older ones. If the user has showOlder=false and drags a card from an active column into the Closed drop zone, vuedraggable appends it to closedApps. Then onClosedChange fires with evt.added, and (since non-terminal) emits status-change to 'rejected'. So far correct. But the older cards are NOT present in the draggable DOM at all, so they can never be dragged out. The pull:true on the group only applies to items actually rendered in the list. Older closed apps are therefore permanently stuck — they cannot be moved back to active stages via drag. This is likely an intentional UX simplification, but is an undocumented hard constraint that could surprise users who toggle showOlder and try to drag.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "closedApps.value is assigned '[ ...recent ]' or '[ ...recent, ...older ]' based on showOlder (line 250)",
+        "The draggable v-model is closedApps, not the full columns.accepted+columns.rejected array",
+        "When showOlder=false, older cards render in no draggable list, so they have no drag handle",
+        "The comment in KanbanBoard.vue says 'Drop targets: always mounted' but only covers the single combined draggable, not separate older/recent lists"
+      ]
+    },
+    {
+      "id": "ADV-07",
+      "title": "showClosed watcher closes panel in nextTick, leaving a one-tick window where panelApp references a hidden app",
+      "severity": "P3",
+      "file": "client/src/App.vue",
+      "line": 213,
+      "why_it_matters": "When the user hides closed apps (showClosed → false), the watcher defers showPanel=false to nextTick. Between the toggle and the nextTick, if any computed or template expression reads panelApp.value and uses showPanel to gate its display, there is a one-render-cycle window where showPanel=true but the app is now hidden from displayApplications. ApplicationPanel receives panelApp as a prop — if it does any reactive work on open (e.g. fetching notes), that fetch will start and complete normally. The panel then closes. This is a sub-render timing issue and unlikely to cause visible bugs, but any side-effects initiated in that tick against the closing panel cannot be cancelled.",
+      "autofix_class": "advisory",
+      "owner": "human",
+      "requires_verification": false,
+      "confidence": 75,
+      "pre_existing": false,
+      "evidence": [
+        "watch(showClosed) uses nextTick to defer showPanel=false (App.vue lines 213-218)",
+        "There is no guard preventing panelApp-triggered async work during this deferred tick",
+        "nextTick is intentional (allows transition to start) but the window is real"
+      ]
+    }
+  ],
+  "residual_risks": [
+    "Drag-cancel (Escape mid-drag) leaving a card missing from closedApps until reload — ADV-03 — is the most likely scenario to be hit in real usage and has no recovery path except page reload.",
+    "The no-rollback-on-API-failure scenario (ADV-01) is the highest-impact data-consistency risk. Until an optimistic-rollback pattern is added, users must know to reload after a network error.",
+    "The 'older' partition being undraggable (ADV-06) is silent: the user has no indication that the 'Show N older' cards cannot be repositioned via drag."
+  ],
+  "testing_gaps": [
+    "No test for drag-cancel (Escape key) while a card is over the Closed drop zone.",
+    "No test for API failure after a drag to Closed — should verify UI rolls back to original column.",
+    "No test for rapid back-to-back drags to the Closed column.",
+    "E2E test 'showClosed=false persists across view switches' uses page.waitForTimeout(600) instead of waiting for a stable DOM condition, making it flaky under slow CI."
+  ]
+}

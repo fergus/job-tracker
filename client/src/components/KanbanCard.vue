@@ -7,9 +7,10 @@
     @keydown.space.prevent="$emit('select', application)"
     class="bg-panel rounded-lg border border-line p-3 @[200px]:p-4 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-[transform,box-shadow] duration-200 ease-out-quart"
   >
-    <p class="font-semibold font-condensed text-sm text-ink truncate">{{ application.company_name }}</p>
-    <p class="text-xs text-ink-2 truncate mt-1">{{ application.role_title }}</p>
-    <p v-if="showUser" class="text-xs text-ink-3 truncate mt-0.5">{{ application.user_email }}</p>
+    <!-- Quiet cards brighten on hover so the muted company name becomes fully readable -->
+    <p :class="['font-semibold font-condensed text-sm truncate transition-colors duration-200', quiet ? 'text-ink-3 hover:text-ink' : 'text-ink']">{{ application.company_name }}</p>
+    <p :class="['text-xs truncate mt-1', quiet ? 'text-ink-3' : 'text-ink-2']">{{ application.role_title }}</p>
+    <p v-if="showUser" :class="['text-xs truncate mt-0.5', quiet ? 'text-ink-3 opacity-60' : 'text-ink-3']">{{ application.user_email }}</p>
     <!-- Hidden on narrow columns (<200px); shown when column is wide enough to breathe -->
     <div class="hidden @[200px]:flex items-center justify-between mt-3">
       <span
@@ -42,7 +43,7 @@
 <script setup>
 import { computed } from 'vue'
 
-const props = defineProps({ application: Object, showUser: Boolean })
+const props = defineProps({ application: Object, showUser: Boolean, quiet: Boolean })
 defineEmits(['select'])
 
 const STALE_STAGES = new Set(['applied', 'screening', 'interview'])
