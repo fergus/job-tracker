@@ -9,8 +9,8 @@
         </button>
       </template>
       <template v-else>
-        <p class="text-ink-2 font-medium mb-1">No applications to track yet</p>
-        <p class="text-sm text-ink-3">Add your first application to see your job search timeline here.</p>
+        <p class="text-ink-2 font-medium mb-1">No applications in view</p>
+        <p class="text-sm text-ink-3">Add your first application — the timeline shows how long each stage took, so you can spot patterns across your search.</p>
       </template>
     </div>
 

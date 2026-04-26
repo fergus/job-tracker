@@ -176,7 +176,18 @@
                   class="w-full border border-line bg-raised rounded-lg px-2 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden resize-y"
                 />
               </div>
-              <div v-if="sortedNotes.length === 0" class="text-sm text-ink-3 py-2">No notes yet.</div>
+              <div v-if="sortedNotes.length === 0 && !notesTipDismissed && totalApplications <= 1" class="flex items-start gap-2 mb-3 p-2.5 rounded-lg bg-accent-muted/20 border border-accent/10">
+                <svg class="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p class="text-sm text-ink-2 flex-1">Tip: Add a note for every interaction — interviews, follow-ups, rejections. This builds your Journey timeline automatically.</p>
+                <button
+                  @click="dismissNotesTip"
+                  class="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-ink transition-colors"
+                  aria-label="Dismiss tip"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div v-if="sortedNotes.length === 0" class="text-sm text-ink-3 py-2">No notes yet — add one for every interaction: calls, emails, follow-ups. Each note builds your Journey timeline.</div>
               <div v-for="note in sortedNotes" :key="note.id" class="bg-raised rounded-lg p-3 mb-2">
                 <div v-if="editingNoteId === note.id" class="flex flex-col gap-2">
                   <div class="flex items-center gap-2">
@@ -360,7 +371,7 @@
             <textarea
               v-else
               v-model="form.job_description"
-              rows="4"
+              rows="2"
               placeholder="Paste the job description..."
               class="w-full border border-line bg-raised rounded-lg px-2.5 py-1.5 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden resize-y"
             />
@@ -445,18 +456,25 @@
               <div class="mt-3">
                 <div v-if="attachmentsLoading" class="text-sm text-ink-3">Loading...</div>
                 <div v-else>
-                  <div v-if="attachments.length === 0" class="text-sm text-ink-3 mb-2">No attachments.</div>
+                  <div v-if="attachments.length === 0" class="text-sm text-ink-3 mb-2">No attachments — upload your CV or cover letter so everything is in one place.</div>
                   <div
                     v-for="att in attachments"
                     :key="att.id"
                     class="flex items-center justify-between py-2 border-b border-line last:border-0"
                   >
-                    <a
-                      :href="getAttachmentUrl(panelApp.id, att.id)"
-                      class="text-sm text-accent hover:underline truncate"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >{{ att.original_filename }}</a>
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span
+                        class="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded bg-sunken text-[9px] font-bold leading-none"
+                        :class="fileTypeMeta(att.original_filename).color"
+                        :style="fileTypeMeta(att.original_filename).style"
+                      >{{ fileTypeMeta(att.original_filename).label }}</span>
+                      <a
+                        :href="getAttachmentUrl(panelApp.id, att.id)"
+                        class="text-sm text-accent hover:underline truncate"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >{{ att.original_filename }}</a>
+                    </div>
                     <button
                       @click="removeAttachment(att.id)"
                       class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
@@ -476,6 +494,19 @@
 
           </template>
 
+          <!-- Create mode: onboarding tip -->
+          <div v-if="!isEdit && !notesTipDismissed && totalApplications === 0" class="flex items-start gap-2 mt-4 p-2.5 rounded-lg bg-accent-muted/20 border border-accent/10">
+            <svg class="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <p class="text-sm text-ink-2 flex-1">Track your progress through the pipeline by changing status in the bar above. Add details now, or come back later — nothing is set in stone.</p>
+            <button
+              @click="dismissNotesTip"
+              class="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-ink transition-colors"
+              aria-label="Dismiss tip"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+
           <!-- Create mode: queued file preview -->
           <template v-else>
             <div class="mt-7 pt-5 border-t border-line">
@@ -486,7 +517,14 @@
                 :key="i"
                 class="flex items-center justify-between py-1 text-sm text-ink-2"
               >
-                <span class="truncate">{{ f.name }}</span>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span
+                    class="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-sunken text-[8px] font-bold leading-none"
+                    :class="fileTypeMeta(f.name).color"
+                    :style="fileTypeMeta(f.name).style"
+                  >{{ fileTypeMeta(f.name).label }}</span>
+                  <span class="truncate">{{ f.name }}</span>
+                </div>
                 <button @click="queuedFiles.splice(i, 1)" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0" aria-label="Remove file">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
@@ -572,6 +610,15 @@ import { useToast } from '../composables/useToast'
 
 const toast = useToast()
 
+const NOTES_TIP_KEY = 'jobtracker_notes_tip_dismissed'
+function lsGet(key) { try { return localStorage.getItem(key) } catch { return null } }
+function lsSet(key, val) { try { localStorage.setItem(key, val) } catch {} }
+const notesTipDismissed = ref(lsGet(NOTES_TIP_KEY) === 'true')
+function dismissNotesTip() {
+  notesTipDismissed.value = true
+  lsSet(NOTES_TIP_KEY, 'true')
+}
+
 marked.setOptions({ breaks: true })
 
 const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768
@@ -579,7 +626,7 @@ const datesOpen = ref(isDesktop)
 const journeyOpen = ref(isDesktop)
 const attachmentsOpen = ref(isDesktop)
 
-const props = defineProps({ panelApp: Object })
+const props = defineProps({ panelApp: Object, totalApplications: { type: Number, default: 0 } })
 const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
 
 const isEdit = computed(() => !!(props.panelApp?.id))
@@ -1087,6 +1134,15 @@ function formatDateTime(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function fileTypeMeta(filename) {
+  const ext = (filename.split('.').pop() || '').toLowerCase()
+  if (ext === 'pdf') return { color: 'text-danger', label: 'PDF' }
+  if (['doc', 'docx'].includes(ext)) return { style: 'color: var(--stage-applied)', label: 'DOC' }
+  if (ext === 'txt') return { color: 'text-ink-3', label: 'TXT' }
+  if (ext === 'md') return { color: 'text-ink-3', label: 'MD' }
+  return { color: 'text-ink-3', label: ext ? ext.toUpperCase().slice(0, 4) : 'FILE' }
 }
 </script>
 

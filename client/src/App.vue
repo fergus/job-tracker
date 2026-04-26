@@ -135,6 +135,7 @@
     <ApplicationPanel
       v-if="showPanel"
       :panelApp="panelApp"
+      :totalApplications="applications.length"
       @close="closePanel"
       @saved="handlePanelSaved"
       @panel-app-updated="panelApp = $event"

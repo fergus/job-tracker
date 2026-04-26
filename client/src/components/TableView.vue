@@ -49,7 +49,7 @@
               </button>
             </template>
             <template v-else>
-              No applications yet. Click "+ Add Application" to get started.
+              No applications yet — hit "+ Add Application" to start tracking your campaign.
             </template>
           </td>
         </tr>
