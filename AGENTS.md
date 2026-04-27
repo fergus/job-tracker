@@ -262,7 +262,32 @@ npm run version:patch   # bumps root, client, server package.json
 
 A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`). It exposes tools for LLM clients to list, get, create, update, and add notes to job applications. Authentication is via Bearer API key only. The MCP server reuses the same `services/applications.js` business logic as the REST API.
 
-Tools: `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`.
+**Transport:** Streamable HTTP (stateful sessions with `Mcp-Session-Id` header)
+
+**Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`
+
+### Connecting an AI client
+
+Clients must support the MCP Streamable HTTP transport and send:
+- `Authorization: Bearer <api_key>` header on every request
+- `Accept: application/json, text/event-stream` header
+- `Mcp-Session-Id` header on all requests after initialization (returned in the initialize response)
+
+**Claude Code `~/.mcp.json` example:**
+
+```json
+{
+  "job-tracker": {
+    "type": "http",
+    "url": "https://your-domain.com/mcp",
+    "headers": {
+      "Authorization": "Bearer YOUR_API_KEY"
+    }
+  }
+}
+```
+
+API keys are generated per-user from the web UI Settings panel. Each key is scoped to the user who created it and is shown only once at creation.
 
 ---
 

@@ -710,6 +710,40 @@ describe('MCP Server', () => {
     limitedServer.close();
     delete process.env.RATE_LIMIT_MCP;
   });
+
+  test('supports multiple sequential session initializations', async () => {
+    const initBody = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'test', version: '1.0' }
+      }
+    };
+
+    const r1 = await mcpReq
+      .post('/')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .set('Accept', 'application/json, text/event-stream')
+      .set('Content-Type', 'application/json')
+      .send(initBody);
+
+    assert.equal(r1.status, 200, `first initialize should succeed, got: ${r1.body}`);
+    assert.ok(r1.headers['mcp-session-id'], 'first session should have a session ID');
+
+    const r2 = await mcpReq
+      .post('/')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .set('Accept', 'application/json, text/event-stream')
+      .set('Content-Type', 'application/json')
+      .send(initBody);
+
+    assert.equal(r2.status, 200, `second initialize should succeed, got: ${r2.body}`);
+    assert.ok(r2.headers['mcp-session-id'], 'second session should have a session ID');
+    assert.notEqual(r1.headers['mcp-session-id'], r2.headers['mcp-session-id'], 'session IDs should be unique');
+  });
 });
 
 // ---------------------------------------------------------------------------

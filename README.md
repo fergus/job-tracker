@@ -94,6 +94,46 @@ cp -r uploads/ uploads-backup/
 - **Links** — store job posting and company website URLs
 - **Multi-user** — each user sees only their own applications, identified via PocketID `X-Forwarded-Email` header. Admins (configured via `ADMIN_EMAILS`) can view all users' applications but cannot edit or delete others' data
 
+## MCP Server (AI Integration)
+
+A Model Context Protocol (MCP) server is included for AI clients to interact with your job applications programmatically. It exposes tools for listing, creating, updating, and adding notes to applications.
+
+**Endpoint:** `https://your-domain.com/mcp`
+
+**Authentication:** Bearer API key (generate one in the Settings panel)
+
+**Tools exposed:**
+- `create_application` — create a new job application
+- `add_note` — append a stage note to an application
+- `list_applications` — list all applications (optionally filter by status)
+- `get_application` — get full details including notes and attachments
+- `update_application` — update fields on an existing application
+- `update_status` — change status (auto-sets the corresponding date)
+- `list_attachments` — list file attachments for an application
+- `upload_attachment` — upload a file to an application
+
+### Connecting from Claude Code
+
+Add this to your `~/.mcp.json`:
+
+```json
+{
+  "job-tracker": {
+    "type": "http",
+    "url": "https://your-domain.com/mcp",
+    "headers": {
+      "Authorization": "Bearer YOUR_API_KEY"
+    }
+  }
+}
+```
+
+Generate `YOUR_API_KEY` from the app's Settings panel → API Keys.
+
+### Connecting from other MCP clients
+
+Any MCP client that supports the Streamable HTTP transport can connect using the same URL and Bearer token.
+
 ## Configuration
 
 The server runs on port 3000 by default. To change the exposed port, set `LISTEN_PORT` in your `.env`:

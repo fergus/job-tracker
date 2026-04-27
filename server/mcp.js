@@ -211,9 +211,6 @@ function createMcpServer() {
   return server;
 }
 
-// Single shared server instance — tools and schemas are built once, not per request.
-const mcpServer = createMcpServer();
-
 function startMcpServer(port) {
   const app = express();
   app.set('trust proxy', 1);
@@ -263,11 +260,16 @@ function startMcpServer(port) {
         if (!transport) return res.status(404).json({ error: 'Session not found' });
         await transport.handleRequest(req, res, req.body);
       } else if (req.method === 'POST') {
-        // New session (Initialize handshake)
+        // New session (Initialize handshake) — each session needs its own McpServer
+        // because McpServer can only connect to one transport at a time.
+        const mcpServer = createMcpServer();
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid) => sessions.set(sid, transport),
-          onsessionclosed: (sid) => sessions.delete(sid),
+          onsessionclosed: async (sid) => {
+            sessions.delete(sid);
+            try { await mcpServer.close(); } catch {}
+          },
         });
         await mcpServer.connect(transport);
         await transport.handleRequest(req, res, req.body);
