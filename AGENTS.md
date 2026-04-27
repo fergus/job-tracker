@@ -71,6 +71,8 @@ job-tracker/
 └── docs/                    # Architecture diagrams, screenshots, planning docs, documented solutions (docs/solutions/)
 ```
 
+`docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
+
 ---
 
 ## Build and Test Commands
@@ -272,7 +274,7 @@ Tools: `list_applications`, `get_application`, `create_application`, `update_app
 - **Both themes first-class**: light and dark modes are fully designed.
 - **Anti-patterns**: no gradient text, no glassmorphism, no hero metrics, no generic admin-dashboard look.
 
-See `.impeccable.md` and `CLAUDE.md` for the full design brief.
+See `PRODUCT.md` for the full design brief.
 
 ---
 

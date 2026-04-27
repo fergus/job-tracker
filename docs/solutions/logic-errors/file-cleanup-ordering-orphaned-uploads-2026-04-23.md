@@ -131,4 +131,4 @@ The `safeDeleteFile` wrapper ensures filesystem failures are logged rather than 
 
 - [SMB Filesystem Sync Implementation Lessons](../../integration-issues/smb-filesystem-sync-implementation.md) — Section 3 covers an earlier observation of the orphaned-uploads anti-pattern with multer
 - `todos/complete/013-complete-p2-application-delete-file-cleanup.md` — an earlier fix for application deletion only, superseded by this more robust solution
-- [#055 Graceful Shutdown](../../workflow-issues/graceful-shutdown-2026-04-23.md) — same commit; closing servers cleanly prevents in-flight requests from being interrupted mid-cleanup
+- [Graceful Shutdown — SIGTERM/SIGINT Handling for HTTP Servers and SQLite](../workflow-issues/graceful-shutdown-sigterm-sigint-2026-04-23.md) — same commit; closing servers cleanly prevents in-flight requests from being interrupted mid-cleanup

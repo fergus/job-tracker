@@ -1,7 +1,8 @@
 ---
 title: "feat: Archive / filter rejected applications + visual quieting"
 type: feat
-status: draft
+status: complete
+completed: 2026-04-26
 date: 2026-04-24
 origin:
   - todos/046-pending-p2-rejected-archive-filter.md
