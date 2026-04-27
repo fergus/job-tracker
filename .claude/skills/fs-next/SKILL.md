@@ -34,7 +34,7 @@ The script outputs eight labelled sections: pending todos, ideation docs, brains
 
 Files in `todos/` are named `NNN-(complete|pending)-pN-description.md`. A todo is open if it contains `-pending-` in the filename. Priority is `p1` (critical) through `p3` (minor). IF you find complete todos that are still open, report them to the user as potential cleanup items.
 
-Files in `docs/ideation/` are early-stage exploration docs — ideas that haven't been committed to yet. Files in `docs/brainstorms/` are deeper requirement/design explorations. Files in `docs/plans/` are implementation plans ready (or nearly ready) to execute. Read any of these that look relevant to understand scope and status.
+Files in `docs/ideation/` are early-stage exploration docs — ideas that haven't been committed to yet. Files in `docs/brainstorms/` are deeper requirement/design explorations. Files in `docs/plans/` are active implementation plans ready (or nearly ready) to execute. Completed and obsolete plans live in `docs/plans/completed/`. Read any of these that look relevant to understand scope and status.
 
 Flag any outdated packages with known CVEs (cross-reference with pending p1/p2 todos). Patch-level updates are low priority unless they fix CVEs.
 
@@ -91,8 +91,11 @@ Group by category:
 ## Pending Todos (todos/)
 - [NNN-pending-pN-description] — [one-line summary]
 
-## Plans (docs/plans/)
+## Active Plans (docs/plans/)
 - [filename] — [one-line summary, status: ready/blocked/stale]
+
+## Completed Plans (docs/plans/completed/)
+- [filename] — [one-line summary, completed: YYYY-MM-DD]
 
 ## Brainstorms (docs/brainstorms/)
 - [filename] — [one-line summary, next step needed]

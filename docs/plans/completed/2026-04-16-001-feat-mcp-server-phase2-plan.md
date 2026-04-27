@@ -266,5 +266,5 @@ routing so MCP traffic is not sent through oauth2-proxy.
 ## Related Documents
 
 - **Brainstorm:** `docs/brainstorms/2026-04-06-mcp-server-smb-removal-requirements.md`
-- **Phase 1 plan (shipped):** `docs/plans/2026-04-14-001-feat-api-keys-smb-removal-plan.md`
+- **Phase 1 plan (shipped):** `docs/plans/completed/2026-04-14-001-feat-api-keys-smb-removal-plan.md`
 - **Ideation:** `docs/ideation/2026-04-06-smb-to-mcp-agent-integration-ideation.md`

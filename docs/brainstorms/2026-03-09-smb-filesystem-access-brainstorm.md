@@ -128,5 +128,5 @@ None remaining.
 
 ## Related Documents
 
-- **Plan:** [docs/plans/2026-03-09-feat-smb-filesystem-access-plan.md](../plans/2026-03-09-feat-smb-filesystem-access-plan.md)
+- **Plan:** [docs/plans/completed/2026-03-09-feat-smb-filesystem-access-plan.md](../plans/completed/2026-03-09-feat-smb-filesystem-access-plan.md)
 - **Lessons learned:** [docs/solutions/integration-issues/smb-filesystem-sync-implementation.md](../solutions/integration-issues/smb-filesystem-sync-implementation.md)

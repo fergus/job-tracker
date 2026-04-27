@@ -64,8 +64,12 @@ echo "=== BRAINSTORMS ==="
 ls docs/brainstorms/ 2>/dev/null || echo "(none)"
 
 echo ""
-echo "=== PLANS ==="
-ls docs/plans/ 2>/dev/null || echo "(none)"
+echo "=== ACTIVE PLANS ==="
+ls docs/plans/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null || echo "(none)"
+
+echo ""
+echo "=== COMPLETED PLANS ==="
+ls docs/plans/completed/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null || echo "(none)"
 
 echo ""
 echo "=== SOURCE TODOS/FIXME/HACK ==="
