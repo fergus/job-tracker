@@ -64,6 +64,12 @@ app.get('/api/me', (req, res) => {
 app.use('/api/applications', applicationsRouter);
 app.use('/api/keys', keysRouter);
 
+// OAuth discovery endpoint — MCP clients may probe this before connecting.
+// This server uses Bearer API keys, not OAuth, so return 404 per RFC 8414.
+app.get('/.well-known/oauth-authorization-server', (req, res) => {
+  res.status(404).json({ error: 'OAuth authorization server metadata not available' });
+});
+
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));
 app.get('/*splat', (req, res) => {

@@ -42,6 +42,16 @@ async function createNote(appId, overrides = {}) {
 // /api/me
 // ---------------------------------------------------------------------------
 
+describe('GET /.well-known/oauth-authorization-server', () => {
+  test('returns 404 so MCP clients skip OAuth discovery', async () => {
+    const res = await req
+      .get('/.well-known/oauth-authorization-server')
+      .set('Accept', 'application/json');
+    assert.equal(res.status, 404);
+    assert.equal(res.body.error, 'OAuth authorization server metadata not available');
+  });
+});
+
 describe('GET /api/me', () => {
   test('returns dev user when no auth header is present', async () => {
     const res = await req.get('/api/me');
