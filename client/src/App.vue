@@ -103,7 +103,7 @@
           :applications="applications"
           :showUser="showAllUsers"
           :showClosed="showClosed"
-          :pulseGhost="pulseGhost"
+
           :statusVersion="statusVersion"
           @status-change="handleStatusChange"
           @select="openPanel"
@@ -195,8 +195,6 @@ const showSidebar = ref(false)
 const showSettings = ref(false)
 const compactHeader = ref(false)
 const logoTrigger = ref(0)
-const pulseGhost = ref(false)
-let pulseTimeout = null
 const statusVersion = ref(0)
 
 const _stored = lsGet(SHOW_CLOSED_KEY)
@@ -213,10 +211,6 @@ const closedCount = computed(() =>
 
 function toggleShowClosed() {
   showClosed.value = !showClosed.value
-  if (showClosed.value) {
-    if (pulseTimeout) clearTimeout(pulseTimeout)
-    pulseGhost.value = false
-  }
   lsSet(SHOW_CLOSED_KEY, String(showClosed.value))
 }
 
@@ -292,14 +286,6 @@ async function refreshApplication(id) {
   }
 }
 
-function triggerGhostPulse() {
-  pulseGhost.value = true
-  if (pulseTimeout) clearTimeout(pulseTimeout)
-  pulseTimeout = setTimeout(() => {
-    pulseGhost.value = false
-  }, 1500)
-}
-
 async function handleStatusChange(id, status) {
   const prevStatus = applications.value.find(a => a.id === id)?.status
   try {
@@ -313,9 +299,6 @@ async function handleStatusChange(id, status) {
   logoTrigger.value++
   await refreshApplication(id)
   statusVersion.value++
-  if (TERMINAL_STAGES.includes(status) && !showClosed.value) {
-    triggerGhostPulse()
-  }
   if (prevStatus && prevStatus !== status) {
     const label = status.charAt(0).toUpperCase() + status.slice(1)
     toast.success(`Moved to ${label}`, {
@@ -350,7 +333,4 @@ onMounted(async () => {
   loadApplications()
 })
 
-onUnmounted(() => {
-  if (pulseTimeout) clearTimeout(pulseTimeout)
-})
 </script>

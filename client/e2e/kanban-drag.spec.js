@@ -37,39 +37,6 @@ test('dragging offer card to closed column changes status to rejected on desktop
   expect(offerApp.status).toBe('rejected')
 })
 
-test('dragging offer card to hidden closed column changes status to rejected on desktop', async ({ page, request }) => {
-  // Create a rejected app first so the ghost header is visible
-  await request.post('/api/applications', {
-    data: { company_name: 'RejectedCorp', role_title: 'Engineer', status: 'rejected' },
-  })
-  await request.post('/api/applications', {
-    data: { company_name: 'HiddenOfferCorp', role_title: 'Engineer', status: 'offer' },
-  })
-
-  await page.goto('/')
-
-  // Hide the closed column using the column-level Hide button
-  await page.getByRole('button', { name: 'Hide closed applications' }).first().click()
-
-  // Verify the hidden drop zone is still in the DOM
-  const closedDropZone = page.getByTestId('closed-drop-zone')
-  await expect(closedDropZone).toBeAttached()
-
-  // Drag the offer card to the hidden closed column drop zone
-  const offerCard = page.getByText('HiddenOfferCorp').first()
-  await dragWithDelay(page, offerCard, closedDropZone)
-
-  // Wait for the status-change API call to complete
-  await page.waitForTimeout(500)
-
-  // Verify via API that the status was changed to rejected
-  const response = await request.get('/api/applications')
-  const apps = await response.json()
-  const offerApp = apps.find(a => a.company_name === 'HiddenOfferCorp')
-  expect(offerApp).toBeDefined()
-  expect(offerApp.status).toBe('rejected')
-})
-
 test('dragging rejected card from closed to active column changes status', async ({ page, request }) => {
   await request.post('/api/applications', {
     data: { company_name: 'DragOutCorp', role_title: 'Engineer', status: 'rejected' },

@@ -30,32 +30,13 @@
       </div>
 
       <!-- Closed column slot -->
-      <div class="@container snap-start shrink-0 flex-1 min-w-[200px]">
-        <!-- Header: ghost or full -->
+      <div v-if="showClosed" class="@container snap-start shrink-0 flex-1 min-w-[200px]">
         <div class="flex items-center gap-2 mb-4">
-          <template v-if="showClosed">
-            <h3 class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider">Closed</h3>
-            <span class="text-xs text-ink-3 ml-auto">{{ closedCount }}</span>
-            <button
-              @click="$emit('toggle-show-closed')"
-              class="ml-1 text-xs text-ink-3 hover:text-ink underline"
-              aria-label="Hide closed applications"
-            >Hide</button>
-          </template>
-          <button
-            v-else-if="closedCount > 0"
-            :aria-label="`Show ${closedCount} closed applications`"
-            :aria-pressed="false"
-            @click="$emit('toggle-show-closed')"
-            class="w-full flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg bg-sunken text-ink-3 hover:text-ink hover:bg-raised transition-colors text-sm font-medium"
-          >
-            <span aria-live="polite" :class="['px-1.5 py-0.5 rounded-full bg-panel text-xs font-semibold', pulseGhost ? 'ring-2 ring-accent motion-safe:animate-pulse' : '']">{{ closedCount }}</span>
-            <span>Closed</span>
-            <span aria-hidden="true">›</span>
-          </button>
+          <h3 class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider">Closed</h3>
+          <span class="text-xs text-ink-3 ml-auto">{{ closedCount }}</span>
         </div>
 
-        <!-- Drop targets: always mounted, visibility toggled -->
+        <!-- Drop targets -->
         <div :class="['space-y-4 rounded-lg p-2', showClosed ? 'min-h-[60px] bg-sunken' : '']">
           <!-- Accepted — header hidden when closed is collapsed, draggable always in DOM -->
           <div>
@@ -178,11 +159,6 @@
           <div class="flex items-center gap-2 mb-4">
             <h3 class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider">Closed</h3>
             <span class="text-xs text-ink-3 ml-auto">{{ groupCount(mobileClosedGroup) }}</span>
-            <button
-              @click="$emit('toggle-show-closed')"
-              class="ml-1 text-xs text-ink-3 hover:text-ink underline"
-              aria-label="Hide closed applications"
-            >Hide</button>
           </div>
           <div class="space-y-4">
             <div v-for="stage in mobileClosedGroup.stages" :key="stage.value">
@@ -231,7 +207,6 @@ const props = defineProps({
   applications: Array,
   showClosed: Boolean,
   showUser: Boolean,
-  pulseGhost: Boolean,
   statusVersion: Number,
 })
 // KanbanBoard receives the full unfiltered applications list (unlike TableView/TimelineView

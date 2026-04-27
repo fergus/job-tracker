@@ -45,8 +45,8 @@ test('showClosed=false persists across view switches', async ({ page, request })
 
   await page.goto('/')
 
-  // Hide closed column in Kanban
-  await page.getByRole('button', { name: 'Hide closed applications' }).first().click()
+  // Hide closed column via global header toggle
+  await page.getByRole('button', { name: 'Hide closed applications' }).click()
   await expect(page.getByText('PersistCorp').first()).not.toBeVisible()
 
   // Switch to Table view (wait for transition)

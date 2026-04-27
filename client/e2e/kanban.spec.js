@@ -20,8 +20,8 @@ test('closed column shows terminal applications', async ({ page, request }) => {
   // Active app should also be visible (in Interested column)
   await expect(page.getByText('KanbanActive').first()).toBeVisible()
 
-  // Hide closed column — use .first() because both app header and column header have this label
-  await page.getByRole('button', { name: 'Hide closed applications' }).first().click()
+  // Hide closed column via the global header toggle
+  await page.getByRole('button', { name: 'Hide closed applications' }).click()
 
   // Terminal apps should disappear from view entirely
   await expect(page.getByText('KanbanRejected').first()).not.toBeVisible()
@@ -30,8 +30,8 @@ test('closed column shows terminal applications', async ({ page, request }) => {
   // Active app should still be visible
   await expect(page.getByText('KanbanActive').first()).toBeVisible()
 
-  // Show closed column again via ghost button
-  await page.getByRole('button', { name: /Show \d+ closed applications/ }).first().click()
+  // Show closed column again via the global header toggle
+  await page.getByRole('button', { name: /Show \d+ closed applications/ }).click()
 
   // Terminal apps should reappear
   await expect(page.getByText('KanbanRejected').first()).toBeVisible()
