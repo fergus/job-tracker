@@ -19,7 +19,7 @@
     <div
       class="absolute flex flex-col bg-panel shadow-xl
              inset-x-0 bottom-0 h-[92vh] rounded-t-2xl
-             md:inset-y-0 md:left-0 md:h-auto md:w-[480px] md:rounded-none
+             md:inset-y-0 md:left-0 md:h-auto md:w-[640px] md:rounded-none
              transition-transform duration-300 ease-out-expo"
       :class="visible
         ? 'translate-y-0 md:translate-x-0 md:translate-y-0'
@@ -61,78 +61,11 @@
 
       <!-- Sticky status bar -->
       <div class="px-5 py-2 border-b border-line shrink-0 relative">
-        <div class="overflow-x-auto scrollbar-none">
-          <div class="flex gap-1.5 min-w-max">
-            <!-- Desktop: all 7 pills -->
-            <button
-              v-for="s in statuses"
-              :key="s"
-              @click="onStatusClick(s)"
-              :aria-pressed="form.status === s"
-              :class="[
-                form.status === s ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1',
-                stampingStatus === s ? 'stage-stamp' : ''
-              ]"
-              :style="statusPillStyle(s)"
-              class="px-2.5 min-h-[44px] hidden md:inline-flex items-center rounded-full text-xs font-medium capitalize transition-all duration-200"
-            >{{ s }}</button>
-
-            <!-- Mobile: non-terminal stages always visible -->
-            <button
-              v-for="s in nonTerminalStatuses"
-              :key="s"
-              @click="onStatusClick(s)"
-              :aria-pressed="form.status === s"
-              :class="[
-                form.status === s ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1',
-                stampingStatus === s ? 'stage-stamp' : ''
-              ]"
-              :style="statusPillStyle(s)"
-              class="px-2.5 min-h-[44px] md:hidden inline-flex items-center rounded-full text-xs font-medium capitalize transition-all duration-200"
-            >{{ s }}</button>
-
-            <!-- Mobile: terminal stages -->
-            <template v-if="!isTerminalStatus">
-              <button
-                ref="terminalToggle"
-                @click="toggleTerminal"
-                :aria-expanded="terminalExpanded"
-                aria-haspopup="true"
-                :class="terminalExpanded ? 'opacity-60' : 'opacity-30 hover:opacity-60'"
-                class="px-2.5 py-1 min-h-[44px] md:hidden inline-flex items-center gap-1 rounded-full text-xs font-medium capitalize transition-all duration-200 bg-sunken text-ink-2"
-              >
-                Closed
-                <svg class="w-3 h-3 transition-transform duration-200" :class="terminalExpanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-              </button>
-            </template>
-            <template v-else>
-              <button
-                v-for="s in terminalStatuses"
-                :key="s"
-                @click="onStatusClick(s)"
-                :aria-pressed="form.status === s"
-                :class="[
-                  form.status === s ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1',
-                  stampingStatus === s ? 'stage-stamp' : ''
-                ]"
-                :style="statusPillStyle(s)"
-                class="px-2.5 min-h-[44px] md:hidden inline-flex items-center rounded-full text-xs font-medium capitalize transition-all duration-200"
-              >{{ s }}</button>
-            </template>
-          </div>
-        </div>
-
-        <!-- Mobile terminal popover -->
-        <div
-          v-if="terminalExpanded"
-          ref="terminalPopover"
-          class="md:hidden absolute right-5 top-full mt-1 z-10 bg-panel border border-line rounded-lg shadow-lg p-1.5 flex gap-1.5"
-          @click.stop
-        >
+        <div class="flex flex-wrap justify-between gap-1.5">
           <button
-            v-for="s in terminalStatuses"
+            v-for="s in statuses"
             :key="s"
-            @click="onTerminalSelect(s)"
+            @click="onStatusClick(s)"
             :aria-pressed="form.status === s"
             :class="[
               form.status === s ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1',
@@ -632,8 +565,7 @@ const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
 const isEdit = computed(() => !!(props.panelApp?.id))
 
 const statuses = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
-const nonTerminalStatuses = ['interested', 'applied', 'screening', 'interview', 'offer']
-const terminalStatuses = ['accepted', 'rejected']
+
 
 const dates = [
   { key: 'created_at', label: 'Created' },
@@ -665,30 +597,7 @@ const panelRoot = ref(null)
 const visible = ref(false)
 const stampingStatus = ref(null)
 
-// Mobile terminal group
-const terminalExpanded = ref(false)
-const terminalPopover = ref(null)
-const terminalToggle = ref(null)
-const isTerminalStatus = computed(() => terminalStatuses.includes(form.status))
 
-function toggleTerminal() {
-  terminalExpanded.value = !terminalExpanded.value
-}
-
-function onTerminalSelect(s) {
-  terminalExpanded.value = false
-  onStatusClick(s)
-}
-
-function handleClickOutside(event) {
-  if (!terminalExpanded.value) return
-  if (
-    terminalPopover.value && !terminalPopover.value.contains(event.target) &&
-    terminalToggle.value && !terminalToggle.value.contains(event.target)
-  ) {
-    terminalExpanded.value = false
-  }
-}
 
 // All interactive element types that participate in the tab order
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -697,10 +606,6 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 // Wraps forward (Tab) from last→first and backward (Shift+Tab) from first→last.
 function handleKeydown(event) {
   if (event.key === 'Escape') {
-    if (terminalExpanded.value) {
-      terminalExpanded.value = false
-      return
-    }
     close()
     return
   }
@@ -730,12 +635,9 @@ onMounted(() => {
     loadAttachments()
     newNoteStage.value = props.panelApp.status
   }
-  document.addEventListener('click', handleClickOutside)
 })
 
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
+
 
 // Form state
 const form = reactive({
