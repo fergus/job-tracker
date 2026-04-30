@@ -59,8 +59,9 @@
             v-show="closedCount > 0"
             :aria-label="showClosed ? 'Hide closed applications' : `Show ${closedCount} closed applications`"
             :aria-pressed="showClosed"
+            :disabled="dragActive"
             @click="toggleShowClosed"
-            class="hidden sm:flex items-center px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-lg transition-colors"
+            class="hidden sm:flex items-center px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             :class="showClosed ? 'bg-panel border border-line text-ink shadow-xs' : 'bg-sunken text-ink-3 hover:text-ink-2'"
           >
             {{ showClosed ? 'Hide closed' : `${closedCount} closed` }}
@@ -108,6 +109,7 @@
           @status-change="handleStatusChange"
           @select="openPanel"
           @toggle-show-closed="toggleShowClosed"
+          @drag-active="dragActive = $event"
         />
         <TableView
           v-else-if="view === 'table'"
@@ -196,6 +198,7 @@ const showSettings = ref(false)
 const compactHeader = ref(false)
 const logoTrigger = ref(0)
 const statusVersion = ref(0)
+const dragActive = ref(false)
 
 const _stored = lsGet(SHOW_CLOSED_KEY)
 const showClosed = ref(_stored === null ? true : _stored === 'true')
@@ -210,6 +213,7 @@ const closedCount = computed(() =>
 )
 
 function toggleShowClosed() {
+  if (dragActive.value) return
   showClosed.value = !showClosed.value
   lsSet(SHOW_CLOSED_KEY, String(showClosed.value))
 }

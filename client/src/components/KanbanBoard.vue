@@ -53,6 +53,8 @@
               :delay="100"
               :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
               @change="onAcceptedAdded"
+              @start="dragActive = true"
+              @end="dragActive = false"
             >
               <template #item="{ element }">
                 <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
@@ -76,6 +78,8 @@
               :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
               data-testid="closed-drop-zone"
               @change="onRejectedAdded"
+              @start="dragActive = true"
+              @end="dragActive = false"
             >
               <template #item="{ element }">
                 <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
@@ -111,8 +115,9 @@
       <button
         v-show="!showClosed && closedCount > 0"
         :aria-label="`Show ${closedCount} closed applications`"
+        :disabled="dragActive"
         @click="handleToggle"
-        class="sticky top-0 z-10 w-full min-h-[44px] px-4 py-2 bg-panel/90 backdrop-blur-sm border-b border-line text-sm font-medium text-ink-2 hover:text-ink transition-colors text-center"
+        class="sticky top-0 z-10 w-full min-h-[44px] px-4 py-2 bg-panel/90 backdrop-blur-sm border-b border-line text-sm font-medium text-ink-2 hover:text-ink transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {{ closedCount }} closed
       </button>
@@ -141,6 +146,8 @@
                 :delay="100"
                 class="space-y-2 min-h-[60px] bg-sunken rounded-lg p-2"
                 @change="(evt) => onActiveChange(evt, stage.value)"
+                @start="dragActive = true"
+                @end="dragActive = false"
               >
                 <template #item="{ element }">
                   <KanbanCard :application="element" :showUser="showUser" @select="$emit('select', element)" />
@@ -177,6 +184,8 @@
                 :delay="100"
                 class="space-y-2 min-h-[60px] bg-sunken rounded-lg p-2"
                 @change="(evt) => onActiveChange(evt, stage.value)"
+                @start="dragActive = true"
+                @end="dragActive = false"
               >
                 <template #item="{ element }">
                   <KanbanCard :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
@@ -214,7 +223,7 @@ const props = defineProps({
 // column — including the hidden Closed column — to be mounted in the DOM for drag-and-drop
 // to work correctly across the board. showClosed therefore toggles visibility rather
 // than filtering the data upstream.
-const emit = defineEmits(['status-change', 'select', 'toggle-show-closed'])
+const emit = defineEmits(['status-change', 'select', 'toggle-show-closed', 'drag-active'])
 
 const activeStages = [
   { value: 'interested', label: 'Interested' },
@@ -253,6 +262,7 @@ const columns = reactive({
 const showOlder = ref(false)
 const closedGroupRef = ref(null)
 const inFlightIds = ref(new Set())
+const dragActive = ref(false)
 
 const closedCount = computed(() => columns.accepted.length + columns.rejected.length)
 
@@ -336,6 +346,7 @@ function onRejectedAdded(evt) {
 }
 
 function handleToggle() {
+  if (dragActive.value) return
   emit('toggle-show-closed')
 }
 
@@ -349,5 +360,9 @@ watch(() => props.showClosed, async (val) => {
 
 watch(() => props.statusVersion, () => {
   inFlightIds.value.clear()
+})
+
+watch(dragActive, (val) => {
+  emit('drag-active', val)
 })
 </script>
