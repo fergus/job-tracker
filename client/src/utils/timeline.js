@@ -9,6 +9,14 @@ export function isQuieted(status) {
   return status === 'rejected'
 }
 
+export function isRejected(status) {
+  return status === 'rejected'
+}
+
+export function isAccepted(status) {
+  return status === 'accepted'
+}
+
 const STAGE_DATE_MAP = {
   interested: 'interested_at',
   applied: 'applied_at',

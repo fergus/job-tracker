@@ -73,6 +73,7 @@
             class="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium transition-colors"
           >+ Add Application</button>
           <button
+            ref="settingsBtn"
             @click="showSettings = true"
             class="size-11 flex items-center justify-center rounded-lg text-ink-3 hover:bg-sunken transition-colors"
             aria-label="Open settings"
@@ -156,7 +157,7 @@
       :show="showSettings"
       :currentUser="currentUser"
       :showAllUsers="showAllUsers"
-      @close="showSettings = false"
+      @close="closeSettings"
       @set-show-all="setShowAll"
     />
     <ToastContainer />
@@ -199,6 +200,7 @@ const compactHeader = ref(false)
 const logoTrigger = ref(0)
 const statusVersion = ref(0)
 const dragActive = ref(false)
+const settingsBtn = ref(null)
 
 const _stored = lsGet(SHOW_CLOSED_KEY)
 const showClosed = ref(_stored === null ? true : _stored === 'true')
@@ -220,6 +222,13 @@ function toggleShowClosed() {
   if (dragActive.value) return
   showClosed.value = !showClosed.value
   lsSet(SHOW_CLOSED_KEY, String(showClosed.value))
+}
+
+function closeSettings() {
+  showSettings.value = false
+  nextTick(() => {
+    settingsBtn.value?.focus()
+  })
 }
 
 watch(showClosed, (visible) => {

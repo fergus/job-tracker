@@ -26,6 +26,7 @@
   --line-2: oklch(78% 0.010 58);
 
   /* Semantic */
+  --success:      oklch(52% 0.16 145);
   --danger:       oklch(50% 0.20 22);
   --danger-hover: oklch(42% 0.20 22);
 
@@ -68,6 +69,7 @@
     --line:   oklch(28%  0.010 240);
     --line-2: oklch(36%  0.010 240);
 
+    --success:      oklch(65% 0.14 145);
     --danger:       oklch(62% 0.18 22);
     --danger-hover: oklch(70% 0.18 22);
 
@@ -104,6 +106,7 @@
   --color-accent-hover:  var(--accent-hover);
   --color-accent-fg:     var(--accent-fg);
   --color-accent-muted:  var(--accent-muted);
+  --color-success:       var(--success);
   --color-danger:        var(--danger);
   --color-danger-hover:  var(--danger-hover);
 

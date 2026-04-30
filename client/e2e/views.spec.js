@@ -78,14 +78,14 @@ test('timeline renders accepted bars in full colour and rejected bars muted', as
   await page.waitForTimeout(400)
 
   // Both apps should be visible (scoped to Timeline rows via role=button)
-  await expect(page.getByRole('button', { name: 'TimelineAccepted Engineer' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'TimelineRejected Engineer' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'TimelineAccepted — Engineer, currently accepted' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'TimelineRejected — Engineer, currently rejected' })).toBeVisible()
 
   // Rejected app label should be muted (text-ink-3)
-  const rejectedRow = page.getByRole('button', { name: 'TimelineRejected Engineer' })
+  const rejectedRow = page.getByRole('button', { name: 'TimelineRejected — Engineer, currently rejected' })
   await expect(rejectedRow.locator('span').first()).toHaveClass(/text-ink-3/)
 
-  // Accepted app label should be full weight (text-ink-2)
-  const acceptedRow = page.getByRole('button', { name: 'TimelineAccepted Engineer' })
-  await expect(acceptedRow.locator('span').first()).toHaveClass(/text-ink-2/)
+  // Accepted app label should be full weight (text-ink)
+  const acceptedRow = page.getByRole('button', { name: 'TimelineAccepted — Engineer, currently accepted' })
+  await expect(acceptedRow.locator('span').first()).toHaveClass(/text-ink/)
 })
