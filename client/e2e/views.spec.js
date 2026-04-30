@@ -14,7 +14,7 @@ test('timeline view renders after switching from kanban', async ({ page, request
     data: { company_name: 'TimelineCorp', role_title: 'Engineer', status: 'interested' },
   })
   await page.goto('/')
-  await page.click('button:has-text("Campaign timeline")')
+  await page.click('button:has-text("Timeline")')
   await page.waitForTimeout(400)
   await expect(page.getByText('TimelineCorp').first()).toBeVisible()
 })
@@ -40,7 +40,7 @@ test('showClosed=false persists across view switches', async ({ page, request })
   await expect(page.getByText('PersistCorp').first()).not.toBeVisible()
 
   // Switch to Timeline view
-  await page.click('button:has-text("Campaign timeline")')
+  await page.click('button:has-text("Timeline")')
   await page.waitForTimeout(600)
   await expect(page.getByText('PersistCorp').first()).not.toBeVisible()
 
@@ -59,7 +59,7 @@ test('timeline renders accepted bars in full colour and rejected bars muted', as
   })
 
   await page.goto('/')
-  await page.click('button:has-text("Campaign timeline")')
+  await page.click('button:has-text("Timeline")')
   await page.waitForTimeout(400)
 
   // Both apps should be visible (scoped to Timeline rows via role=button)
