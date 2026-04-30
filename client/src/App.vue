@@ -48,7 +48,7 @@
             {{ showClosed ? 'Hide closed' : `${closedCount} closed` }}
           </button>
 
-          <!-- Always visible: Add button + settings + hamburger -->
+          <!-- Always visible: Add button + settings -->
           <button
             @click="openPanel()"
             class="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium transition-colors"
@@ -62,15 +62,6 @@
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-          <button
-            @click="showSidebar = true"
-            class="size-11 flex items-center justify-center rounded-lg text-ink-3 hover:bg-sunken transition-colors"
-            aria-label="Open menu"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
         </div>
@@ -116,22 +107,17 @@
       @saved="handlePanelSaved"
       @panel-app-updated="panelApp = $event"
     />
-    <SidebarMenu
-      v-if="showSidebar"
-      :currentUser="currentUser"
-      :view="view"
-      :compactHeader="compactHeader"
-      @close="showSidebar = false"
-      @set-view="(v) => { view = v; showSidebar = false }"
-      @toggle-compact="toggleCompact"
-    />
     <SettingsPanel
       v-if="showSettings"
       :show="showSettings"
       :currentUser="currentUser"
       :showAllUsers="showAllUsers"
+      :view="view"
+      :compactHeader="compactHeader"
       @close="closeSettings"
       @set-show-all="setShowAll"
+      @set-view="(v) => { view = v; showSettings = false }"
+      @toggle-compact="toggleCompact"
     />
     <ToastContainer />
   </div>
@@ -146,7 +132,6 @@ import LogoBuild from './components/LogoBuild.vue'
 import KanbanBoard from './components/KanbanBoard.vue'
 import TimelineView from './components/TimelineView.vue'
 import ApplicationPanel from './components/ApplicationPanel.vue'
-import SidebarMenu from './components/SidebarMenu.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ToastContainer from './components/ToastContainer.vue'
 
@@ -166,7 +151,6 @@ const panelApp = ref(null)
 const showPanel = ref(false)
 const currentUser = ref(null)
 const showAllUsers = ref(false)
-const showSidebar = ref(false)
 const showSettings = ref(false)
 const compactHeader = ref(false)
 const logoTrigger = ref(0)
@@ -209,8 +193,8 @@ watch(showClosed, (visible) => {
   }
 })
 
-watch([showSidebar, showPanel], ([sidebar, panel]) => {
-  const lock = sidebar || (panel && window.innerWidth < 768)
+watch(showPanel, (panel) => {
+  const lock = panel && window.innerWidth < 768
   document.body.style.overflow = lock ? 'hidden' : ''
 })
 
@@ -224,7 +208,6 @@ async function loadApplications() {
 }
 
 function openPanel(app = null) {
-  showSidebar.value = false
   panelApp.value = app ?? {}
   showPanel.value = true
 }
