@@ -16,13 +16,13 @@
 
     <div v-else>
       <!-- Controls + Summary -->
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div class="text-xs text-ink-3">
           <span class="font-medium text-ink-2">{{ summary.active }}</span> active
           <span v-if="summary.stalled > 0" class="ml-2 text-danger font-medium">{{ summary.stalled }} stalled &gt;30 days</span>
           <span v-if="summary.avgCurrent > 0" class="ml-2">avg. in stage: <span class="font-medium text-ink-2">{{ summary.avgCurrent }}d</span></span>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col items-end gap-2">
           <button
             @click="$emit('set-view', 'kanban')"
             class="text-xs text-ink-3 hover:text-ink transition-colors flex items-center gap-1"
@@ -32,8 +32,9 @@
             </svg>
             Board
           </button>
-          <label for="timeline-sort" class="text-xs text-ink-3">Sort by</label>
-          <select
+          <div class="flex items-center gap-2">
+            <label for="timeline-sort" class="text-xs text-ink-3">Sort by</label>
+            <select
             id="timeline-sort"
             v-model="sortKey"
             class="text-xs bg-panel border border-line rounded px-2 py-1 text-ink focus:outline-none focus:ring-1 focus:ring-accent"
@@ -44,6 +45,7 @@
             <option value="start">Start date</option>
             <option value="status">Status</option>
           </select>
+          </div>
         </div>
       </div>
 
