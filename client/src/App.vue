@@ -112,12 +112,8 @@
       :show="showSettings"
       :currentUser="currentUser"
       :showAllUsers="showAllUsers"
-      :view="view"
-      :compactHeader="compactHeader"
       @close="closeSettings"
       @set-show-all="setShowAll"
-      @set-view="(v) => { view = v; showSettings = false }"
-      @toggle-compact="toggleCompact"
     />
     <ToastContainer />
   </div>

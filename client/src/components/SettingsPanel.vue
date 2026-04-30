@@ -52,64 +52,6 @@
       <div class="flex-1 overflow-y-auto overflow-x-hidden">
         <div class="px-5 py-5 space-y-8">
 
-          <!-- View section -->
-          <section>
-            <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-3">View</h3>
-            <div class="flex flex-col gap-1">
-              <button
-                v-for="{ id, label } in views"
-                :key="id"
-                @click="$emit('set-view', id)"
-                :class="props.view === id ? 'bg-accent-muted text-ink font-medium' : 'text-ink-2 hover:bg-sunken'"
-                class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
-              >{{ label }}</button>
-            </div>
-          </section>
-
-          <!-- Display section -->
-          <section>
-            <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-3">Display</h3>
-            <div class="flex items-start gap-3">
-              <button
-                role="switch"
-                :aria-checked="String(props.compactHeader)"
-                @click="$emit('toggle-compact')"
-                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
-                :class="props.compactHeader ? 'bg-accent' : 'bg-sunken'"
-              >
-                <span
-                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-panel shadow ring-0 transition duration-200 ease-in-out"
-                  :class="props.compactHeader ? 'translate-x-5' : 'translate-x-0'"
-                />
-              </button>
-              <div>
-                <p class="text-sm font-medium text-ink">Always use settings</p>
-                <p class="text-xs text-ink-3 mt-0.5">Keep header minimal — show controls in this panel</p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Data Scope section (admins only) -->
-          <section v-if="props.currentUser?.isAdmin">
-            <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-3">Data Scope</h3>
-            <div role="radiogroup" aria-label="Data scope" class="flex bg-sunken rounded-lg p-0.5">
-              <button
-                @click="$emit('set-show-all', false)"
-                :class="!props.showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-                class="flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors min-h-[44px]"
-                role="radio"
-                :aria-checked="!props.showAllUsers"
-              >My Applications</button>
-              <button
-                @click="$emit('set-show-all', true)"
-                :class="props.showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-                class="flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors min-h-[44px]"
-                role="radio"
-                :aria-checked="props.showAllUsers"
-              >All Applications</button>
-            </div>
-          </section>
-
           <!-- Profile section -->
           <section>
             <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-1">Profile</h3>
@@ -503,6 +445,27 @@
             </ul>
           </section>
 
+          <!-- Data Scope section (admins only) -->
+          <section v-if="props.currentUser?.isAdmin">
+            <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-3">Data Scope</h3>
+            <div role="radiogroup" aria-label="Data scope" class="flex bg-sunken rounded-lg p-0.5">
+              <button
+                @click="$emit('set-show-all', false)"
+                :class="!props.showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
+                class="flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors min-h-[44px]"
+                role="radio"
+                :aria-checked="!props.showAllUsers"
+              >My Applications</button>
+              <button
+                @click="$emit('set-show-all', true)"
+                :class="props.showAllUsers ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
+                class="flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors min-h-[44px]"
+                role="radio"
+                :aria-checked="props.showAllUsers"
+              >All Applications</button>
+            </div>
+          </section>
+
         </div>
       </div>
 
@@ -586,15 +549,8 @@ const props = defineProps({
   show: Boolean,
   currentUser: Object,
   showAllUsers: Boolean,
-  view: String,
-  compactHeader: Boolean,
 })
-const emit = defineEmits(['close', 'set-show-all', 'set-view', 'toggle-compact'])
-
-const views = [
-  { id: 'kanban', label: 'Board' },
-  { id: 'timeline', label: 'Timeline' },
-]
+const emit = defineEmits(['close', 'set-show-all'])
 
 const panelRoot = ref(null)
 const modalRoot = ref(null)
