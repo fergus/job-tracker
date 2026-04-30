@@ -3,6 +3,7 @@ const db = require('../db');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
 const path = require('path');
+const { extractText } = require('./extraction');
 
 class ServiceError extends Error {
   constructor(status, message) {
@@ -325,34 +326,43 @@ function addNote(userEmail, appId, { stage, content }) {
   return db.prepare('SELECT * FROM stage_notes WHERE id = ?').get(result.lastInsertRowid);
 }
 
-function uploadAttachments(userEmail, appId, files) {
+async function uploadAttachments(userEmail, appId, files) {
   const existing = getOwnApp(appId, userEmail);
   if (!existing) throw new ServiceError(404, 'Not found');
   if (!files || files.length === 0) throw new ServiceError(400, 'No files uploaded');
 
   const now = new Date().toISOString();
-  const inserted = [];
+  const items = [];
+
+  for (const file of files) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      throw new ServiceError(400, `File type not allowed: ${ext}`);
+    }
+    const mime = MIME_MAP[ext] || null;
+    const storedFilename = Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
+    const destPath = path.join(uploadsDir, storedFilename);
+    fs.writeFileSync(destPath, file.buffer);
+    const extracted = await extractText(destPath, mime);
+    items.push({
+      appId, originalFilename: file.originalname, storedFilename,
+      fileSize: file.buffer.length, mime, now, extracted
+    });
+  }
 
   const insertAttachments = db.transaction(() => {
-    for (const file of files) {
-      const ext = path.extname(file.originalname).toLowerCase();
-      if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        throw new ServiceError(400, `File type not allowed: ${ext}`);
-      }
-      const mime = MIME_MAP[ext] || null;
-      const storedFilename = Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
-      const destPath = path.join(uploadsDir, storedFilename);
-      fs.writeFileSync(destPath, file.buffer);
+    const inserted = [];
+    for (const item of items) {
       const result = db.prepare(
-        'INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(appId, file.originalname, storedFilename, file.buffer.length, mime, now);
-      inserted.push({ id: result.lastInsertRowid, original_filename: file.originalname, stored_filename: storedFilename, file_size: file.buffer.length, mime_type: mime, created_at: now });
+        'INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, created_at, extracted_text, extracted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(item.appId, item.originalFilename, item.storedFilename, item.fileSize, item.mime, item.now, item.extracted, item.extracted ? item.now : null);
+      inserted.push({ id: result.lastInsertRowid, original_filename: item.originalFilename, stored_filename: item.storedFilename, file_size: item.fileSize, mime_type: item.mime, created_at: item.now, extracted_text: item.extracted, extracted_at: item.extracted ? item.now : null });
     }
     db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, appId);
+    return inserted;
   });
 
-  insertAttachments();
-  return inserted;
+  return insertAttachments();
 }
 
 function listAttachments(userEmail, appId, { isAdmin = false } = {}) {
@@ -362,7 +372,7 @@ function listAttachments(userEmail, appId, { isAdmin = false } = {}) {
   if (!existing) throw new ServiceError(404, 'Not found');
 
   return db.prepare(
-    'SELECT id, original_filename, file_size, mime_type, created_at FROM attachments WHERE application_id = ? ORDER BY created_at ASC'
+    'SELECT id, original_filename, file_size, mime_type, created_at, extracted_text, extracted_at FROM attachments WHERE application_id = ? ORDER BY created_at ASC'
   ).all(appId);
 }
 

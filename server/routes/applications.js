@@ -197,14 +197,14 @@ router.get('/:id/attachments', (req, res) => {
 
 // Upload attachments (owner only)
 router.post('/:id/attachments', (req, res, next) => {
-  upload.array('files', 10)(req, res, (err) => {
+  upload.array('files', 10)(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.message });
     }
     try {
       if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
       const files = req.files.map(f => ({ originalname: f.originalname, buffer: fs.readFileSync(f.path) }));
-      const inserted = svc.uploadAttachments(req.userEmail, req.params.id, files);
+      const inserted = await svc.uploadAttachments(req.userEmail, req.params.id, files);
       // Clean up temp multer files
       req.files.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
       res.status(201).json(inserted);
@@ -232,6 +232,20 @@ router.get('/:id/attachments/:attachmentId', (req, res) => {
     res.setHeader('Content-Type', mime);
     res.setHeader('Content-Disposition', 'inline');
     res.sendFile(filePath);
+  } catch (e) { handleError(res, e); }
+});
+
+// Get extracted text for a specific attachment (own or admin view)
+router.get('/:id/attachments/:attachmentId/extracted-text', (req, res) => {
+  try {
+    const attachment = svc.getAttachment(req.userEmail, req.params.id, req.params.attachmentId, { isAdmin: req.isAdmin });
+    if (attachment.extracted_text === null || attachment.extracted_text === undefined) {
+      return res.status(404).json({ error: 'No extracted text available for this attachment' });
+    }
+    res.json({
+      text: attachment.extracted_text,
+      extracted_at: attachment.extracted_at,
+    });
   } catch (e) { handleError(res, e); }
 });
 

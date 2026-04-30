@@ -109,6 +109,15 @@ db.exec(`
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_attachments_application_id ON attachments(application_id)');
 
+// Add text extraction columns to attachments (if not present)
+const attachmentCols = db.prepare("PRAGMA table_info(attachments)").all();
+if (!attachmentCols.some(c => c.name === 'extracted_text')) {
+  db.exec('ALTER TABLE attachments ADD COLUMN extracted_text TEXT');
+}
+if (!attachmentCols.some(c => c.name === 'extracted_at')) {
+  db.exec('ALTER TABLE attachments ADD COLUMN extracted_at TEXT');
+}
+
 // API keys table
 db.exec(`
   CREATE TABLE IF NOT EXISTS api_keys (
@@ -124,6 +133,29 @@ db.exec(`
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_api_keys_user_email ON api_keys(user_email)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash)');
+
+// User profiles table (candidate identity, narrative, and agent instructions)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_profiles (
+    user_email TEXT PRIMARY KEY REFERENCES users(email),
+    full_name TEXT,
+    location_city TEXT,
+    location_country TEXT,
+    target_roles TEXT,
+    compensation_currency TEXT,
+    compensation_target_range TEXT,
+    linkedin_url TEXT,
+    portfolio_url TEXT,
+    agent_tone TEXT,
+    agent_emphasize TEXT,
+    agent_avoid TEXT,
+    cv_markdown TEXT,
+    career_narrative TEXT,
+    agent_instructions TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
 
 // Migrations tracking table
 db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT)`);
@@ -180,6 +212,67 @@ if (!alreadyRun && hasCvData.count > 0) {
   });
 
   migrate();
+}
+
+// One-shot migration: backfill extracted_text for existing attachments
+const backfillRan = db.prepare("SELECT 1 FROM _migrations WHERE name = ?").get('backfill_attachment_text');
+if (!backfillRan) {
+  (async () => {
+    console.log('[backfill] Starting attachment text extraction backfill...');
+    const { extractText } = require('./services/extraction');
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+
+    const attachments = db.prepare(
+      "SELECT id, application_id, stored_filename, original_filename, mime_type FROM attachments WHERE extracted_text IS NULL"
+    ).all();
+
+    if (attachments.length === 0) {
+      console.log('[backfill] No attachments need backfill.');
+      db.prepare("INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))").run('backfill_attachment_text');
+      return;
+    }
+
+    console.log(`[backfill] Found ${attachments.length} attachment(s) without extracted text.`);
+
+    let successCount = 0;
+    let failCount = 0;
+    let skipCount = 0;
+    const now = new Date().toISOString();
+
+    for (const att of attachments) {
+      const filePath = path.join(uploadsDir, att.stored_filename);
+      if (!fs.existsSync(filePath)) {
+        console.error(`[backfill][id=${att.id}] failed reason="file missing on disk" path="${filePath}"`);
+        failCount++;
+        continue;
+      }
+
+      const text = await extractText(filePath, att.mime_type, { attachmentId: att.id });
+
+      if (text === null) {
+        // Distinguish between "unsupported type" (skip) and "extraction error" (fail)
+        const ext = path.extname(filePath).toLowerCase();
+        const supportedExts = ['.pdf', '.doc', '.docx', '.txt', '.md'];
+        if (!supportedExts.includes(ext)) {
+          console.log(`[backfill][id=${att.id}] skipped reason="unsupported extension" filename="${att.original_filename}"`);
+          skipCount++;
+        } else {
+          console.error(`[backfill][id=${att.id}] failed reason="extraction returned null" filename="${att.original_filename}"`);
+          failCount++;
+        }
+        // Mark as processed so we don't retry indefinitely; store empty sentinel
+        db.prepare("UPDATE attachments SET extracted_at = ? WHERE id = ?").run(now, att.id);
+      } else {
+        db.prepare("UPDATE attachments SET extracted_text = ?, extracted_at = ? WHERE id = ?").run(text, now, att.id);
+        successCount++;
+      }
+    }
+
+    db.prepare("INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))").run('backfill_attachment_text');
+
+    console.log('[backfill] Complete.');
+    console.log(`[backfill] Summary: total=${attachments.length} success=${successCount} failed=${failCount} skipped=${skipCount}`);
+  })();
 }
 
 // API key prepared statements

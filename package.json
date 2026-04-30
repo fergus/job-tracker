@@ -1,6 +1,6 @@
 {
   "name": "job-tracker",
-  "version": "0.13.8",
+  "version": "0.14.0",
   "private": true,
   "scripts": {
     "dev:server": "node server/index.js",

@@ -67,6 +67,146 @@
             </div>
           </section>
 
+          <!-- Profile section -->
+          <section>
+            <h3 class="text-sm font-semibold text-ink-2 mb-3">Profile</h3>
+            <p class="text-xs text-ink-3 mb-4">
+              Your candidate profile powers AI-generated documents and advice.
+              Agents read this context to tailor resumes, cover letters, and interview prep.
+            </p>
+
+            <div class="space-y-3">
+              <!-- Personal info -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  v-model="profile.full_name"
+                  type="text"
+                  placeholder="Full name"
+                  class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+                <input
+                  v-model="profile.target_roles"
+                  type="text"
+                  placeholder="Target roles (comma-separated)"
+                  class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  v-model="profile.location_city"
+                  type="text"
+                  placeholder="City"
+                  class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+                <input
+                  v-model="profile.location_country"
+                  type="text"
+                  placeholder="Country"
+                  class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+              </div>
+
+              <!-- Compensation -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  v-model="profile.compensation_currency"
+                  type="text"
+                  placeholder="Currency (e.g. USD)"
+                  class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+                <input
+                  v-model="profile.compensation_target_range"
+                  type="text"
+                  placeholder="Target range (e.g. $150K-200K)"
+                  class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+              </div>
+
+              <!-- Links -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  v-model="profile.linkedin_url"
+                  type="text"
+                  placeholder="LinkedIn URL"
+                  class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+                <input
+                  v-model="profile.portfolio_url"
+                  type="text"
+                  placeholder="Portfolio URL"
+                  class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+              </div>
+
+              <!-- Agent tuning -->
+              <div class="border-t border-line pt-3 mt-3">
+                <p class="text-xs font-medium text-ink-2 mb-2">Agent Instructions</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input
+                    v-model="profile.agent_tone"
+                    type="text"
+                    placeholder="Tone (e.g. formal)"
+                    class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                  />
+                  <input
+                    v-model="profile.agent_emphasize"
+                    type="text"
+                    placeholder="Emphasize (comma-separated)"
+                    class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                  />
+                  <input
+                    v-model="profile.agent_avoid"
+                    type="text"
+                    placeholder="Avoid (comma-separated)"
+                    class="text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <!-- Markdown fields -->
+              <div class="border-t border-line pt-3 mt-3 space-y-3">
+                <div>
+                  <label class="text-xs font-medium text-ink-2 mb-1 block">CV (markdown)</label>
+                  <textarea
+                    v-model="profile.cv_markdown"
+                    rows="6"
+                    placeholder="# Your Name\n\n## Experience\n..."
+                    class="w-full text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent font-mono"
+                  />
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-ink-2 mb-1 block">Career Narrative</label>
+                  <textarea
+                    v-model="profile.career_narrative"
+                    rows="4"
+                    placeholder="Your story, superpowers, and what you're looking for next..."
+                    class="w-full text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-ink-2 mb-1 block">Additional Agent Instructions</label>
+                  <textarea
+                    v-model="profile.agent_instructions"
+                    rows="3"
+                    placeholder="Always mention my open-source work. Never use the word 'passionate'."
+                    class="w-full text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <!-- Save button -->
+              <div class="flex items-center gap-3 pt-2">
+                <button
+                  @click="saveProfile"
+                  :disabled="isSavingProfile"
+                  class="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-fg px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                >{{ isSavingProfile ? 'Saving…' : 'Save Profile' }}</button>
+                <span v-if="profileSaved" class="text-xs text-success">Saved</span>
+                <span v-if="profileError" role="alert" class="text-xs text-danger">{{ profileError }}</span>
+              </div>
+            </div>
+          </section>
+
           <!-- API Keys section -->
           <section>
             <h3 class="text-sm font-semibold text-ink-2 mb-3">API Keys</h3>
@@ -177,7 +317,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { generateApiKey, listApiKeys, revokeApiKey } from '../api'
+import { generateApiKey, listApiKeys, revokeApiKey, fetchProfile, updateProfile } from '../api'
 
 const props = defineProps({
   show: Boolean,
@@ -216,12 +356,33 @@ const isGenerating = ref(false)
 const confirmRevokeId = ref(null)
 const copied = ref(false)
 
+const profile = ref({
+  full_name: '',
+  location_city: '',
+  location_country: '',
+  target_roles: '',
+  compensation_currency: '',
+  compensation_target_range: '',
+  linkedin_url: '',
+  portfolio_url: '',
+  agent_tone: '',
+  agent_emphasize: '',
+  agent_avoid: '',
+  cv_markdown: '',
+  career_narrative: '',
+  agent_instructions: '',
+})
+const isSavingProfile = ref(false)
+const profileSaved = ref(false)
+const profileError = ref(null)
+
 onMounted(() => {
   panelRoot.value?.focus()
   requestAnimationFrame(() => {
     visible.value = true
   })
   loadKeys()
+  loadProfile()
 })
 
 async function loadKeys() {
@@ -265,6 +426,44 @@ async function copyKey() {
     copied.value = true
   } catch {
     // Clipboard API unavailable — user can copy manually
+  }
+}
+
+async function loadProfile() {
+  try {
+    const data = await fetchProfile()
+    // Merge fetched data into profile ref, preserving defaults for missing fields
+    Object.keys(profile.value).forEach(key => {
+      profile.value[key] = data[key] || ''
+    })
+  } catch {
+    // Profile may not exist yet; leave defaults
+  }
+}
+
+async function saveProfile() {
+  if (isSavingProfile.value) return
+  profileError.value = null
+  profileSaved.value = false
+  isSavingProfile.value = true
+  try {
+    const payload = {}
+    Object.keys(profile.value).forEach(key => {
+      const val = profile.value[key]
+      if (val !== '' && val !== null && val !== undefined) {
+        payload[key] = val
+      } else {
+        payload[key] = null
+      }
+    })
+    await updateProfile(payload)
+    profileSaved.value = true
+    setTimeout(() => { profileSaved.value = false }, 2000)
+  } catch (err) {
+    const msg = err?.response?.data?.error
+    profileError.value = msg || 'Failed to save profile. Please try again.'
+  } finally {
+    isSavingProfile.value = false
   }
 }
 

@@ -42,6 +42,12 @@ function cachedUpsertUser(email) {
   if (last && now - last < UPSERT_TTL_MS) return;
   upsertCache.set(email, now);
   upsertUser.run(email, new Date(now).toISOString(), new Date(now).toISOString());
+  // Auto-create profile row if missing (non-blocking)
+  try {
+    db.prepare('INSERT OR IGNORE INTO user_profiles (user_email) VALUES (?)').run(email);
+  } catch (err) {
+    console.error('[auth] failed to auto-create profile for %s:', email, err.message);
+  }
 }
 
 function authMiddleware(req, res, next) {

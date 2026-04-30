@@ -187,6 +187,43 @@ function createMcpServer() {
   );
 
   server.tool(
+    'get_attachment_text',
+    'Get the extracted plain text from a file attachment (PDF, DOCX, TXT, MD).',
+    {
+      application_id: z.number().int().positive().describe('Application ID'),
+      attachment_id: z.number().int().positive().describe('Attachment ID'),
+    },
+    async (args, extra) => {
+      const userEmail = extra.authInfo?.clientId;
+      if (!userEmail) return { content: [{ type: 'text', text: 'Unauthorized' }], isError: true };
+      try {
+        const attachment = svc.getAttachment(userEmail, args.application_id, args.attachment_id);
+        if (attachment.extracted_text === null || attachment.extracted_text === undefined) {
+          return { content: [{ type: 'text', text: 'No extracted text available for this attachment' }], isError: true };
+        }
+        return { content: [{ type: 'text', text: attachment.extracted_text }] };
+      } catch (err) { return toolError(err); }
+    }
+  );
+
+  server.tool(
+    'get_user_profile',
+    'Get the candidate profile (resume, career narrative, agent instructions) for the authenticated user.',
+    {},
+    async (args, extra) => {
+      const userEmail = extra.authInfo?.clientId;
+      if (!userEmail) return { content: [{ type: 'text', text: 'Unauthorized' }], isError: true };
+      try {
+        const profile = db.prepare('SELECT * FROM user_profiles WHERE user_email = ?').get(userEmail);
+        if (!profile) {
+          return { content: [{ type: 'text', text: 'No profile found' }], isError: true };
+        }
+        return { content: [{ type: 'text', text: JSON.stringify(profile, null, 2) }] };
+      } catch (err) { return toolError(err); }
+    }
+  );
+
+  server.tool(
     'upload_attachment',
     'Upload a file attachment to an existing job application.',
     {
@@ -202,7 +239,7 @@ function createMcpServer() {
         }
         const buffer = fs.readFileSync(args.file_path);
         const originalname = path.basename(args.file_path);
-        const result = svc.uploadAttachments(userEmail, args.application_id, [{ originalname, buffer }]);
+        const result = await svc.uploadAttachments(userEmail, args.application_id, [{ originalname, buffer }]);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       } catch (err) { return toolError(err); }
     }

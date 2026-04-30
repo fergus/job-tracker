@@ -1,5 +1,5 @@
 ---
-status: open
+status: complete
 priority: p2
 issue_id: "046"
 tags: [ux, kanban, table, filtering]

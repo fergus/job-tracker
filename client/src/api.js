@@ -110,3 +110,11 @@ export function listApiKeys() {
 export function revokeApiKey(id) {
   return api.delete(`/keys/${id}`).then(r => r.data)
 }
+
+export function fetchProfile() {
+  return api.get('/me/profile').then(r => r.data)
+}
+
+export function updateProfile(data) {
+  return api.put('/me/profile', data).then(r => r.data)
+}

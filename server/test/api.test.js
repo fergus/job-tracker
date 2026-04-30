@@ -5,6 +5,7 @@ process.env.DB_PATH = ':memory:';
 // Disable rate limiting in tests
 process.env.RATE_LIMIT_API = '100000';
 process.env.RATE_LIMIT_UPLOADS = '100000';
+process.env.ADMIN_EMAILS = 'admin@example.com';
 
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -667,6 +668,86 @@ describe('Key management', () => {
 // MCP Server security hardening
 // ---------------------------------------------------------------------------
 
+describe('Profile', () => {
+  test('GET /api/me/profile returns profile for authenticated user', async () => {
+    const res = await req.get('/api/me/profile');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.user_email, 'dev@localhost');
+    assert.ok(res.body.hasOwnProperty('full_name'));
+  });
+
+  test('PUT /api/me/profile updates fields', async () => {
+    const res = await req.put('/api/me/profile').send({
+      full_name: 'Test User',
+      location_city: 'Berlin',
+      target_roles: 'Senior Engineer, Staff Engineer',
+      cv_markdown: '# Test CV\n\nExperience here.',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.full_name, 'Test User');
+    assert.equal(res.body.location_city, 'Berlin');
+    assert.equal(res.body.target_roles, 'Senior Engineer, Staff Engineer');
+    assert.equal(res.body.cv_markdown, '# Test CV\n\nExperience here.');
+    assert.ok(res.body.updated_at);
+  });
+
+  test('PUT /api/me/profile rejects invalid URL', async () => {
+    const res = await req.put('/api/me/profile').send({
+      linkedin_url: 'not-a-url',
+    });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error.includes('linkedin_url'));
+  });
+
+  test('PUT /api/me/profile returns 400 with no valid fields', async () => {
+    const res = await req.put('/api/me/profile').send({
+      bogus_field: 'ignored',
+    });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error.includes('No valid fields'));
+  });
+
+  test('PUT /api/me/profile via API key auth returns 403', async () => {
+    // Create a key first
+    const keyRes = await req
+      .post('/api/keys')
+      .set('X-Forwarded-Email', 'profile-apikey@example.com')
+      .send({ label: 'profile-test' });
+    assert.equal(keyRes.status, 201);
+    const key = keyRes.body.key;
+
+    const res = await req
+      .put('/api/me/profile')
+      .set('Authorization', `Bearer ${key}`)
+      .send({ full_name: 'Should Fail' });
+    assert.equal(res.status, 403);
+  });
+
+  test('admin GET /api/users/:email/profile returns profile', async () => {
+    // Create a profile for a non-admin user
+    const email = 'regular@example.com';
+    await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', email)
+      .field('company_name', 'TestCo')
+      .field('role_title', 'Tester');
+
+    // Admin reads it
+    const res = await req
+      .get(`/api/users/${email}/profile`)
+      .set('X-Forwarded-Email', 'admin@example.com');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.user_email, email);
+  });
+
+  test('non-admin GET /api/users/:email/profile returns 403', async () => {
+    const res = await req
+      .get('/api/users/other@example.com/profile')
+      .set('X-Forwarded-Email', 'regular-user@example.com');
+    assert.equal(res.status, 403);
+  });
+});
+
 describe('MCP Server', () => {
   let mcpServer;
   let mcpReq;
@@ -796,12 +877,138 @@ describe('Attachments', () => {
     assert.equal(res.body[0].mime_type, 'text/plain');
   });
 
+  test('POST /api/applications/:id/attachments extracts text from txt files', async () => {
+    const app = await createApp();
+    const res = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('Hello extracted world'), 'test.txt');
+    assert.equal(res.status, 201);
+    assert.equal(res.body[0].extracted_text, 'Hello extracted world');
+    assert.ok(res.body[0].extracted_at);
+  });
+
+  test('GET /api/applications/:id/attachments includes extracted_text', async () => {
+    const app = await createApp();
+    await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('List me'), 'test.txt');
+    const list = await req.get(`/api/applications/${app.id}/attachments`);
+    assert.equal(list.status, 200);
+    assert.equal(list.body[0].extracted_text, 'List me');
+    assert.ok(list.body[0].extracted_at);
+  });
+
+  test('POST /api/applications/:id/attachments extracts text from pdf files', async () => {
+    const app = await createApp();
+    const minimalPdf = Buffer.from(
+      '%PDF-1.4\n' +
+      '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+      '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+      '3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<</Font<</F1<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>>>>>/Contents 4 0 R>>endobj\n' +
+      '4 0 obj<</Length 44>>stream\n' +
+      'BT\n' +
+      '/F1 12 Tf\n' +
+      '100 700 Td\n' +
+      '(Hello PDF) Tj\n' +
+      'ET\n' +
+      'endstream\n' +
+      'endobj\n' +
+      'xref\n' +
+      '0 5\n' +
+      '0000000000 65535 f \n' +
+      '0000000009 00000 n \n' +
+      '0000000052 00000 n \n' +
+      '0000000101 00000 n \n' +
+      '0000000263 00000 n \n' +
+      'trailer<</Size 5/Root 1 0 R>>\n' +
+      'startxref\n' +
+      '352\n' +
+      '%%EOF\n'
+    );
+    const res = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', minimalPdf, 'test.pdf');
+    assert.equal(res.status, 201);
+    assert.ok(res.body[0].extracted_text.includes('Hello PDF'));
+    assert.ok(res.body[0].extracted_at);
+  });
+
+  test('POST /api/applications/:id/attachments extracts text from docx files', async () => {
+    const app = await createApp();
+    const docxPath = path.join(__dirname, 'fixtures', 'minimal.docx');
+    const res = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', docxPath);
+    assert.equal(res.status, 201);
+    assert.ok(res.body[0].extracted_text.includes('Hello DOCX'));
+    assert.ok(res.body[0].extracted_at);
+  });
+
+  test('POST /api/applications/:id/attachments handles corrupt pdf gracefully', async () => {
+    const app = await createApp();
+    const res = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('not a real pdf'), 'fake.pdf');
+    assert.equal(res.status, 201);
+    assert.equal(res.body[0].extracted_text, null);
+    assert.equal(res.body[0].extracted_at, null);
+  });
+
   test('POST /api/applications/:id/attachments rejects unknown file types', async () => {
     const app = await createApp();
     const res = await req
       .post(`/api/applications/${app.id}/attachments`)
       .attach('files', Buffer.from('test content'), 'test.exe');
     assert.equal(res.status, 400);
+  });
+
+  test('GET /api/applications/:id/attachments/:attachmentId/extracted-text returns text', async () => {
+    const app = await createApp();
+    const uploadRes = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('Extracted text content'), 'test.txt');
+    assert.equal(uploadRes.status, 201);
+    const attachmentId = uploadRes.body[0].id;
+
+    const res = await req.get(`/api/applications/${app.id}/attachments/${attachmentId}/extracted-text`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.text, 'Extracted text content');
+    assert.ok(res.body.extracted_at);
+  });
+
+  test('GET extracted-text returns 404 when text was not extracted', async () => {
+    const app = await createApp();
+    // Insert an attachment row directly with no extracted_text to simulate
+    // an attachment that hasn't been processed yet.
+    const db = require('../db');
+    const result = db.prepare(
+      "INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))"
+    ).run(app.id, 'pending.txt', 'pending.txt', 4, 'text/plain');
+    const attachmentId = result.lastInsertRowid;
+
+    const res = await req.get(`/api/applications/${app.id}/attachments/${attachmentId}/extracted-text`);
+    assert.equal(res.status, 404);
+    assert.ok(res.body.error);
+  });
+
+  test('GET extracted-text returns 404 for unknown attachment', async () => {
+    const app = await createApp();
+    const res = await req.get(`/api/applications/${app.id}/attachments/999999/extracted-text`);
+    assert.equal(res.status, 404);
+  });
+
+  test('GET extracted-text scopes to owner', async () => {
+    const app = await createApp();
+    const uploadRes = await req
+      .post(`/api/applications/${app.id}/attachments`)
+      .attach('files', Buffer.from('secret'), 'test.txt');
+    assert.equal(uploadRes.status, 201);
+    const attachmentId = uploadRes.body[0].id;
+
+    const res = await req
+      .get(`/api/applications/${app.id}/attachments/${attachmentId}/extracted-text`)
+      .set('X-Forwarded-Email', 'other@example.com');
+    assert.equal(res.status, 404);
   });
 });
 
