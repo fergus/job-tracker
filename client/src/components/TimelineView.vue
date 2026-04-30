@@ -25,7 +25,7 @@
         <div class="flex flex-col items-end gap-2">
           <button
             @click="$emit('set-view', 'kanban')"
-            class="text-xs text-ink-3 hover:text-ink transition-colors flex items-center gap-1"
+            class="text-xs text-ink-3 hover:text-ink transition-colors flex items-center gap-1 min-h-5"
           >
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
