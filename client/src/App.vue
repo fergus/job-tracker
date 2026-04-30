@@ -35,25 +35,6 @@
             >All Applications</button>
           </div>
 
-          <!-- View switcher: only when not compact -->
-          <div v-if="!compactHeader" class="flex bg-sunken rounded-lg p-0.5">
-            <button
-              @click="view = 'kanban'"
-              :class="view === 'kanban' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-              class="px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-md transition-colors"
-            >Board</button>
-            <button
-              @click="view = 'table'"
-              :class="view === 'table' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-              class="px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-md transition-colors"
-            >Table</button>
-            <button
-              @click="view = 'timeline'"
-              :class="view === 'timeline' ? 'bg-panel shadow-xs text-ink' : 'text-ink-3 hover:text-ink-2'"
-              class="px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-md transition-colors"
-            >Timeline</button>
-          </div>
-
           <!-- Show/Hide Closed toggle -->
           <button
             v-show="closedCount > 0"
@@ -111,16 +92,7 @@
           @select="openPanel"
           @toggle-show-closed="toggleShowClosed"
           @drag-active="dragActive = $event"
-        />
-        <TableView
-          v-else-if="view === 'table'"
-          key="table"
-          :applications="displayApplications"
-          :showUserColumn="showAllUsers"
-          :showClosed="showClosed"
-          :closedCount="closedCount"
-          @select="openPanel"
-          @toggle-show-closed="toggleShowClosed"
+          @set-view="view = $event"
         />
         <TimelineView
           v-else
@@ -130,6 +102,7 @@
           :closedCount="closedCount"
           @open-detail="openPanel"
           @toggle-show-closed="toggleShowClosed"
+          @set-view="view = $event"
         />
       </Transition>
     </main>
@@ -171,7 +144,6 @@ import { TERMINAL_STAGES } from './utils/timeline.js'
 import { useToast } from './composables/useToast'
 import LogoBuild from './components/LogoBuild.vue'
 import KanbanBoard from './components/KanbanBoard.vue'
-import TableView from './components/TableView.vue'
 import TimelineView from './components/TimelineView.vue'
 import ApplicationPanel from './components/ApplicationPanel.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
@@ -341,7 +313,7 @@ function setShowAll(val) {
 
 onMounted(async () => {
   const isMobile = window.innerWidth < 768
-  view.value = isMobile ? 'table' : 'kanban'
+  view.value = isMobile ? 'kanban' : 'kanban'
   const saved = lsGet(COMPACT_KEY)
   compactHeader.value = saved !== null ? saved === 'true' : isMobile
   currentUser.value = await fetchMe()

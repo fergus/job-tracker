@@ -1,5 +1,18 @@
 <template>
   <div>
+    <!-- Timeline link -->
+    <div class="flex justify-end mb-2 md:mb-3">
+      <button
+        @click="$emit('set-view', 'timeline')"
+        class="text-xs text-ink-3 hover:text-ink transition-colors flex items-center gap-1"
+      >
+        Campaign timeline
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>
+
     <!-- Desktop: 5 active + 1 Closed column -->
     <div class="hidden md:flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
       <div
@@ -218,12 +231,12 @@ const props = defineProps({
   showUser: Boolean,
   statusVersion: Number,
 })
-// KanbanBoard receives the full unfiltered applications list (unlike TableView/TimelineView
+// KanbanBoard receives the full unfiltered applications list (unlike TimelineView
 // which receive pre-filtered displayApplications) because vuedraggable requires every
 // column — including the hidden Closed column — to be mounted in the DOM for drag-and-drop
 // to work correctly across the board. showClosed therefore toggles visibility rather
 // than filtering the data upstream.
-const emit = defineEmits(['status-change', 'select', 'toggle-show-closed', 'drag-active'])
+const emit = defineEmits(['status-change', 'select', 'toggle-show-closed', 'drag-active', 'set-view'])
 
 const activeStages = [
   { value: 'interested', label: 'Interested' },

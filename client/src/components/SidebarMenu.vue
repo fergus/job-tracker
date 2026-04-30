@@ -68,7 +68,7 @@
             </button>
             <div>
               <p class="text-sm font-medium text-ink">Always use menu</p>
-              <p class="text-xs text-ink-3 mt-0.5">Hide view switcher from the header and keep it here</p>
+              <p class="text-xs text-ink-3 mt-0.5">Keep header minimal — show controls in this menu</p>
             </div>
           </div>
         </div>
@@ -95,7 +95,6 @@ const emit = defineEmits(['close', 'set-view', 'toggle-compact'])
 
 const views = [
   { id: 'kanban', label: 'Board' },
-  { id: 'table', label: 'Table' },
   { id: 'timeline', label: 'Timeline' },
 ]
 

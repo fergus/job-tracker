@@ -23,6 +23,15 @@
           <span v-if="summary.avgCurrent > 0" class="ml-2">avg. in stage: <span class="font-medium text-ink-2">{{ summary.avgCurrent }}d</span></span>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            @click="$emit('set-view', 'kanban')"
+            class="text-xs text-ink-3 hover:text-ink transition-colors flex items-center gap-1"
+          >
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Board
+          </button>
           <label for="timeline-sort" class="text-xs text-ink-3">Sort by</label>
           <select
             id="timeline-sort"
@@ -185,7 +194,7 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { computeSegments, durationDays, isRejected, isAccepted, isTerminal } from '../utils/timeline'
 
 const props = defineProps({ applications: Array, showClosed: Boolean, closedCount: Number })
-const emit = defineEmits(['open-detail', 'toggle-show-closed'])
+const emit = defineEmits(['open-detail', 'toggle-show-closed', 'set-view'])
 
 const SORT_KEY = 'jobtracker_timeline_sort'
 
@@ -245,7 +254,7 @@ function sortApps(apps) {
     case 'start':
       return list.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
     case 'status': {
-      const order = ['interview', 'offer', 'screening', 'applied', 'interested', 'accepted', 'rejected']
+      const order = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
       return list.sort((a, b) => {
         const aIdx = order.indexOf(a.status)
         const bIdx = order.indexOf(b.status)
@@ -270,7 +279,7 @@ const sortedApps = computed(() => {
 })
 
 const groupedApps = computed(() => {
-  const order = ['interview', 'offer', 'screening', 'applied', 'interested', 'accepted', 'rejected']
+  const order = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
   const groups = []
   for (const status of order) {
     const apps = sortedApps.value.filter(a => a.status === status)
