@@ -79,23 +79,37 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { computeSegments, durationDays, isTerminal, isQuieted } from '../utils/timeline'
 
 const props = defineProps({ applications: Array, showClosed: Boolean, closedCount: Number })
 const emit = defineEmits(['open-detail', 'toggle-show-closed'])
 
-const today = new Date().toISOString()
+const today = ref(new Date().toISOString())
+
+let dateInterval
+onMounted(() => {
+  dateInterval = setInterval(() => {
+    const now = new Date().toISOString()
+    if (now.slice(0, 10) !== today.value.slice(0, 10)) {
+      today.value = now
+    }
+  }, 60_000)
+})
+
+onUnmounted(() => {
+  clearInterval(dateInterval)
+})
 
 const tooltip = ref(null)
 
 const minDate = computed(() => {
-  if (!props.applications?.length) return today
+  if (!props.applications?.length) return today.value
   const dates = props.applications.map(a => a.created_at).filter(Boolean)
-  return dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : today
+  return dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : today.value
 })
 
-const maxDate = computed(() => today)
+const maxDate = computed(() => today.value)
 
 const totalMs = computed(() => new Date(maxDate.value) - new Date(minDate.value) || 1)
 
@@ -132,7 +146,7 @@ function pctOf(isoDate) {
 }
 
 function getSegments(app) {
-  return computeSegments(app, today)
+  return computeSegments(app, today.value)
 }
 
 function segmentStyle(seg, isTerminalStage) {
