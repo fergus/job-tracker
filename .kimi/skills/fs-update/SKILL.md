@@ -19,7 +19,7 @@ This skill checks six categories:
 
 ## Safe vs. Prompt
 
-- **Auto-apply**: npm patch-level bumps only (Current and Wanted match, Latest differs only in patch segment)
+- **Auto-apply**: npm patch-level bumps only (Wanted > Current and the difference is patch-only, e.g. `3.3.1` → `3.3.3`)
 - **Always prompt**: npm minor bumps, npm major bumps, GitHub Actions version bumps, Docker image bumps
 - **CVEs**: Treated as higher priority — always surfaced separately with severity, even if the fix requires a major bump
 
@@ -48,7 +48,11 @@ For the Impeccable skill, discover the local path first, then compare versions:
 ```bash
 # Discover where the skill lives (could be .kimi/skills/ or .claude/skills/)
 SKILL_MD=$(find /path/to/project -path "*/skills/impeccable/SKILL.md" -print -quit)
-local_version=$(grep -E '^version:' "$SKILL_MD" 2>/dev/null | sed 's/version: //')
+if [ -z "$SKILL_MD" ]; then
+  local_version="NOT_INSTALLED"
+else
+  local_version=$(grep -E '^version:' "$SKILL_MD" 2>/dev/null | sed 's/version: //')
+fi
 remote_version=$(curl -s https://raw.githubusercontent.com/pbakaus/impeccable/main/.claude/skills/impeccable/SKILL.md | grep -E '^version:' | sed 's/version: //')
 ```
 
@@ -61,7 +65,7 @@ ce_latest=$(gh release list --repo EveryInc/compound-engineering-plugin --limit 
 
 ### 2. Categorise findings
 
-Build five lists:
+Build six lists:
 
 **A. Auto-apply (npm patch-only)**
 A package qualifies if:
@@ -94,7 +98,8 @@ For "Update now":
 # Use the discovered local path, not a hardcoded one
 SKILL_DIR=$(dirname "$SKILL_MD")
 cd /tmp && rm -rf impeccable && git clone --depth 1 https://github.com/pbakaus/impeccable.git
-# Copy from the remote .claude/skills layout into the local skills parent directory
+# Copy from the remote .claude/skills layout into the local skills parent directory.
+# This copies all impeccable sub-skills (adapt, animate, audit, etc.) into the repo.
 LOCAL_SKILLS_PARENT=$(dirname "$SKILL_DIR")
 cp -r /tmp/impeccable/.claude/skills/* "$LOCAL_SKILLS_PARENT/"
 # Run cleanup from the updated local copy
@@ -103,11 +108,18 @@ node "$SKILL_DIR/scripts/cleanup-deprecated.mjs"
 Then remove the `<post-update-cleanup>` section from `$SKILL_DIR/SKILL.md` if it exists.
 
 **F. Informational (Compound Engineering plugin)**
-If `ce_latest` was fetched successfully, compare it against the currently loaded plugin version (if determinable from skill paths or `ce-update` context). Surface it in the summary under "Plugins". No file changes are possible here — the update is applied via `claude plugin update`.
+If `ce_latest` was fetched successfully, compare it against the currently loaded plugin version. Determine the current version from the `ce-update` skill path if in Claude Code, or skip the current-version column if unavailable:
+
+```bash
+# Try to detect the currently loaded plugin version from the ce-update skill path
+ce_current=$(find /path/to/project -path "*/skills/ce-update/SKILL.md" -print -quit 2>/dev/null | xargs dirname 2>/dev/null | xargs dirname 2>/dev/null | xargs basename 2>/dev/null || true)
+```
+
+Surface the result in the summary under "Plugins". No file changes are possible here — the update is applied via `claude plugin update`.
 
 ### 3. Handle npm dist-tags
 
-When `npm outdated` reports `current > latest` (e.g. `4.1.0` vs `2.24.3`), the project may be tracking a non-default dist-tag. Run:
+After parsing `npm outdated --json`, identify any packages where `current > latest`. For those packages, run:
 
 ```bash
 npm view <package> dist-tags --json
@@ -206,7 +218,7 @@ Stage all modified files:
 
 ```bash
 git add \
-  server/package-lock.json \
+  server/package.json server/package-lock.json \
   client/package.json client/package-lock.json \
   Dockerfile \
   docker-compose.yml \
