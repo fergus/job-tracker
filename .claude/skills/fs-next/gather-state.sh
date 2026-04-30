@@ -53,7 +53,8 @@ npm_outdated_cached() {
 }
 
 echo "=== PENDING TODOS ==="
-ls todos/ | grep -- '-pending-' || echo "(none)"
+# Pending todos are in todos/ root and do NOT have '-complete-' in the filename
+ls todos/*.md 2>/dev/null | grep -v -- '-complete-' | xargs -n1 basename 2>/dev/null || echo "(none)"
 
 echo ""
 echo "=== IDEATION ==="
