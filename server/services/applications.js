@@ -103,17 +103,17 @@ function attachNotes(rows) {
 
 function listApplications(userEmail, { status, all, updated_since, isAdmin = false } = {}) {
   const showAll = isAdmin && all === 'true';
-  let sql = 'SELECT * FROM applications';
+  let sql = 'SELECT a.*, (SELECT COUNT(*) FROM attachments WHERE application_id = a.id) as attachment_count FROM applications a';
   const conditions = [];
   const params = [];
 
   if (!showAll) {
-    conditions.push('user_email = ?');
+    conditions.push('a.user_email = ?');
     params.push(userEmail);
   }
 
   if (status && VALID_STATUSES.includes(status)) {
-    conditions.push('status = ?');
+    conditions.push('a.status = ?');
     params.push(status);
   }
 
@@ -121,12 +121,12 @@ function listApplications(userEmail, { status, all, updated_since, isAdmin = fal
     if (isNaN(Date.parse(updated_since))) {
       throw new ServiceError(400, 'Invalid updated_since: expected ISO 8601 date string');
     }
-    conditions.push('updated_at > ?');
+    conditions.push('a.updated_at > ?');
     params.push(updated_since);
   }
 
   if (conditions.length > 0) sql += ' WHERE ' + conditions.join(' AND ');
-  sql += ' ORDER BY updated_at DESC';
+  sql += ' ORDER BY a.updated_at DESC';
 
   return attachNotes(db.prepare(sql).all(...params));
 }

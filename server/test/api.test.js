@@ -373,6 +373,29 @@ describe('Notes', () => {
     assert.equal(found.notes[0].content, '# Markdown heading\n- item 1');
   });
 
+  test('GET /api/applications includes attachment_count', async () => {
+    const email = 'attach-count@example.com';
+    const appRes = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', email)
+      .field('company_name', 'AttachCo')
+      .field('role_title', 'Tester');
+    const appId = appRes.body.id;
+
+    const listBefore = await req.get('/api/applications').set('X-Forwarded-Email', email);
+    const foundBefore = listBefore.body.find(a => a.id === appId);
+    assert.equal(foundBefore.attachment_count, 0);
+
+    await req
+      .post(`/api/applications/${appId}/attachments`)
+      .set('X-Forwarded-Email', email)
+      .attach('files', Buffer.from('test content'), 'test.txt');
+
+    const listAfter = await req.get('/api/applications').set('X-Forwarded-Email', email);
+    const foundAfter = listAfter.body.find(a => a.id === appId);
+    assert.equal(foundAfter.attachment_count, 1);
+  });
+
   test('PUT /api/applications/:id/notes/:noteId updates content and stage', async () => {
     const app = await createApp();
     const note = await createNote(app.id, { stage: 'screening', content: 'Old content' });

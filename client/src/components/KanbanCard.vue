@@ -31,12 +31,18 @@
         ></span>
         {{ formatDate(application.updated_at) }}
       </span>
-      <span class="flex gap-1 items-center">
-        <svg v-if="application.cv_filename" class="w-3.5 h-3.5 text-ink-3" title="CV attached" aria-label="CV attached" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <span class="flex gap-1.5 items-center">
+        <span v-if="application.attachment_count > 0" class="flex items-center gap-0.5 text-ink-3" :title="`${application.attachment_count} attachment${application.attachment_count > 1 ? 's' : ''}`">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 4v6a3 3 0 006 0V2.5a2.5 2.5 0 00-5 0v7a1.5 1.5 0 003 0V5" />
+          </svg>
+          <span v-if="application.attachment_count > 1" class="text-[10px] leading-none">{{ application.attachment_count }}</span>
+        </span>
+        <svg v-else-if="application.cv_filename" class="w-3.5 h-3.5 text-ink-3" title="CV attached" aria-label="CV attached" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 1H3.5A1.5 1.5 0 002 2.5v11A1.5 1.5 0 003.5 15h9A1.5 1.5 0 0014 13.5V6L9 1z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 1v5h5" />
         </svg>
-        <svg v-if="application.cover_letter_filename" class="w-3.5 h-3.5 text-ink-3" title="Cover letter attached" aria-label="Cover letter attached" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <svg v-else-if="application.cover_letter_filename" class="w-3.5 h-3.5 text-ink-3" title="Cover letter attached" aria-label="Cover letter attached" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M2 4.5A1.5 1.5 0 013.5 3h9A1.5 1.5 0 0114 4.5v7a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-7z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M2 4.5l6 4.5 6-4.5" />
         </svg>
