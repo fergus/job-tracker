@@ -208,9 +208,13 @@ const displayApplications = computed(() => {
   return applications.value.filter(a => !TERMINAL_STAGES.includes(a.status))
 })
 
-const closedCount = computed(() =>
-  applications.value.filter(a => TERMINAL_STAGES.includes(a.status)).length
-)
+const closedCount = computed(() => {
+  let count = 0
+  for (const a of applications.value) {
+    if (TERMINAL_STAGES.includes(a.status)) count++
+  }
+  return count
+})
 
 function toggleShowClosed() {
   if (dragActive.value) return
