@@ -220,9 +220,7 @@ function toggleShowClosed() {
 
 watch(showClosed, (visible) => {
   if (!visible && panelApp.value && TERMINAL_STAGES.includes(panelApp.value.status)) {
-    nextTick(() => {
-      showPanel.value = false
-    })
+    showPanel.value = false
   }
 })
 
