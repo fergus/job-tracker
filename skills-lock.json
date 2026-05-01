@@ -6,5 +6,14 @@
       "sourceType": "github",
       "computedHash": "a26b3dd377c4572b1c34c68f82ab9a1cb806f21c7157060327fe60e9b6d2e277"
     }
+  },
+  "plugins": {
+    "compound-engineering": {
+      "source": "EveryInc/compound-engineering-plugin",
+      "sourceType": "github",
+      "currentVersion": "3.3.2",
+      "latestVersion": "3.3.2",
+      "checkedAt": "2026-04-30T03:24:27Z"
+    }
   }
 }
