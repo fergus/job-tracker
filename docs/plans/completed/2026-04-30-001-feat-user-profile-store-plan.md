@@ -1,7 +1,7 @@
 ---
 title: User Profile / Master Resume Store
 type: feat
-status: active
+status: completed
 date: 2026-04-30
 origin: docs/brainstorms/2026-04-30-user-profile-master-resume-requirements.md
 ---
