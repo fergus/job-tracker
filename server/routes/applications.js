@@ -84,6 +84,32 @@ router.get('/:id', (req, res) => {
   } catch (e) { handleError(res, e); }
 });
 
+// Get assembled context for an application (own or admin view)
+router.get('/:id/context', (req, res) => {
+  try {
+    const existing = req.isAdmin
+      ? db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id)
+      : getOwnApp(req.params.id, req.userEmail);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    if (req.isAdmin && existing.user_email !== req.userEmail) {
+      console.info('[admin] %s accessed context for app %s owned by %s', req.userEmail, req.params.id, existing.user_email);
+    }
+
+    const notes = db.prepare('SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC').all(req.params.id);
+    const attachments = db.prepare('SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?').all(req.params.id);
+    const profile = db.prepare('SELECT * FROM user_profiles WHERE user_email = ?').get(existing.user_email);
+
+    res.json({
+      application: existing,
+      notes,
+      attachments,
+      profile: profile || null,
+      job_description: existing.job_description || null,
+    });
+  } catch (e) { handleError(res, e); }
+});
+
 // Create application (multipart for CV + cover letter)
 router.post('/', upload.fields([{ name: 'cv', maxCount: 1 }, { name: 'cover_letter', maxCount: 1 }]), (req, res) => {
   try {

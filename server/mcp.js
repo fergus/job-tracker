@@ -224,6 +224,35 @@ function createMcpServer() {
   );
 
   server.tool(
+    'get_application_context',
+    'Get the full context for a job application: application details, notes, attachments with extracted text, and user profile.',
+    {
+      application_id: z.number().int().positive().describe('Application ID'),
+    },
+    async (args, extra) => {
+      const userEmail = extra.authInfo?.clientId;
+      if (!userEmail) return { content: [{ type: 'text', text: 'Unauthorized' }], isError: true };
+      try {
+        const app = db.prepare('SELECT * FROM applications WHERE id = ? AND user_email = ?').get(args.application_id, userEmail);
+        if (!app) {
+          return { content: [{ type: 'text', text: 'Application not found' }], isError: true };
+        }
+        const notes = db.prepare('SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC').all(args.application_id);
+        const attachments = db.prepare('SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?').all(args.application_id);
+        const profile = db.prepare('SELECT * FROM user_profiles WHERE user_email = ?').get(userEmail);
+
+        return { content: [{ type: 'text', text: JSON.stringify({
+          application: app,
+          notes,
+          attachments,
+          profile: profile || null,
+          job_description: app.job_description || null,
+        }, null, 2) }] };
+      } catch (err) { return toolError(err); }
+    }
+  );
+
+  server.tool(
     'upload_attachment',
     'Upload a file attachment to an existing job application.',
     {

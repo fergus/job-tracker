@@ -748,6 +748,114 @@ describe('Profile', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Context Assembly
+// ---------------------------------------------------------------------------
+
+describe('Context Assembly', () => {
+  test('GET /api/applications/:id/context returns full context', async () => {
+    const email = 'context@example.com';
+    const app = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', email)
+      .field('company_name', 'ContextCo')
+      .field('role_title', 'Engineer')
+      .field('job_description', 'Build things');
+    assert.equal(app.status, 201);
+    const appId = app.body.id;
+
+    // Add a note
+    const noteRes = await req
+      .post(`/api/applications/${appId}/notes`)
+      .set('X-Forwarded-Email', email)
+      .send({ stage: 'interview', content: 'Great chat' });
+    assert.equal(noteRes.status, 201);
+
+    // Add an attachment
+    const attachRes = await req
+      .post(`/api/applications/${appId}/attachments`)
+      .set('X-Forwarded-Email', email)
+      .attach('files', Buffer.from('resume text'), 'resume.txt');
+    assert.equal(attachRes.status, 201);
+
+    // Update profile
+    await req
+      .put('/api/me/profile')
+      .set('X-Forwarded-Email', email)
+      .send({ full_name: 'Context User', cv_markdown: '# CV' });
+
+    // Get context
+    const res = await req
+      .get(`/api/applications/${appId}/context`)
+      .set('X-Forwarded-Email', email);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.application.id, appId);
+    assert.equal(res.body.application.company_name, 'ContextCo');
+    assert.equal(res.body.job_description, 'Build things');
+    assert.equal(res.body.notes.length, 1);
+    assert.equal(res.body.notes[0].content, 'Great chat');
+    assert.equal(res.body.attachments.length, 1);
+    assert.equal(res.body.attachments[0].extracted_text, 'resume text');
+    assert.equal(res.body.profile.full_name, 'Context User');
+    assert.equal(res.body.profile.cv_markdown, '# CV');
+  });
+
+  test('GET /api/applications/:id/context returns empty context', async () => {
+    const email = 'empty-context@example.com';
+    const app = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', email)
+      .field('company_name', 'EmptyCo')
+      .field('role_title', 'Engineer');
+    assert.equal(app.status, 201);
+    const appId = app.body.id;
+
+    const res = await req
+      .get(`/api/applications/${appId}/context`)
+      .set('X-Forwarded-Email', email);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.application.id, appId);
+    assert.deepEqual(res.body.notes, []);
+    assert.deepEqual(res.body.attachments, []);
+    assert.ok(res.body.profile);
+    assert.equal(res.body.job_description, null);
+  });
+
+  test('GET /api/applications/:id/context returns 404 for unknown id', async () => {
+    const res = await req.get('/api/applications/999999/context');
+    assert.equal(res.status, 404);
+  });
+
+  test('GET /api/applications/:id/context returns 404 for another user app', async () => {
+    const app = await createApp();
+    const res = await req
+      .get(`/api/applications/${app.id}/context`)
+      .set('X-Forwarded-Email', 'other@example.com');
+    assert.equal(res.status, 404);
+  });
+
+  test('admin GET /api/applications/:id/context returns context and logs', async () => {
+    const email = 'admin-context@example.com';
+    const app = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', email)
+      .field('company_name', 'AdminCo')
+      .field('role_title', 'Engineer');
+    assert.equal(app.status, 201);
+    const appId = app.body.id;
+
+    const res = await req
+      .get(`/api/applications/${appId}/context`)
+      .set('X-Forwarded-Email', 'admin@example.com');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.application.id, appId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MCP Server
+// ---------------------------------------------------------------------------
+
 describe('MCP Server', () => {
   let mcpServer;
   let mcpReq;
@@ -857,6 +965,132 @@ describe('MCP Server', () => {
     assert.equal(r2.status, 200, `second initialize should succeed, got: ${r2.body}`);
     assert.ok(r2.headers['mcp-session-id'], 'second session should have a session ID');
     assert.notEqual(r1.headers['mcp-session-id'], r2.headers['mcp-session-id'], 'session IDs should be unique');
+  });
+
+  test('get_application_context MCP tool returns assembled context', async () => {
+    // Create an app for the MCP key owner (mcp-test@example.com)
+    const appRes = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', 'mcp-test@example.com')
+      .field('company_name', 'McpCo')
+      .field('role_title', 'Engineer')
+      .field('job_description', 'MCP job desc');
+    assert.equal(appRes.status, 201);
+    const appId = appRes.body.id;
+
+    // Add a note
+    await req
+      .post(`/api/applications/${appId}/notes`)
+      .set('X-Forwarded-Email', 'mcp-test@example.com')
+      .send({ stage: 'interview', content: 'MCP note' });
+
+    // Initialize MCP session
+    const initBody = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'test', version: '1.0' }
+      }
+    };
+
+    const init = await mcpReq
+      .post('/')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .set('Accept', 'application/json, text/event-stream')
+      .set('Content-Type', 'application/json')
+      .send(initBody);
+    assert.equal(init.status, 200);
+    const sessionId = init.headers['mcp-session-id'];
+    assert.ok(sessionId);
+
+    // Call the tool
+    const toolBody = {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'get_application_context',
+        arguments: { application_id: appId },
+      }
+    };
+
+    const toolRes = await mcpReq
+      .post('/')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .set('Mcp-Session-Id', sessionId)
+      .set('Accept', 'application/json, text/event-stream')
+      .set('Content-Type', 'application/json')
+      .send(toolBody);
+
+    assert.equal(toolRes.status, 200);
+    // MCP tool responses are SSE streams — parse the data line
+    const lines = toolRes.text.trim().split('\n');
+    const dataLine = lines.find(l => l.startsWith('data: '));
+    assert.ok(dataLine, 'expected SSE data line');
+    const parsed = JSON.parse(dataLine.slice('data: '.length));
+    const result = parsed.result;
+    assert.ok(result);
+    assert.equal(result.content.length, 1);
+    const payload = JSON.parse(result.content[0].text);
+    assert.equal(payload.application.id, appId);
+    assert.equal(payload.application.company_name, 'McpCo');
+    assert.equal(payload.job_description, 'MCP job desc');
+    assert.equal(payload.notes.length, 1);
+    assert.equal(payload.notes[0].content, 'MCP note');
+    assert.ok(payload.profile);
+  });
+
+  test('get_application_context MCP tool returns error for unknown app', async () => {
+    // Initialize MCP session
+    const initBody = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'test', version: '1.0' }
+      }
+    };
+
+    const init = await mcpReq
+      .post('/')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .set('Accept', 'application/json, text/event-stream')
+      .set('Content-Type', 'application/json')
+      .send(initBody);
+    assert.equal(init.status, 200);
+    const sessionId = init.headers['mcp-session-id'];
+
+    const toolBody = {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'get_application_context',
+        arguments: { application_id: 999999 },
+      }
+    };
+
+    const toolRes = await mcpReq
+      .post('/')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .set('Mcp-Session-Id', sessionId)
+      .set('Accept', 'application/json, text/event-stream')
+      .set('Content-Type', 'application/json')
+      .send(toolBody);
+
+    assert.equal(toolRes.status, 200);
+    const lines = toolRes.text.trim().split('\n');
+    const dataLine = lines.find(l => l.startsWith('data: '));
+    assert.ok(dataLine);
+    const parsed = JSON.parse(dataLine.slice('data: '.length));
+    const result = parsed.result;
+    assert.equal(result.isError, true);
+    assert.ok(result.content[0].text.includes('not found'));
   });
 });
 
