@@ -534,92 +534,70 @@
                       </button>
                     </div>
                   </div>
-                  <!-- Drop zone -->
-                  <div
-                    class="border rounded-lg p-4 text-center cursor-pointer transition-all duration-200"
-                    :class="dropZoneClasses"
-                    @dragenter.prevent="onDragEnter"
-                    @dragover.prevent="onDragOver"
-                    @dragleave="onDragLeave"
-                    @drop.prevent="onEditDrop"
-                    @click="triggerFileInput('edit')"
-                    role="button"
-                    tabindex="0"
-                    aria-label="Add files"
-                    @keydown.enter="triggerFileInput('edit')"
-                    @keydown.space.prevent="triggerFileInput('edit')"
-                  >
-                    <span class="text-sm text-ink-3 select-none">
-                      <span v-if="isDragOver" class="text-accent font-medium">Drop to attach</span>
-                      <span v-else>Drop files or click to add</span>
-                    </span>
-                    <input ref="editFileInput" type="file" @change="onEditFileInput" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
-                  </div>
                 </div>
               </div>
             </details>
 
           </template>
 
-          <!-- Create mode: onboarding tip -->
-          <div v-if="!isEdit && !notesTipDismissed && totalApplications === 0" class="flex items-start gap-2 mt-4 p-2.5 rounded-lg bg-accent-muted/20 border border-accent/10">
-            <svg class="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <p class="text-sm text-ink-2 flex-1">Track your progress through the pipeline by changing status in the bar above. Add details now, or come back later — nothing is set in stone.</p>
-            <button
-              @click="dismissNotesTip"
-              class="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-ink transition-colors"
-              aria-label="Dismiss tip"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-
-          <!-- Create mode: queued file preview -->
-          <template v-else>
-            <div class="mt-7 pt-5 border-t border-line">
-              <!-- Bounded file list -->
-              <div v-if="queuedFiles.length" class="bg-sunken rounded-lg p-2 mb-2 space-y-0.5">
-                <div
-                  v-for="(f, i) in queuedFiles"
-                  :key="i"
-                  class="flex items-center justify-between py-1.5 px-2 rounded hover:bg-panel/60 transition-colors"
-                >
-                  <div class="flex items-center gap-2 min-w-0">
-                    <span
-                      class="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-panel text-[8px] font-bold leading-none"
-                      :class="fileTypeMeta(f.name).color"
-                      :style="fileTypeMeta(f.name).style"
-                    >{{ fileTypeMeta(f.name).label }}</span>
-                    <span class="text-sm text-ink-2 truncate">{{ f.name }}</span>
-                  </div>
-                  <button @click="queuedFiles.splice(i, 1)" class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0" aria-label="Remove file">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              </div>
-              <!-- Drop zone -->
-              <div
-                class="border rounded-lg p-4 text-center cursor-pointer transition-all duration-200"
-                :class="dropZoneClasses"
-                @dragenter.prevent="onDragEnter"
-                @dragover.prevent="onDragOver"
-                @dragleave="onDragLeave"
-                @drop.prevent="onCreateDrop"
-                @click="triggerFileInput('create')"
-                role="button"
-                tabindex="0"
-                aria-label="Add files"
-                @keydown.enter="triggerFileInput('create')"
-                @keydown.space.prevent="triggerFileInput('create')"
+          <!-- Files -->
+          <div class="mt-7 pt-5 border-t border-line">
+            <!-- Onboarding tip -->
+            <div v-if="!isEdit && !notesTipDismissed && totalApplications === 0" class="flex items-start gap-2 mb-4 p-2.5 rounded-lg bg-accent-muted/20 border border-accent/10">
+              <svg class="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <p class="text-sm text-ink-2 flex-1">Track your progress through the pipeline by changing status in the bar above. Add details now, or come back later — nothing is set in stone.</p>
+              <button
+                @click="dismissNotesTip"
+                class="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-ink transition-colors"
+                aria-label="Dismiss tip"
               >
-                <span class="text-sm text-ink-3 select-none">
-                  <span v-if="isDragOver" class="text-accent font-medium">Drop to attach</span>
-                  <span v-else>Drop files or click to add</span>
-                </span>
-                <input ref="createFileInput" type="file" @change="onCreateFileInput" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <!-- Queued files preview -->
+            <div v-if="queuedFiles.length" class="bg-sunken rounded-lg p-2 mb-2 space-y-0.5">
+              <div
+                v-for="(f, i) in queuedFiles"
+                :key="i"
+                class="flex items-center justify-between py-1.5 px-2 rounded hover:bg-panel/60 transition-colors"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <span
+                    class="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-panel text-[8px] font-bold leading-none"
+                    :class="fileTypeMeta(f.name).color"
+                    :style="fileTypeMeta(f.name).style"
+                  >{{ fileTypeMeta(f.name).label }}</span>
+                  <span class="text-sm text-ink-2 truncate">{{ f.name }}</span>
+                </div>
+                <button @click="queuedFiles.splice(i, 1)" class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0" aria-label="Remove file">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
               </div>
-            </div><!-- /create-mode files wrapper -->
-          </template>
+            </div>
+
+            <!-- Drop zone -->
+            <div
+              class="border rounded-lg p-4 text-center cursor-pointer transition-all duration-200"
+              :class="dropZoneClasses"
+              @dragenter.prevent="onDragEnter"
+              @dragover.prevent="onDragOver"
+              @dragleave="onDragLeave"
+              @drop.prevent="onDrop"
+              @click="triggerFileInput"
+              role="button"
+              tabindex="0"
+              aria-label="Add files"
+              @keydown.enter="triggerFileInput"
+              @keydown.space.prevent="triggerFileInput"
+            >
+              <span class="text-sm text-ink-3 select-none">
+                <span v-if="isDragOver" class="text-accent font-medium">Drop to attach</span>
+                <span v-else>Drop files or click to add</span>
+              </span>
+              <input ref="fileInput" type="file" @change="onFileInput" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
+            </div>
+          </div>
 
         </div>
       </div>
@@ -837,6 +815,7 @@ watch(() => props.panelApp?.id, (newId) => {
 })
 
 function isDirty() {
+  if (queuedFiles.value.length > 0) return true
   const a = props.panelApp || {}
   if (!isEdit.value) {
     // Create mode: any filled field counts as dirty
@@ -935,6 +914,11 @@ async function save() {
         company_website_url: form.company_website_url,
         job_location: form.job_location,
       })
+      if (queuedFiles.value.length > 0) {
+        await uploadAttachments(props.panelApp.id, queuedFiles.value)
+        queuedFiles.value = []
+        await loadAttachments()
+      }
       emit('saved')
       toast.success('Changes saved')
     } else {
@@ -1112,8 +1096,7 @@ function miniDays(seg) {
 const attachments = ref([])
 const attachmentsLoading = ref(false)
 const queuedFiles = ref([])
-const editFileInput = ref(null)
-const createFileInput = ref(null)
+const fileInput = ref(null)
 const isDragOver = ref(false)
 const dragDepth = ref(0)
 
@@ -1155,9 +1138,8 @@ function onDragLeave(event) {
   }
 }
 
-function triggerFileInput(mode) {
-  const input = mode === 'edit' ? editFileInput.value : createFileInput.value
-  input?.click()
+function triggerFileInput() {
+  fileInput.value?.click()
 }
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.md', '.txt']
@@ -1179,47 +1161,23 @@ function validateFiles(files) {
   return valid
 }
 
-async function handleEditFiles(files) {
-  const valid = validateFiles(files)
-  if (!valid.length) return
-  try {
-    await uploadAttachments(props.panelApp.id, valid)
-    await loadAttachments()
-  } catch (err) {
-    toast.error('Upload failed: ' + (err.response?.data?.error || err.message))
-  }
-}
-
-function handleCreateFiles(files) {
+function queueFiles(files) {
   const valid = validateFiles(files)
   if (!valid.length) return
   queuedFiles.value.push(...valid)
 }
 
-function onEditFileInput(e) {
+function onFileInput(e) {
   const files = Array.from(e.target.files)
   e.target.value = ''
-  handleEditFiles(files)
+  queueFiles(files)
 }
 
-function onCreateFileInput(e) {
-  const files = Array.from(e.target.files)
-  e.target.value = ''
-  handleCreateFiles(files)
-}
-
-async function onEditDrop(event) {
+function onDrop(event) {
   dragDepth.value = 0
   isDragOver.value = false
   const files = Array.from(event.dataTransfer.files)
-  handleEditFiles(files)
-}
-
-function onCreateDrop(event) {
-  dragDepth.value = 0
-  isDragOver.value = false
-  const files = Array.from(event.dataTransfer.files)
-  handleCreateFiles(files)
+  queueFiles(files)
 }
 
 async function removeAttachment(attachmentId) {
