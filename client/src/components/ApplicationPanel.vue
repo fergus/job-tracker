@@ -502,41 +502,60 @@
                 <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
               </summary>
               <div class="mt-3">
-                <div v-if="attachmentsLoading" class="text-sm text-ink-3">Loading...</div>
+                <div v-if="attachmentsLoading" class="text-sm text-ink-3 mb-2">Loading...</div>
                 <div v-else>
-                  <div v-if="attachments.length === 0" class="text-sm text-ink-3 mb-2">No attachments — upload your CV or cover letter so everything is in one place.</div>
-                  <div
-                    v-for="att in attachments"
-                    :key="att.id"
-                    class="flex items-center justify-between py-2 border-b border-line last:border-0"
-                  >
-                    <div class="flex items-center gap-2 min-w-0">
-                      <span
-                        class="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded bg-sunken text-[9px] font-bold leading-none"
-                        :class="fileTypeMeta(att.original_filename).color"
-                        :style="fileTypeMeta(att.original_filename).style"
-                      >{{ fileTypeMeta(att.original_filename).label }}</span>
-                      <a
-                        :href="getAttachmentUrl(panelApp.id, att.id)"
-                        class="text-sm text-accent hover:underline truncate"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >{{ att.original_filename }}</a>
-                    </div>
-                    <button
-                      @click="removeAttachment(att.id)"
-                      class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
-                      title="Delete attachment"
-                      aria-label="Delete attachment"
+                  <!-- Bounded file list -->
+                  <div v-if="attachments.length" class="bg-sunken rounded-lg p-2 mb-2 space-y-0.5">
+                    <div
+                      v-for="att in attachments"
+                      :key="att.id"
+                      class="flex items-center justify-between py-1.5 px-2 rounded hover:bg-panel/60 transition-colors"
                     >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span
+                          class="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded bg-panel text-[9px] font-bold leading-none"
+                          :class="fileTypeMeta(att.original_filename).color"
+                          :style="fileTypeMeta(att.original_filename).style"
+                        >{{ fileTypeMeta(att.original_filename).label }}</span>
+                        <a
+                          :href="getAttachmentUrl(panelApp.id, att.id)"
+                          class="text-sm text-accent hover:underline truncate"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >{{ att.original_filename }}</a>
+                      </div>
+                      <button
+                        @click="removeAttachment(att.id)"
+                        class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0"
+                        title="Delete attachment"
+                        aria-label="Delete attachment"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- Drop zone -->
+                  <div
+                    class="border rounded-lg p-4 text-center cursor-pointer transition-all duration-200"
+                    :class="dropZoneClasses"
+                    @dragenter.prevent="onDragEnter"
+                    @dragover.prevent="onDragOver"
+                    @dragleave="onDragLeave"
+                    @drop.prevent="onEditDrop"
+                    @click="triggerFileInput('edit')"
+                    role="button"
+                    tabindex="0"
+                    aria-label="Add files"
+                    @keydown.enter="triggerFileInput('edit')"
+                    @keydown.space.prevent="triggerFileInput('edit')"
+                  >
+                    <span class="text-sm text-ink-3 select-none">
+                      <span v-if="isDragOver" class="text-accent font-medium">Drop to attach</span>
+                      <span v-else>Drop files or click to add</span>
+                    </span>
+                    <input ref="editFileInput" type="file" @change="onEditFileInput" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
                   </div>
                 </div>
-                <label class="mt-2 inline-block text-xs text-accent hover:underline cursor-pointer">
-                  Upload files
-                  <input type="file" @change="onAttachmentSelect" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
-                </label>
               </div>
             </details>
 
@@ -558,30 +577,47 @@
           <!-- Create mode: queued file preview -->
           <template v-else>
             <div class="mt-7 pt-5 border-t border-line">
-            <div v-if="queuedFiles.length">
-              <h3 class="text-xs font-medium text-ink-3 uppercase tracking-wide mb-2">Files to upload</h3>
-              <div
-                v-for="(f, i) in queuedFiles"
-                :key="i"
-                class="flex items-center justify-between py-1 text-sm text-ink-2"
-              >
-                <div class="flex items-center gap-2 min-w-0">
-                  <span
-                    class="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-sunken text-[8px] font-bold leading-none"
-                    :class="fileTypeMeta(f.name).color"
-                    :style="fileTypeMeta(f.name).style"
-                  >{{ fileTypeMeta(f.name).label }}</span>
-                  <span class="truncate">{{ f.name }}</span>
+              <!-- Bounded file list -->
+              <div v-if="queuedFiles.length" class="bg-sunken rounded-lg p-2 mb-2 space-y-0.5">
+                <div
+                  v-for="(f, i) in queuedFiles"
+                  :key="i"
+                  class="flex items-center justify-between py-1.5 px-2 rounded hover:bg-panel/60 transition-colors"
+                >
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span
+                      class="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-panel text-[8px] font-bold leading-none"
+                      :class="fileTypeMeta(f.name).color"
+                      :style="fileTypeMeta(f.name).style"
+                    >{{ fileTypeMeta(f.name).label }}</span>
+                    <span class="text-sm text-ink-2 truncate">{{ f.name }}</span>
+                  </div>
+                  <button @click="queuedFiles.splice(i, 1)" class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0" aria-label="Remove file">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
                 </div>
-                <button @click="queuedFiles.splice(i, 1)" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-danger ml-1 shrink-0" aria-label="Remove file">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
               </div>
-            </div>
-            <label class="inline-block text-xs text-accent hover:underline cursor-pointer">
-              Attach files
-              <input type="file" @change="onQueueFiles" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
-            </label>
+              <!-- Drop zone -->
+              <div
+                class="border rounded-lg p-4 text-center cursor-pointer transition-all duration-200"
+                :class="dropZoneClasses"
+                @dragenter.prevent="onDragEnter"
+                @dragover.prevent="onDragOver"
+                @dragleave="onDragLeave"
+                @drop.prevent="onCreateDrop"
+                @click="triggerFileInput('create')"
+                role="button"
+                tabindex="0"
+                aria-label="Add files"
+                @keydown.enter="triggerFileInput('create')"
+                @keydown.space.prevent="triggerFileInput('create')"
+              >
+                <span class="text-sm text-ink-3 select-none">
+                  <span v-if="isDragOver" class="text-accent font-medium">Drop to attach</span>
+                  <span v-else>Drop files or click to add</span>
+                </span>
+                <input ref="createFileInput" type="file" @change="onCreateFileInput" accept=".pdf,.doc,.docx,.md,.txt" class="hidden" multiple />
+              </div>
             </div><!-- /create-mode files wrapper -->
           </template>
 
@@ -1076,6 +1112,17 @@ function miniDays(seg) {
 const attachments = ref([])
 const attachmentsLoading = ref(false)
 const queuedFiles = ref([])
+const editFileInput = ref(null)
+const createFileInput = ref(null)
+const isDragOver = ref(false)
+const dragDepth = ref(0)
+
+const dropZoneClasses = computed(() => {
+  if (isDragOver.value) {
+    return 'border-accent bg-accent-muted/10'
+  }
+  return 'border-line hover:border-line-2'
+})
 
 async function loadAttachments() {
   if (!props.panelApp?.id) return
@@ -1089,16 +1136,90 @@ async function loadAttachments() {
   }
 }
 
-async function onAttachmentSelect(e) {
-  const files = Array.from(e.target.files)
-  e.target.value = ''
-  if (!files.length) return
+function onDragEnter(event) {
+  dragDepth.value++
+  if (dragDepth.value === 1) {
+    isDragOver.value = true
+  }
+}
+
+function onDragOver(event) {
+  event.preventDefault()
+}
+
+function onDragLeave(event) {
+  dragDepth.value--
+  if (dragDepth.value <= 0) {
+    dragDepth.value = 0
+    isDragOver.value = false
+  }
+}
+
+function triggerFileInput(mode) {
+  const input = mode === 'edit' ? editFileInput.value : createFileInput.value
+  input?.click()
+}
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.md', '.txt']
+
+function validateFiles(files) {
+  const valid = []
+  const invalid = []
+  for (const file of files) {
+    const ext = '.' + (file.name.split('.').pop() || '').toLowerCase()
+    if (ALLOWED_EXTENSIONS.includes(ext)) {
+      valid.push(file)
+    } else {
+      invalid.push(file.name)
+    }
+  }
+  if (invalid.length) {
+    toast.error(`Skipped ${invalid.length} file${invalid.length > 1 ? 's' : ''} with unsupported type: ${invalid.join(', ')}`)
+  }
+  return valid
+}
+
+async function handleEditFiles(files) {
+  const valid = validateFiles(files)
+  if (!valid.length) return
   try {
-    await uploadAttachments(props.panelApp.id, files)
+    await uploadAttachments(props.panelApp.id, valid)
     await loadAttachments()
   } catch (err) {
     toast.error('Upload failed: ' + (err.response?.data?.error || err.message))
   }
+}
+
+function handleCreateFiles(files) {
+  const valid = validateFiles(files)
+  if (!valid.length) return
+  queuedFiles.value.push(...valid)
+}
+
+function onEditFileInput(e) {
+  const files = Array.from(e.target.files)
+  e.target.value = ''
+  handleEditFiles(files)
+}
+
+function onCreateFileInput(e) {
+  const files = Array.from(e.target.files)
+  e.target.value = ''
+  handleCreateFiles(files)
+}
+
+async function onEditDrop(event) {
+  dragDepth.value = 0
+  isDragOver.value = false
+  const files = Array.from(event.dataTransfer.files)
+  handleEditFiles(files)
+}
+
+function onCreateDrop(event) {
+  dragDepth.value = 0
+  isDragOver.value = false
+  const files = Array.from(event.dataTransfer.files)
+  handleCreateFiles(files)
 }
 
 async function removeAttachment(attachmentId) {
@@ -1108,12 +1229,6 @@ async function removeAttachment(attachmentId) {
   } catch (err) {
     toast.error('Error deleting attachment: ' + (err.response?.data?.error || err.message))
   }
-}
-
-function onQueueFiles(e) {
-  const files = Array.from(e.target.files)
-  e.target.value = ''
-  queuedFiles.value.push(...files)
 }
 
 const newNoteStage = ref('interested')

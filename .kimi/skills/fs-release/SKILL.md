@@ -45,16 +45,33 @@ git push
 ### 5. Create GitHub release
 
 Release notes strategy:
-- If this is a routine patch (one or two small fixes), use `--generate-notes`
-- If this release spans notable changes or multiple versions' worth of work, write release notes by hand — summarise features, fixes, and behaviour changes in plain language (not just commit messages)
+- **Patch releases:** Always write release notes by hand. Capture everything that has happened since the **last minor update** (e.g. for `v0.15.5`, summarise all changes since `v0.15.0`). Do not use `--generate-notes` for patches.
+- **Minor / major releases:** May use `--generate-notes`, or write by hand if the changes are significant.
+
+To find the last minor tag and list commits since then:
 
 ```bash
-# Routine patch:
-gh release create v<NEW_VERSION> --title "v<NEW_VERSION>" --generate-notes
+# Find the most recent x.y.0 tag
+LAST_MINOR=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.0$' | head -1)
 
-# Significant release:
+# List commits since that minor tag
+git log "${LAST_MINOR}..HEAD" --oneline
+```
+
+Write notes in plain language, grouped by category (Features, Fixes, Chores). Do not just paste commit messages.
+
+```bash
 gh release create v<NEW_VERSION> --title "v<NEW_VERSION>" --notes "$(cat <<'EOF'
-<hand-written notes here>
+## Features
+- ...
+
+## Fixes
+- ...
+
+## Chores
+- ...
+
+**Full Changelog**: https://github.com/fergus/job-tracker/compare/<LAST_MINOR>...v<NEW_VERSION>
 EOF
 )"
 ```
