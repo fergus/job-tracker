@@ -118,3 +118,11 @@ export function fetchProfile() {
 export function updateProfile(data) {
   return api.put('/me/profile', data).then(r => r.data)
 }
+
+export function extractJd(appId) {
+  return api.post(`/applications/${appId}/extract-jd`).then(r => r.data)
+}
+
+export function fetchJd(appId) {
+  return api.post(`/applications/${appId}/fetch-jd`).then(r => r.data)
+}

@@ -76,16 +76,15 @@
             :style="{ left: tick.pct + '%' }"
           >
             <div class="h-2 w-px bg-line-2"></div>
-            <span class="text-xs text-ink-3 whitespace-nowrap" style="transform: translateX(-50%)">{{ tick.label }}</span>
+            <span class="text-xs text-ink-3 whitespace-nowrap -translate-x-1/2">{{ tick.label }}</span>
           </div>
           <!-- Today anchor when no month ticks -->
           <div
             v-if="monthTicks.length <= 1"
-            class="absolute top-0 h-full flex flex-col justify-end"
-            style="left: 100%"
+            class="absolute top-0 h-full flex flex-col justify-end left-full"
           >
             <div class="h-2 w-px bg-line-2"></div>
-            <span class="text-xs text-ink-3 whitespace-nowrap" style="transform: translateX(-50%)">Today</span>
+            <span class="text-xs text-ink-3 whitespace-nowrap -translate-x-1/2">Today</span>
           </div>
         </div>
       </div>
@@ -108,7 +107,7 @@
           class="flex items-center group cursor-pointer hover:bg-raised rounded transition-colors min-h-9"
           role="button"
           tabindex="0"
-          :aria-label="`${app.company_name} — ${app.role_title}, currently ${app.status}`"
+          :aria-label="`${app.company_name} — ${app.role_title}, currently ${app.status}, started ${formatShortDate(app.created_at)}`"
           @click="$emit('open-detail', app)"
           @keydown.enter="$emit('open-detail', app)"
           @keydown.space.prevent="$emit('open-detail', app)"

@@ -70,7 +70,7 @@
               @end="dragActive = false"
             >
               <template #item="{ element }">
-                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
               </template>
             </draggable>
           </div>
@@ -95,7 +95,7 @@
               @end="dragActive = false"
             >
               <template #item="{ element }">
-                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
               </template>
             </draggable>
           </div>
@@ -115,7 +115,7 @@
               :key="app.id"
               :application="app"
               :showUser="showUser"
-              :quiet="isQuieted(app.status)"
+              :quiet="isMuted(app.status)"
               @select="$emit('select', app)"
             />
           </div>
@@ -201,7 +201,7 @@
                 @end="dragActive = false"
               >
                 <template #item="{ element }">
-                  <KanbanCard :application="element" :showUser="showUser" :quiet="isQuieted(element.status)" @select="$emit('select', element)" />
+                  <KanbanCard :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
                 </template>
               </draggable>
             </div>
@@ -223,7 +223,7 @@ import { reactive, watch, ref, computed, nextTick } from 'vue'
 // vuedraggable is being replaced for another reason.
 import draggable from 'vuedraggable'
 import KanbanCard from './KanbanCard.vue'
-import { TERMINAL_STAGES, isQuieted } from '../utils/timeline.js'
+import { TERMINAL_STAGES, isMuted } from '../utils/timeline.js'
 
 const props = defineProps({
   applications: Array,

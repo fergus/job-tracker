@@ -5,6 +5,8 @@ const fs = require('fs');
 const db = require('../db');
 const svc = require('../services/applications');
 const { ServiceError, VALID_STATUSES, uploadsDir, safePath, safeDeleteFile } = svc;
+const { extractStructuredJD } = require('../services/extraction');
+const { fetchJobDescription, FetchError } = require('../services/fetch-jd');
 
 const router = express.Router();
 
@@ -389,6 +391,79 @@ router.delete('/:id/notes/:noteId', (req, res) => {
   db.prepare('DELETE FROM stage_notes WHERE id = ?').run(req.params.noteId);
   db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
   res.json({ success: true });
+});
+
+// Extract structured data from existing job_description (owner or admin)
+router.post('/:id/extract-jd', async (req, res) => {
+  try {
+    const existing = req.isAdmin
+      ? db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id)
+      : getOwnApp(req.params.id, req.userEmail);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    if (!existing.job_description || !existing.job_description.trim()) {
+      return res.status(422).json({ error: 'Job description is empty' });
+    }
+
+    if (req.isAdmin && existing.user_email !== req.userEmail) {
+      console.info('[admin] %s triggered JD extraction for app %s owned by %s', req.userEmail, req.params.id, existing.user_email);
+    }
+
+    const extracted = await extractStructuredJD(existing.job_description)
+    if (!extracted) {
+      return res.status(502).json({ error: 'Extraction failed. The LLM service may be unavailable.' });
+    }
+
+    const now = new Date().toISOString();
+    db.prepare('UPDATE applications SET extracted_jd = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(extracted), now, req.params.id);
+
+    res.json({ extracted_jd: extracted });
+  } catch (e) { handleError(res, e); }
+});
+
+// Fetch job description from URL and auto-extract (owner or admin)
+router.post('/:id/fetch-jd', async (req, res) => {
+  try {
+    const existing = req.isAdmin
+      ? db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id)
+      : getOwnApp(req.params.id, req.userEmail);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    if (!existing.job_posting_url || !existing.job_posting_url.trim()) {
+      return res.status(422).json({ error: 'Job posting URL is empty' });
+    }
+
+    if (req.isAdmin && existing.user_email !== req.userEmail) {
+      console.info('[admin] %s triggered JD fetch for app %s owned by %s', req.userEmail, req.params.id, existing.user_email);
+    }
+
+    let text
+    try {
+      text = await fetchJobDescription(existing.job_posting_url)
+    } catch (fetchErr) {
+      if (fetchErr instanceof FetchError) {
+        return res.status(502).json({ error: fetchErr.message, type: fetchErr.type });
+      }
+      throw fetchErr
+    }
+
+    const now = new Date().toISOString();
+    db.prepare('UPDATE applications SET job_description = ?, updated_at = ? WHERE id = ?')
+      .run(text, now, req.params.id);
+
+    // Auto-trigger structured extraction
+    const extracted = await extractStructuredJD(text)
+    if (extracted) {
+      db.prepare('UPDATE applications SET extracted_jd = ? WHERE id = ?')
+        .run(JSON.stringify(extracted), req.params.id);
+    }
+
+    res.json({
+      job_description: text,
+      extracted_jd: extracted,
+    });
+  } catch (e) { handleError(res, e); }
 });
 
 module.exports = router;

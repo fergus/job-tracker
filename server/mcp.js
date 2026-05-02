@@ -10,6 +10,8 @@ const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/ser
 const { z } = require('zod');
 const db = require('./db');
 const svc = require('./services/applications');
+const { extractStructuredJD } = require('./services/extraction');
+const { fetchJobDescription, FetchError } = require('./services/fetch-jd');
 
 // API key secret — same config as auth middleware
 let apiKeySecret;
@@ -270,6 +272,71 @@ function createMcpServer() {
         const originalname = path.basename(args.file_path);
         const result = await svc.uploadAttachments(userEmail, args.application_id, [{ originalname, buffer }]);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (err) { return toolError(err); }
+    }
+  );
+
+  server.tool(
+    'extract_job_description',
+    'Extract structured data (skills, responsibilities, salary, etc.) from the existing job description text of an application.',
+    {
+      application_id: z.number().int().positive().describe('Application ID'),
+    },
+    async (args, extra) => {
+      const userEmail = extra.authInfo?.clientId;
+      if (!userEmail) return { content: [{ type: 'text', text: 'Unauthorized' }], isError: true };
+      try {
+        const app = db.prepare('SELECT * FROM applications WHERE id = ? AND user_email = ?').get(args.application_id, userEmail);
+        if (!app) {
+          return { content: [{ type: 'text', text: 'Application not found' }], isError: true };
+        }
+        if (!app.job_description || !app.job_description.trim()) {
+          return { content: [{ type: 'text', text: 'Job description is empty' }], isError: true };
+        }
+        const extracted = await extractStructuredJD(app.job_description);
+        if (!extracted) {
+          return { content: [{ type: 'text', text: 'Extraction failed. The LLM service may be unavailable.' }], isError: true };
+        }
+        const now = new Date().toISOString();
+        db.prepare('UPDATE applications SET extracted_jd = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(extracted), now, args.application_id);
+        return { content: [{ type: 'text', text: JSON.stringify(extracted, null, 2) }] };
+      } catch (err) { return toolError(err); }
+    }
+  );
+
+  server.tool(
+    'fetch_job_description',
+    'Fetch a job description from the job_posting_url, store it on the application, and extract structured data.',
+    {
+      application_id: z.number().int().positive().describe('Application ID'),
+    },
+    async (args, extra) => {
+      const userEmail = extra.authInfo?.clientId;
+      if (!userEmail) return { content: [{ type: 'text', text: 'Unauthorized' }], isError: true };
+      try {
+        const app = db.prepare('SELECT * FROM applications WHERE id = ? AND user_email = ?').get(args.application_id, userEmail);
+        if (!app) {
+          return { content: [{ type: 'text', text: 'Application not found' }], isError: true };
+        }
+        if (!app.job_posting_url || !app.job_posting_url.trim()) {
+          return { content: [{ type: 'text', text: 'Job posting URL is empty' }], isError: true };
+        }
+        let text;
+        try {
+          text = await fetchJobDescription(app.job_posting_url);
+        } catch (fetchErr) {
+          if (fetchErr instanceof FetchError) {
+            return { content: [{ type: 'text', text: fetchErr.message }], isError: true };
+          }
+          throw fetchErr;
+        }
+        const now = new Date().toISOString();
+        db.prepare('UPDATE applications SET job_description = ?, updated_at = ? WHERE id = ?').run(text, now, args.application_id);
+        const extracted = await extractStructuredJD(text);
+        if (extracted) {
+          db.prepare('UPDATE applications SET extracted_jd = ? WHERE id = ?').run(JSON.stringify(extracted), args.application_id);
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ job_description: text, extracted_jd: extracted }, null, 2) }] };
       } catch (err) { return toolError(err); }
     }
   );

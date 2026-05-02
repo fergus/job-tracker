@@ -134,6 +134,12 @@ db.exec(`
 db.exec('CREATE INDEX IF NOT EXISTS idx_api_keys_user_email ON api_keys(user_email)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash)');
 
+// Migrate: add extracted_jd column to applications if missing
+const extractedJdCheck = db.prepare('PRAGMA table_info(applications)').all();
+if (!extractedJdCheck.some(c => c.name === 'extracted_jd')) {
+  db.exec('ALTER TABLE applications ADD COLUMN extracted_jd TEXT');
+}
+
 // User profiles table (candidate identity, narrative, and agent instructions)
 db.exec(`
   CREATE TABLE IF NOT EXISTS user_profiles (

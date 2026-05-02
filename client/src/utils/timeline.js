@@ -5,7 +5,7 @@ export function isTerminal(status) {
   return TERMINAL_STAGES.includes(status)
 }
 
-export function isQuieted(status) {
+export function isMuted(status) {
   return status === 'rejected'
 }
 

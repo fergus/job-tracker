@@ -749,6 +749,70 @@ describe('Profile', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Job Description Extraction
+// ---------------------------------------------------------------------------
+
+describe('Job Description Extraction', () => {
+  test('POST /api/applications/:id/extract-jd returns 404 for unknown app', async () => {
+    const res = await req.post('/api/applications/999999/extract-jd');
+    assert.equal(res.status, 404);
+  });
+
+  test('POST /api/applications/:id/extract-jd returns 422 when job_description is empty', async () => {
+    const app = await createApp();
+    const res = await req.post(`/api/applications/${app.id}/extract-jd`);
+    assert.equal(res.status, 422);
+    assert.ok(res.body.error.includes('empty'));
+  });
+
+  test('POST /api/applications/:id/extract-jd returns 502 when OPENAI_API_KEY is not set', async () => {
+    const app = await createApp();
+    await req.put(`/api/applications/${app.id}`).send({ job_description: 'Senior Engineer role. Requires Python and AWS.' });
+    const res = await req.post(`/api/applications/${app.id}/extract-jd`);
+    assert.equal(res.status, 502);
+    assert.ok(res.body.error.includes('unavailable'));
+  });
+
+  test('POST /api/applications/:id/fetch-jd returns 404 for unknown app', async () => {
+    const res = await req.post('/api/applications/999999/fetch-jd');
+    assert.equal(res.status, 404);
+  });
+
+  test('POST /api/applications/:id/fetch-jd returns 422 when job_posting_url is empty', async () => {
+    const app = await createApp();
+    const res = await req.post(`/api/applications/${app.id}/fetch-jd`);
+    assert.equal(res.status, 422);
+    assert.ok(res.body.error.includes('empty'));
+  });
+
+  test('POST /api/applications/:id/fetch-jd returns 502 when fetch fails', async () => {
+    const app = await createApp();
+    await req.put(`/api/applications/${app.id}`).send({ job_posting_url: 'https://invalid-domain-that-does-not-exist-12345.example.com/job' });
+    const res = await req.post(`/api/applications/${app.id}/fetch-jd`);
+    assert.equal(res.status, 502);
+    assert.ok(res.body.error);
+  });
+
+  test('POST /api/applications/:id/extract-jd scopes to owner', async () => {
+    const app = await createApp();
+    await req.put(`/api/applications/${app.id}`).send({ job_description: 'Senior Engineer role.' });
+    const res = await req
+      .post(`/api/applications/${app.id}/extract-jd`)
+      .set('X-Forwarded-Email', 'other@example.com');
+    assert.equal(res.status, 404);
+  });
+
+  test('POST /api/applications/:id/fetch-jd scopes to owner', async () => {
+    const app = await createApp();
+    await req.put(`/api/applications/${app.id}`).send({ job_posting_url: 'https://example.com/job' });
+    const res = await req
+      .post(`/api/applications/${app.id}/fetch-jd`)
+      .set('X-Forwarded-Email', 'other@example.com');
+    assert.equal(res.status, 404);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Context Assembly
 // ---------------------------------------------------------------------------
 

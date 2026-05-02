@@ -1,3 +1,11 @@
+---
+status: complete
+priority: p1
+issue_id: "071"
+tags: [design, ux, critique, timeline, accessibility]
+dependencies: []
+---
+
 # P1 — Timeline View Design Critique
 
 **Critique date:** 2026-04-30  
@@ -22,29 +30,29 @@ The Timeline View fails its own stated purpose: "spot patterns across your searc
 
 ### Sub-tasks
 
-- [ ] Add a fixed stage legend above the timeline axis
+- [x] Add a fixed stage legend above the timeline axis
   - Color dot + stage name for each of the 5 active stages + accepted + rejected
   - Use existing CSS stage variables (`--stage-interested`, etc.)
   - Position it between the view switcher and the timeline header row
   - Collapse gracefully on narrow viewports (wrap or horizontal scroll)
 
-- [ ] Render stage labels inside bar segments
+- [x] Render stage labels inside bar segments
   - Show full stage name (truncated) inside segments wider than ~80px
   - Show 1-2 character initials inside segments 40–80px wide
   - Hide text inside segments narrower than 40px (rely on legend + hover)
   - Text color: auto-contrast against segment background (light on dark, dark on light)
 
-- [ ] Make tooltips work on touch devices
+- [x] Make tooltips work on touch devices
   - Convert hover tooltips to click/long-press on touch
   - Or replace with an inline detail row that expands on click
 
 ### Acceptance criteria
 
-- [ ] A first-time user can identify every visible segment's stage without hovering
-- [ ] The legend is visible on first paint (no interaction required)
-- [ ] On a touch device (or with hover disabled), every segment's stage is still discoverable
-- [ ] Text inside segments remains legible in both light and dark mode
-- [ ] No layout shift when segment labels appear/disappear on resize
+- [x] A first-time user can identify every visible segment's stage without hovering
+- [x] The legend is visible on first paint (no interaction required)
+- [x] On a touch device (or with hover disabled), every segment's stage is still discoverable
+- [x] Text inside segments remains legible in both light and dark mode
+- [x] No layout shift when segment labels appear/disappear on resize
 
 ---
 
@@ -56,31 +64,31 @@ The Timeline View fails its own stated purpose: "spot patterns across your searc
 
 ### Sub-tasks
 
-- [ ] Change label column alignment from right to left
+- [x] Change label column alignment from right to left
   - Update `pr-3 text-right` to `pl-3 text-left` (or equivalent)
   - Maintain the `w-24 sm:w-36 md:w-[200px]` responsive widths
 
-- [ ] Upgrade company name typography
+- [x] Upgrade company name typography
   - Change from `text-xs font-medium` to `text-sm font-condensed font-semibold`
   - Keep `truncate` to prevent overflow
   - Keep `text-ink-2` (or `text-ink` for active, `text-ink-3` for quieted)
 
-- [ ] Keep role title understated
+- [x] Keep role title understated
   - Remain at `text-xs` to create typographic contrast with company name
   - Keep `text-ink-3` (or `opacity-60` for quieted)
 
-- [ ] Add left padding between label column and bar area
+- [x] Add left padding between label column and bar area
   - Prevent labels from visually crowding the bars
   - At least `gap-3` or `ml-2` equivalent
 
 ### Acceptance criteria
 
-- [ ] Company names are left-aligned and scannable at a glance
-- [ ] Company name uses `font-condensed font-semibold text-sm`
-- [ ] Role title is visually subordinate to company name (smaller, lighter weight)
-- [ ] Label column and bar area have clear separation (no touching)
-- [ ] Visual treatment matches or exceeds TableView's treatment of the same data
-- [ ] Both light and dark mode remain legible
+- [x] Company names are left-aligned and scannable at a glance
+- [x] Company name uses `font-condensed font-semibold text-sm`
+- [x] Role title is visually subordinate to company name (smaller, lighter weight)
+- [x] Label column and bar area have clear separation (no touching)
+- [x] Visual treatment matches or exceeds TableView's treatment of the same data
+- [x] Both light and dark mode remain legible
 
 ---
 
@@ -92,31 +100,31 @@ The Timeline View fails its own stated purpose: "spot patterns across your searc
 
 ### Sub-tasks
 
-- [ ] Group applications by current status
+- [x] Group applications by current status
   - Use section headers: "Interview (3)", "Applied (7)", "Offer (1)"
   - Style headers distinctly (e.g., `text-xs font-bold uppercase tracking-wider text-ink-3`)
   - Add a subtle horizontal rule or background tint between groups
   - Sort groups by pipeline order: Interview → Screening → Applied → Interested → Offer → Accepted → Rejected (or similar logical order)
 
-- [ ] Add a summary band at the top of the timeline
+- [x] Add a summary band at the top of the timeline
   - Average days per stage across all visible applications
   - Count of applications stalled >30 days in current stage
   - Total active applications count
   - Keep it compact (1-2 lines max) and dismissible or collapsible
 
-- [ ] Add sorting controls
+- [x] Add sorting controls
   - Dropdown or small segmented button group
   - Options: Recently Updated (default), Company Name, Longest in Current Stage, Start Date, Status
   - Persist sort preference in `localStorage` (optional)
 
 ### Acceptance criteria
 
-- [ ] Applications are visually grouped by status with clear section headers
-- [ ] A user with 30+ applications can navigate to a specific group without scrolling the entire list
-- [ ] Summary band provides at least one actionable insight (e.g., "3 applications stalled >30 days")
-- [ ] Sorting controls are visible and functional
-- [ ] Changing sort order updates the list without a full page reload
-- [ ] Default sort (Recently Updated) is clearly indicated
+- [x] Applications are visually grouped by status with clear section headers
+- [x] A user with 30+ applications can navigate to a specific group without scrolling the entire list
+- [x] Summary band provides at least one actionable insight (e.g., "3 applications stalled >30 days")
+- [x] Sorting controls are visible and functional
+- [x] Changing sort order updates the list without a full page reload
+- [x] Default sort (Recently Updated) is clearly indicated
 
 ---
 
@@ -128,20 +136,20 @@ The Timeline View fails its own stated purpose: "spot patterns across your searc
 
 ### Sub-tasks
 
-- [ ] Remove grayscale filter from `accepted` applications
+- [x] Remove grayscale filter from `accepted` applications
   - Keep full, saturated stage color (`--stage-accepted`)
   - Consider a subtle celebratory enhancement (see below)
 
-- [ ] Add a "win" indicator to accepted applications
+- [x] Add a "win" indicator to accepted applications
   - Small checkmark icon or golden border on the accepted segment
   - Or a subtle `box-shadow` glow in the accent/amber color
   - Keep it tasteful — celebratory, not gaudy
 
-- [ ] Keep `rejected` applications muted
+- [x] Keep `rejected` applications muted
   - Retain existing `grayscale(0.4) brightness(0.85)`
   - Optionally add a subtle "×" or strike-through visual cue
 
-- [ ] Update `isQuieted` logic or naming
+- [x] Update `isQuieted` logic or naming
   - `isQuieted` currently returns `true` only for `rejected`
   - Either rename to `isMuted`/`isClosed` (applies to both) OR
   - Split into `isRejected` (mute) and `isAccepted` (celebrate)
@@ -149,12 +157,12 @@ The Timeline View fails its own stated purpose: "spot patterns across your searc
 
 ### Acceptance criteria
 
-- [ ] Accepted applications are visually distinct from rejected applications
-- [ ] Accepted segments use full `--stage-accepted` color (no grayscale)
-- [ ] Rejected segments remain muted/grayscale
-- [ ] The distinction is obvious at a glance without reading text
-- [ ] Both light and dark mode handle the distinction correctly
-- [ ] A user scrolling through the list immediately spots their wins
+- [x] Accepted applications are visually distinct from rejected applications
+- [x] Accepted segments use full `--stage-accepted` color (no grayscale)
+- [x] Rejected segments remain muted/grayscale
+- [x] The distinction is obvious at a glance without reading text
+- [x] Both light and dark mode handle the distinction correctly
+- [x] A user scrolling through the list immediately spots their wins
 
 ---
 
@@ -166,30 +174,30 @@ The Timeline View fails its own stated purpose: "spot patterns across your searc
 
 ### Sub-tasks
 
-- [ ] Add a sort control UI element
+- [x] Add a sort control UI element
   - Native `<select>` or custom dropdown
   - Position: aligned with the timeline header or near the view switcher
   - Label: "Sort by" or icon + label
 
-- [ ] Implement sort strategies
+- [x] Implement sort strategies
   - **Recently Updated** (default): `updated_at` desc
   - **Company Name**: `company_name` asc
   - **Longest in Current Stage**: computed duration of trailing segment desc
   - **Start Date**: `created_at` asc (oldest first — matches temporal axis)
   - **Status**: group by status, then by `updated_at` desc within group
 
-- [ ] Wire sort state into `sortedApps` computed property
+- [x] Wire sort state into `sortedApps` computed property
   - Ensure reactivity: changing sort updates the list immediately
   - Maintain stable sort (preserve relative order when keys are equal)
 
 ### Acceptance criteria
 
-- [ ] Sort control is visible and accessible
-- [ ] All 5 sort options produce correct, stable ordering
-- [ ] Changing sort does not require a page reload
-- [ ] Default sort (Recently Updated) is pre-selected on first load
-- [ ] Sort state persists across view switches (Timeline ↔ Board ↔ Table)
-- [ ] Keyboard users can operate the sort control (Tab + Enter/Space)
+- [x] Sort control is visible and accessible
+- [x] All 5 sort options produce correct, stable ordering
+- [x] Changing sort does not require a page reload
+- [x] Default sort (Recently Updated) is pre-selected on first load
+- [x] Sort state persists across view switches (Timeline ↔ Board ↔ Table)
+- [x] Keyboard users can operate the sort control (Tab + Enter/Space)
 
 ---
 
@@ -197,46 +205,46 @@ The Timeline View fails its own stated purpose: "spot patterns across your searc
 
 ### Sub-tasks
 
-- [ ] Fix terminal-stage 1-2px sliver bug
+- [x] Fix terminal-stage 1-2px sliver bug
   - When `start === end` (closed application), render a small dot or pill instead of a near-zero-width bar
   - Minimum visual width of ~4px or a 6px circle
 
-- [ ] Fix single-month invisible axis
+- [x] Fix single-month invisible axis
   - When all data falls within the current month, show at least one date anchor (e.g., "This month" or the current date)
 
-- [ ] Improve row accessibility
+- [x] Improve row accessibility
   - Add `aria-label` to each row: "{{company_name}} — {{role_title}}, currently {{status}}, started {{date}}"
   - Ensure focus indicators are visible (`focus-visible:ring` or similar)
 
-- [ ] Replace inline `style="min-height: 36px"` with Tailwind `min-h-9`
+- [x] Replace inline `style="min-height: 36px"` with Tailwind `min-h-9`
 
-- [ ] Review `overflow-visible` on bar container
+- [x] Review `overflow-visible` on bar container
   - Ensure segments never visually escape their track bounds
 
 ### Acceptance criteria
 
-- [ ] Terminal applications render as a visible dot/pill, not a sliver
-- [ ] Timeline axis has at least one visible anchor even in single-month views
-- [ ] Every timeline row has a meaningful `aria-label`
-- [ ] No inline `style` attributes remain where Tailwind utilities exist
-- [ ] All changes pass existing backend tests (`cd server && npm test`)
-- [ ] All changes pass E2E tests (`npm run build:client && cd client && npm run test:e2e`)
+- [x] Terminal applications render as a visible dot/pill, not a sliver
+- [x] Timeline axis has at least one visible anchor even in single-month views
+- [x] Every timeline row has a meaningful `aria-label`
+- [x] No inline `style` attributes remain where Tailwind utilities exist
+- [x] All changes pass existing backend tests (`cd server && npm test`)
+- [x] All changes pass E2E tests (`npm run build:client && cd client && npm run test:e2e`)
 
 ---
 
 ## Testing Checklist
 
-- [ ] Empty state renders correctly (no applications)
-- [ ] Empty state renders correctly (all applications closed, `closedCount > 0`)
-- [ ] Single application renders correctly
-- [ ] 30+ applications render performantly
-- [ ] All applications in same stage (trailing stripe wallpaper) is readable
-- [ ] Touch device: all interactions work without hover
-- [ ] Keyboard-only navigation: full access to rows, sorting, legend
-- [ ] Light mode: all colors, contrasts, and labels legible
-- [ ] Dark mode: all colors, contrasts, and labels legible
-- [ ] Reduced motion: no broken animations or layout shifts
-- [ ] Cross-browser: Chrome, Firefox, Safari (E2E tests cover this)
+- [x] Empty state renders correctly (no applications)
+- [x] Empty state renders correctly (all applications closed, `closedCount > 0`)
+- [x] Single application renders correctly
+- [x] 30+ applications render performantly
+- [x] All applications in same stage (trailing stripe wallpaper) is readable
+- [x] Touch device: all interactions work without hover
+- [x] Keyboard-only navigation: full access to rows, sorting, legend
+- [x] Light mode: all colors, contrasts, and labels legible
+- [x] Dark mode: all colors, contrasts, and labels legible
+- [x] Reduced motion: no broken animations or layout shifts
+- [x] Cross-browser: Chrome, Firefox, Safari (E2E tests cover this)
 
 ---
 

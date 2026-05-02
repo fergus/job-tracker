@@ -222,6 +222,26 @@
                   </svg>
                 </a>
               </div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <button
+                  v-if="isEdit && form.job_posting_url && !form.job_description"
+                  @click="onFetchJd"
+                  :disabled="fetchingJd"
+                  class="text-xs text-accent hover:text-accent-hover font-medium inline-flex items-center gap-1.5 min-h-[28px] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <template v-if="fetchingJd">
+                    <svg viewBox="0 0 64 64" class="w-4 h-4" aria-hidden="true">
+                      <g fill="currentColor">
+                        <path class="c c1" d="M 12 26 L 16 22 L 26 32 L 16 42 L 12 38 L 18 32 Z" />
+                        <path class="c c2" d="M 22 22 L 26 18 L 40 32 L 26 46 L 22 42 L 32 32 Z" />
+                        <path class="c c3" d="M 32 18 L 36 14 L 54 32 L 36 50 L 32 46 L 46 32 Z" />
+                      </g>
+                    </svg>
+                    Fetching...
+                  </template>
+                  <template v-else>Fetch & Extract</template>
+                </button>
+              </div>
             </div>
             <div>
               <label class="block text-xs font-medium text-ink-3 mb-1">Company Website</label>
@@ -277,19 +297,55 @@
             />
           </div>
 
+          <!-- Fetch failure fallback banner -->
+          <div
+            v-if="fetchError"
+            class="flex items-start gap-2 p-2.5 rounded-lg bg-accent-muted/20 border border-accent/10"
+          >
+            <svg class="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <p class="text-sm text-ink-2 flex-1">{{ fetchError }} Paste the job description below and click Extract to analyze it.</p>
+            <button
+              @click="fetchError = ''"
+              class="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-ink transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+
           <div>
             <div class="flex items-center justify-between mb-1">
               <label class="block text-xs font-medium text-ink-3">Job Description</label>
-              <button
-                v-if="isEdit && form.job_description && !editingJobDesc"
-                @click="editingJobDesc = true"
-                class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center px-2 py-1"
-              >Edit</button>
-              <button
-                v-if="editingJobDesc"
-                @click="editingJobDesc = false"
-                class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center px-2 py-1"
-              >Done</button>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="isEdit && form.job_description && !editingJobDesc"
+                  @click="onExtractJd"
+                  :disabled="fetchingJd"
+                  class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center gap-1.5 px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <template v-if="fetchingJd">
+                    <svg viewBox="0 0 64 64" class="w-4 h-4" aria-hidden="true">
+                      <g fill="currentColor">
+                        <path class="c c1" d="M 12 26 L 16 22 L 26 32 L 16 42 L 12 38 L 18 32 Z" />
+                        <path class="c c2" d="M 22 22 L 26 18 L 40 32 L 26 46 L 22 42 L 32 32 Z" />
+                        <path class="c c3" d="M 32 18 L 36 14 L 54 32 L 36 50 L 32 46 L 46 32 Z" />
+                      </g>
+                    </svg>
+                    Extracting...
+                  </template>
+                  <template v-else>Extract</template>
+                </button>
+                <button
+                  v-if="isEdit && form.job_description && !editingJobDesc"
+                  @click="editingJobDesc = true"
+                  class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center px-2 py-1"
+                >Edit</button>
+                <button
+                  v-if="editingJobDesc"
+                  @click="editingJobDesc = false"
+                  class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center px-2 py-1"
+                >Done</button>
+              </div>
             </div>
             <div
               v-if="isEdit && form.job_description && !editingJobDesc"
@@ -376,6 +432,65 @@
                     <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" :style="{ backgroundColor: stageColor(seg.stage) }"></span>
                     <span class="text-xs text-ink-3 capitalize">{{ seg.stage }}</span>
                   </div>
+                </div>
+              </div>
+            </details>
+
+            <!-- Structured JD -->
+            <details
+              v-if="panelApp?.extracted_jd"
+              :open="extractedJdOpen"
+              @toggle="extractedJdOpen = $event.target.open"
+              class="group mt-4 pt-4 border-t border-line"
+            >
+              <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+                <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Extracted Details</span>
+                <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </summary>
+              <div class="mt-3 space-y-3">
+                <div v-if="parsedExtractedJd.required_skills?.length">
+                  <p class="text-xs text-ink-3 uppercase tracking-wide mb-1">Required Skills</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="skill in parsedExtractedJd.required_skills"
+                      :key="skill"
+                      class="px-2 py-0.5 rounded-full text-xs font-medium bg-accent-muted/30 text-ink-2"
+                    >{{ skill }}</span>
+                  </div>
+                </div>
+                <div v-if="parsedExtractedJd.responsibilities?.length">
+                  <p class="text-xs text-ink-3 uppercase tracking-wide mb-1">Responsibilities</p>
+                  <ul class="list-disc list-inside text-sm text-ink-2 space-y-0.5">
+                    <li v-for="r in parsedExtractedJd.responsibilities" :key="r">{{ r }}</li>
+                  </ul>
+                </div>
+                <div v-if="parsedExtractedJd.experience_requirements?.length">
+                  <p class="text-xs text-ink-3 uppercase tracking-wide mb-1">Experience</p>
+                  <ul class="list-disc list-inside text-sm text-ink-2 space-y-0.5">
+                    <li v-for="e in parsedExtractedJd.experience_requirements" :key="e">{{ e }}</li>
+                  </ul>
+                </div>
+                <div v-if="parsedExtractedJd.salary_signals && (parsedExtractedJd.salary_signals.min || parsedExtractedJd.salary_signals.max)" class="flex items-center gap-2">
+                  <p class="text-xs text-ink-3 uppercase tracking-wide">Salary</p>
+                  <p class="text-sm text-ink-2">
+                    <span v-if="parsedExtractedJd.salary_signals.min">{{ parsedExtractedJd.salary_signals.min.toLocaleString() }}</span>
+                    <span v-if="parsedExtractedJd.salary_signals.min && parsedExtractedJd.salary_signals.max"> – </span>
+                    <span v-if="parsedExtractedJd.salary_signals.max">{{ parsedExtractedJd.salary_signals.max.toLocaleString() }}</span>
+                    <span v-if="parsedExtractedJd.salary_signals.currency" class="text-ink-3"> {{ parsedExtractedJd.salary_signals.currency }}</span>
+                    <span v-if="parsedExtractedJd.salary_signals.period" class="text-ink-3"> / {{ parsedExtractedJd.salary_signals.period }}</span>
+                  </p>
+                </div>
+                <div v-if="parsedExtractedJd.location" class="flex items-center gap-2">
+                  <p class="text-xs text-ink-3 uppercase tracking-wide">Location</p>
+                  <p class="text-sm text-ink-2">{{ parsedExtractedJd.location }}</p>
+                </div>
+                <div v-if="parsedExtractedJd.employment_type" class="flex items-center gap-2">
+                  <p class="text-xs text-ink-3 uppercase tracking-wide">Type</p>
+                  <p class="text-sm text-ink-2">{{ parsedExtractedJd.employment_type }}</p>
+                </div>
+                <div v-if="parsedExtractedJd.seniority_level" class="flex items-center gap-2">
+                  <p class="text-xs text-ink-3 uppercase tracking-wide">Level</p>
+                  <p class="text-sm text-ink-2">{{ parsedExtractedJd.seniority_level }}</p>
                 </div>
               </div>
             </details>
@@ -537,6 +652,7 @@ import {
   createApplication, updateApplication, updateStatus, deleteApplication,
   updateDates, createNote, updateNote, deleteNote,
   fetchAttachments, uploadAttachments, getAttachmentUrl, deleteAttachment,
+  extractJd, fetchJd,
 } from '../api'
 import { computeSegments, stageColor, durationDays } from '../utils/timeline'
 import { useToast } from '../composables/useToast'
@@ -558,6 +674,9 @@ const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768
 const datesOpen = ref(isDesktop)
 const journeyOpen = ref(isDesktop)
 const attachmentsOpen = ref(isDesktop)
+const extractedJdOpen = ref(isDesktop)
+const fetchingJd = ref(false)
+const fetchError = ref('')
 
 const props = defineProps({ panelApp: Object, totalApplications: { type: Number, default: 0 } })
 const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
@@ -671,6 +790,7 @@ watch(() => props.panelApp?.id, (newId) => {
   initForm()
   editingDateKey.value = null
   editingJobDesc.value = false
+  fetchError.value = ''
   if (newId) {
     loadAttachments()
     newNoteStage.value = props.panelApp.status
@@ -830,6 +950,52 @@ async function confirmDelete() {
 const editingDateKey = ref(null)
 const editingJobDesc = ref(false)
 
+async function onFetchJd() {
+  if (!form.job_posting_url || fetchingJd.value) return
+  fetchingJd.value = true
+  fetchError.value = ''
+  try {
+    const result = await fetchJd(props.panelApp.id)
+    form.job_description = result.job_description || ''
+    toast.success('Job description fetched and extracted')
+    emit('saved')
+  } catch (err) {
+    const message = err.response?.data?.error || 'Could not fetch the job description.'
+    const type = err.response?.data?.type
+    fetchError.value = message
+    // Auto-expand job description textarea so user can paste manually
+    editingJobDesc.value = true
+    // Toast with contextual copy based on error type
+    if (type === 'anti_bot') {
+      toast.error('This site blocks automatic fetching. Paste the description below and click Extract.')
+    } else if (type === 'timeout') {
+      toast.error('The page took too long to respond. Try again or paste manually.')
+    } else if (type === 'not_found') {
+      toast.error('Could not reach this page. Check the URL or paste the description manually.')
+    } else {
+      toast.error(message)
+    }
+  } finally {
+    fetchingJd.value = false
+  }
+}
+
+async function onExtractJd() {
+  if (!form.job_description || fetchingJd.value) return
+  fetchingJd.value = true
+  fetchError.value = ''
+  try {
+    const result = await extractJd(props.panelApp.id)
+    toast.success('Details extracted from job description')
+    emit('saved')
+  } catch (err) {
+    const message = err.response?.data?.error || 'Extraction failed.'
+    toast.error(message)
+  } finally {
+    fetchingJd.value = false
+  }
+}
+
 function toDateInputValue(iso) {
   if (!iso) return ''
   return iso.slice(0, 10)
@@ -861,6 +1027,15 @@ async function clearDate(key) {
 const miniSegments = computed(() => {
   if (!isEdit.value) return []
   return computeSegments(props.panelApp, new Date().toISOString())
+})
+
+const parsedExtractedJd = computed(() => {
+  if (!props.panelApp?.extracted_jd) return {}
+  try {
+    return JSON.parse(props.panelApp.extracted_jd)
+  } catch {
+    return {}
+  }
 })
 
 const miniTotalMs = computed(() => {
