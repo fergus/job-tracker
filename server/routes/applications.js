@@ -7,6 +7,7 @@ const svc = require('../services/applications');
 const { ServiceError, VALID_STATUSES, uploadsDir, safePath, safeDeleteFile } = svc;
 const { extractStructuredJD } = require('../services/extraction');
 const { fetchJobDescription, FetchError } = require('../services/fetch-jd');
+const { generateDocument, VALID_TASKS } = require('../services/generation');
 
 const router = express.Router();
 
@@ -462,6 +463,69 @@ router.post('/:id/fetch-jd', async (req, res) => {
     res.json({
       job_description: text,
       extracted_jd: extracted,
+    });
+  } catch (e) { handleError(res, e); }
+});
+
+// Generate a tailored document for an application (owner or admin)
+router.post('/:id/generate', async (req, res) => {
+  try {
+    const existing = req.isAdmin
+      ? db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id)
+      : getOwnApp(req.params.id, req.userEmail);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    const task = req.body.task;
+    if (!task || !VALID_TASKS.includes(task)) {
+      return res.status(400).json({ error: `Invalid task. Must be one of: ${VALID_TASKS.join(', ')}` });
+    }
+
+    if (req.isAdmin && existing.user_email !== req.userEmail) {
+      console.info('[admin] %s triggered generation (%s) for app %s owned by %s', req.userEmail, task, req.params.id, existing.user_email);
+    }
+
+    // Build context payload (same as GET /:id/context)
+    const notes = db.prepare('SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC').all(req.params.id);
+    const attachments = db.prepare('SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?').all(req.params.id);
+    const profile = db.prepare('SELECT * FROM user_profiles WHERE user_email = ?').get(existing.user_email);
+
+    const context = {
+      application: existing,
+      notes,
+      attachments,
+      profile: profile || null,
+      job_description: existing.job_description || null,
+    };
+
+    const generatedText = await generateDocument(context, task);
+
+    // Store as a generated attachment
+    const now = new Date().toISOString();
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const filename = `${task}_${unique}.md`;
+    const filePath = path.join(uploadsDir, filename);
+    fs.writeFileSync(filePath, generatedText, 'utf-8');
+    const fileSize = fs.statSync(filePath).size;
+
+    const result = db.prepare(
+      'INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, generated_by, generation_task) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.params.id, filename, filename, fileSize, 'text/markdown', 'agent', task);
+
+    db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, req.params.id);
+
+    const attachment = db.prepare('SELECT * FROM attachments WHERE id = ?').get(result.lastInsertRowid);
+
+    res.json({
+      text: generatedText,
+      attachment: {
+        id: attachment.id,
+        original_filename: attachment.original_filename,
+        file_size: attachment.file_size,
+        mime_type: attachment.mime_type,
+        generated_by: attachment.generated_by,
+        generation_task: attachment.generation_task,
+        created_at: attachment.created_at,
+      },
     });
   } catch (e) { handleError(res, e); }
 });

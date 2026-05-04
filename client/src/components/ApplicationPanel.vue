@@ -495,6 +495,58 @@
               </div>
             </details>
 
+            <!-- Generate Documents -->
+            <details :open="generatedDocOpen" @toggle="generatedDocOpen = $event.target.open" class="group mt-4 pt-4 border-t border-line">
+              <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+                <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Generate</span>
+                <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </summary>
+              <div class="mt-3 space-y-3">
+                <div class="flex items-center gap-2">
+                  <select
+                    v-model="selectedTask"
+                    class="text-sm bg-panel border border-line rounded-lg px-2.5 py-1.5 text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <option value="cover_letter">Cover Letter</option>
+                    <option value="resume_tailor">Resume Tips</option>
+                    <option value="interview_prep">Interview Prep</option>
+                  </select>
+                  <button
+                    @click="onGenerateDocument"
+                    :disabled="generatingDoc"
+                    class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/20 hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <template v-if="generatingDoc">
+                      <svg viewBox="0 0 64 64" class="w-4 h-4" aria-hidden="true">
+                        <g fill="currentColor">
+                          <path class="c c1" d="M 12 26 L 16 22 L 26 32 L 16 42 L 12 38 L 18 32 Z" />
+                          <path class="c c2" d="M 22 22 L 26 18 L 40 32 L 26 46 L 22 42 L 32 32 Z" />
+                          <path class="c c3" d="M 32 18 L 36 14 L 54 32 L 36 50 L 32 46 L 46 32 Z" />
+                        </g>
+                      </svg>
+                      Generating...
+                    </template>
+                    <template v-else>Generate</template>
+                  </button>
+                </div>
+                <div
+                  v-if="generatedDocPreview"
+                  class="border border-line rounded-lg overflow-hidden"
+                >
+                  <div class="flex items-center justify-between px-3 py-2 bg-sunken border-b border-line">
+                    <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">
+                      {{ generatedDocPreview.task === 'cover_letter' ? 'Cover Letter' : generatedDocPreview.task === 'resume_tailor' ? 'Resume Tips' : 'Interview Prep' }}
+                    </span>
+                    <button
+                      @click="generatedDocPreview = null"
+                      class="text-xs text-ink-3 hover:text-ink"
+                    >Dismiss</button>
+                  </div>
+                  <div class="prose prose-sm max-w-none text-sm text-ink-2 px-3 py-2" v-html="renderMarkdown(generatedDocPreview.text)" />
+                </div>
+              </div>
+            </details>
+
             <!-- Attachments -->
             <details :open="attachmentsOpen" @toggle="attachmentsOpen = $event.target.open" class="group mt-4 pt-4 border-t border-line">
               <summary class="flex items-center justify-between cursor-pointer list-none select-none">
@@ -523,6 +575,10 @@
                           target="_blank"
                           rel="noopener noreferrer"
                         >{{ att.original_filename }}</a>
+                        <span
+                          v-if="att.generated_by === 'agent'"
+                          class="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-accent-muted/30 text-accent"
+                        >AI</span>
                       </div>
                       <button
                         @click="removeAttachment(att.id)"
@@ -666,7 +722,7 @@ import {
   createApplication, updateApplication, updateStatus, deleteApplication,
   updateDates, createNote, updateNote, deleteNote,
   fetchAttachments, uploadAttachments, getAttachmentUrl, deleteAttachment,
-  extractJd, fetchJd,
+  extractJd, fetchJd, generateDocument,
 } from '../api'
 import { computeSegments, stageColor, durationDays } from '../utils/timeline'
 import { useToast } from '../composables/useToast'
@@ -689,8 +745,12 @@ const datesOpen = ref(isDesktop)
 const journeyOpen = ref(isDesktop)
 const attachmentsOpen = ref(isDesktop)
 const extractedJdOpen = ref(isDesktop)
+const generatedDocOpen = ref(false)
 const fetchingJd = ref(false)
 const fetchError = ref('')
+const generatingDoc = ref(false)
+const generatedDocPreview = ref(null)
+const selectedTask = ref('cover_letter')
 
 const props = defineProps({ panelApp: Object, totalApplications: { type: Number, default: 0 } })
 const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
@@ -1013,6 +1073,23 @@ async function onExtractJd() {
     toast.error(message)
   } finally {
     fetchingJd.value = false
+  }
+}
+
+async function onGenerateDocument() {
+  if (!props.panelApp?.id || generatingDoc.value) return
+  generatingDoc.value = true
+  generatedDocPreview.value = null
+  try {
+    const result = await generateDocument(props.panelApp.id, selectedTask.value)
+    generatedDocPreview.value = { task: selectedTask.value, text: result.text }
+    toast.success('Document generated')
+    await loadAttachments()
+  } catch (err) {
+    const message = err.response?.data?.error || 'Document generation failed.'
+    toast.error(message)
+  } finally {
+    generatingDoc.value = false
   }
 }
 

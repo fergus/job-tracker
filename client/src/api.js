@@ -126,3 +126,7 @@ export function extractJd(appId) {
 export function fetchJd(appId) {
   return api.post(`/applications/${appId}/fetch-jd`).then(r => r.data)
 }
+
+export function generateDocument(appId, task) {
+  return api.post(`/applications/${appId}/generate`, { task }).then(r => r.data)
+}

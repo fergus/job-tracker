@@ -117,6 +117,12 @@ if (!attachmentCols.some(c => c.name === 'extracted_text')) {
 if (!attachmentCols.some(c => c.name === 'extracted_at')) {
   db.exec('ALTER TABLE attachments ADD COLUMN extracted_at TEXT');
 }
+if (!attachmentCols.some(c => c.name === 'generated_by')) {
+  db.exec('ALTER TABLE attachments ADD COLUMN generated_by TEXT');
+}
+if (!attachmentCols.some(c => c.name === 'generation_task')) {
+  db.exec('ALTER TABLE attachments ADD COLUMN generation_task TEXT');
+}
 
 // API keys table
 db.exec(`

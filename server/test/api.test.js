@@ -917,6 +917,131 @@ describe('Context Assembly', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Document Generation
+// ---------------------------------------------------------------------------
+
+describe('Document Generation', () => {
+  const extraction = require('../services/extraction');
+  let originalGetOpenAIClient;
+
+  before(() => {
+    originalGetOpenAIClient = extraction.getOpenAIClient;
+    extraction.getOpenAIClient = () => ({
+      chat: {
+        completions: {
+          create: async () => ({
+            choices: [{ message: { content: 'Mock generated cover letter text' } }]
+          })
+        }
+      }
+    });
+  });
+
+  after(() => {
+    extraction.getOpenAIClient = originalGetOpenAIClient;
+  });
+
+  test('POST /api/applications/:id/generate creates a cover letter', async () => {
+    const email = 'gen@example.com';
+    const app = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', email)
+      .field('company_name', 'GenCo')
+      .field('role_title', 'Engineer')
+      .field('job_description', 'Build scalable systems');
+    assert.equal(app.status, 201);
+    const appId = app.body.id;
+
+    const res = await req
+      .post(`/api/applications/${appId}/generate`)
+      .set('X-Forwarded-Email', email)
+      .send({ task: 'cover_letter' });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.text, 'Mock generated cover letter text');
+    assert.ok(res.body.attachment);
+    assert.equal(res.body.attachment.generated_by, 'agent');
+    assert.equal(res.body.attachment.generation_task, 'cover_letter');
+    assert.equal(res.body.attachment.mime_type, 'text/markdown');
+
+    // Verify attachment appears in application
+    const attachRes = await req
+      .get(`/api/applications/${appId}/attachments`)
+      .set('X-Forwarded-Email', email);
+    assert.equal(attachRes.status, 200);
+    assert.equal(attachRes.body.length, 1);
+    assert.equal(attachRes.body[0].generated_by, 'agent');
+  });
+
+  test('POST /api/applications/:id/generate supports resume_tailor and interview_prep', async () => {
+    const email = 'gen-tasks@example.com';
+    const app = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', email)
+      .field('company_name', 'TaskCo')
+      .field('role_title', 'Engineer');
+    assert.equal(app.status, 201);
+    const appId = app.body.id;
+
+    for (const task of ['resume_tailor', 'interview_prep']) {
+      const res = await req
+        .post(`/api/applications/${appId}/generate`)
+        .set('X-Forwarded-Email', email)
+        .send({ task });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.attachment.generation_task, task);
+    }
+
+    const attachRes = await req
+      .get(`/api/applications/${appId}/attachments`)
+      .set('X-Forwarded-Email', email);
+    assert.equal(attachRes.body.length, 2);
+  });
+
+  test('POST /api/applications/:id/generate returns 404 for unknown app', async () => {
+    const res = await req
+      .post('/api/applications/999999/generate')
+      .send({ task: 'cover_letter' });
+    assert.equal(res.status, 404);
+  });
+
+  test('POST /api/applications/:id/generate returns 400 for invalid task', async () => {
+    const app = await createApp();
+    const res = await req
+      .post(`/api/applications/${app.id}/generate`)
+      .send({ task: 'invalid_task' });
+    assert.equal(res.status, 400);
+  });
+
+  test('POST /api/applications/:id/generate returns 400 for missing task', async () => {
+    const app = await createApp();
+    const res = await req
+      .post(`/api/applications/${app.id}/generate`)
+      .send({});
+    assert.equal(res.status, 400);
+  });
+
+  test('admin can generate for another user app', async () => {
+    const email = 'gen-admin-user@example.com';
+    const app = await req
+      .post('/api/applications')
+      .set('X-Forwarded-Email', email)
+      .field('company_name', 'AdminGenCo')
+      .field('role_title', 'Engineer');
+    assert.equal(app.status, 201);
+    const appId = app.body.id;
+
+    const res = await req
+      .post(`/api/applications/${appId}/generate`)
+      .set('X-Forwarded-Email', 'admin@example.com')
+      .send({ task: 'cover_letter' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.attachment.generation_task, 'cover_letter');
+  });
+
+});
+
+// ---------------------------------------------------------------------------
 // MCP Server
 // ---------------------------------------------------------------------------
 
@@ -1155,6 +1280,90 @@ describe('MCP Server', () => {
     const result = parsed.result;
     assert.equal(result.isError, true);
     assert.ok(result.content[0].text.includes('not found'));
+  });
+
+  test('generate_document MCP tool creates an attachment', async () => {
+    const extraction = require('../services/extraction');
+    const original = extraction.getOpenAIClient;
+    extraction.getOpenAIClient = () => ({
+      chat: {
+        completions: {
+          create: async () => ({
+            choices: [{ message: { content: 'Mock MCP generated text' } }]
+          })
+        }
+      }
+    });
+
+    try {
+      const appRes = await req
+        .post('/api/applications')
+        .set('X-Forwarded-Email', 'mcp-test@example.com')
+        .field('company_name', 'McpGenCo')
+        .field('role_title', 'Engineer')
+        .field('job_description', 'MCP gen job');
+      assert.equal(appRes.status, 201);
+      const appId = appRes.body.id;
+
+      const initBody = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'test', version: '1.0' }
+        }
+      };
+
+      const init = await mcpReq
+        .post('/')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Content-Type', 'application/json')
+        .send(initBody);
+      assert.equal(init.status, 200);
+      const sessionId = init.headers['mcp-session-id'];
+
+      const toolBody = {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'generate_document',
+          arguments: { application_id: appId, task: 'interview_prep' },
+        }
+      };
+
+      const toolRes = await mcpReq
+        .post('/')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .set('Mcp-Session-Id', sessionId)
+        .set('Accept', 'application/json, text/event-stream')
+        .set('Content-Type', 'application/json')
+        .send(toolBody);
+
+      assert.equal(toolRes.status, 200);
+      const lines = toolRes.text.trim().split('\n');
+      const dataLine = lines.find(l => l.startsWith('data: '));
+      assert.ok(dataLine);
+      const parsed = JSON.parse(dataLine.slice('data: '.length));
+      const result = parsed.result;
+      assert.ok(result);
+      assert.equal(result.content.length, 1);
+      assert.equal(result.content[0].text, 'Mock MCP generated text');
+      assert.ok(result.attachmentMetadata);
+      assert.equal(result.attachmentMetadata.generation_task, 'interview_prep');
+      assert.equal(result.attachmentMetadata.generated_by, 'agent');
+
+      // Verify attachment exists
+      const attachCheck = await req
+        .get(`/api/applications/${appId}/attachments`)
+        .set('X-Forwarded-Email', 'mcp-test@example.com');
+      assert.equal(attachCheck.body.length, 1);
+    } finally {
+      extraction.getOpenAIClient = original;
+    }
   });
 });
 

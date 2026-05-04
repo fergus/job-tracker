@@ -372,7 +372,7 @@ function listAttachments(userEmail, appId, { isAdmin = false } = {}) {
   if (!existing) throw new ServiceError(404, 'Not found');
 
   return db.prepare(
-    'SELECT id, original_filename, file_size, mime_type, created_at, extracted_text, extracted_at FROM attachments WHERE application_id = ? ORDER BY created_at ASC'
+    'SELECT id, original_filename, file_size, mime_type, created_at, extracted_text, extracted_at, generated_by, generation_task FROM attachments WHERE application_id = ? ORDER BY created_at ASC'
   ).all(appId);
 }
 

@@ -12,6 +12,7 @@ const db = require('./db');
 const svc = require('./services/applications');
 const { extractStructuredJD } = require('./services/extraction');
 const { fetchJobDescription, FetchError } = require('./services/fetch-jd');
+const { generateDocument, VALID_TASKS } = require('./services/generation');
 
 // API key secret — same config as auth middleware
 let apiKeySecret;
@@ -250,6 +251,64 @@ function createMcpServer() {
           profile: profile || null,
           job_description: app.job_description || null,
         }, null, 2) }] };
+      } catch (err) { return toolError(err); }
+    }
+  );
+
+  server.tool(
+    'generate_document',
+    'Generate a tailored document (cover letter, resume tailoring tips, or interview prep brief) for a job application.',
+    {
+      application_id: z.number().int().positive().describe('Application ID'),
+      task: z.enum(VALID_TASKS).describe('Type of document to generate'),
+    },
+    async (args, extra) => {
+      const userEmail = extra.authInfo?.clientId;
+      if (!userEmail) return { content: [{ type: 'text', text: 'Unauthorized' }], isError: true };
+      try {
+        const app = db.prepare('SELECT * FROM applications WHERE id = ? AND user_email = ?').get(args.application_id, userEmail);
+        if (!app) {
+          return { content: [{ type: 'text', text: 'Application not found' }], isError: true };
+        }
+
+        const notes = db.prepare('SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC').all(args.application_id);
+        const attachments = db.prepare('SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?').all(args.application_id);
+        const profile = db.prepare('SELECT * FROM user_profiles WHERE user_email = ?').get(userEmail);
+
+        const context = {
+          application: app,
+          notes,
+          attachments,
+          profile: profile || null,
+          job_description: app.job_description || null,
+        };
+
+        const generatedText = await generateDocument(context, args.task);
+
+        const now = new Date().toISOString();
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const filename = `${args.task}_${unique}.md`;
+        const filePath = path.join(svc.uploadsDir, filename);
+        fs.writeFileSync(filePath, generatedText, 'utf-8');
+        const fileSize = fs.statSync(filePath).size;
+
+        const result = db.prepare(
+          'INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type, generated_by, generation_task) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run(args.application_id, filename, filename, fileSize, 'text/markdown', 'agent', args.task);
+
+        db.prepare('UPDATE applications SET updated_at = ? WHERE id = ?').run(now, args.application_id);
+
+        const attachment = db.prepare('SELECT * FROM attachments WHERE id = ?').get(result.lastInsertRowid);
+
+        return { content: [{ type: 'text', text: generatedText }], attachmentMetadata: {
+          id: attachment.id,
+          original_filename: attachment.original_filename,
+          file_size: attachment.file_size,
+          mime_type: attachment.mime_type,
+          generated_by: attachment.generated_by,
+          generation_task: attachment.generation_task,
+          created_at: attachment.created_at,
+        }};
       } catch (err) { return toolError(err); }
     }
   );

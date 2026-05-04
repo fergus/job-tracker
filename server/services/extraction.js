@@ -193,4 +193,4 @@ async function extractStructuredJD(text) {
   }
 }
 
-module.exports = { extractText, extractStructuredJD }
+module.exports = { extractText, extractStructuredJD, getOpenAIClient }
