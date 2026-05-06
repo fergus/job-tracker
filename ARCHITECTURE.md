@@ -112,7 +112,7 @@ erDiagram
         TEXT created_at
         TEXT interested_at
         TEXT applied_at
-        TEXT screening_at
+        TEXT responded_at
         TEXT interview_at
         TEXT offer_at
         TEXT closed_at
@@ -223,7 +223,7 @@ Applications move through a fixed set of stages, each with a corresponding kanba
 |-------|-------|------------|
 | Interested | Gray | `created_at` |
 | Applied | Blue | `applied_at` |
-| Screening | Yellow | `screening_at` |
+| Responded | Teal | `responded_at` |
 | Interview | Purple | `interview_at` |
 | Offer | Green | `offer_at` |
 | Accepted | Emerald | `closed_at` |

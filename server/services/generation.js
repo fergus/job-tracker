@@ -1,12 +1,12 @@
-'use strict';
+"use strict";
 
-const extraction = require('./extraction');
-const { ServiceError } = require('./applications');
+const extraction = require("./extraction");
+const { ServiceError } = require("./applications");
 
-const VALID_TASKS = ['cover_letter', 'resume_tailor', 'interview_prep'];
+const VALID_TASKS = ["cover_letter", "resume_tailor", "interview_prep"];
 
 const PROMPTS = {
-  cover_letter: `You are an expert career coach and writer. Write a compelling, tailored cover letter for the job application described below.
+    cover_letter: `You are an expert career coach and writer. Write a compelling, tailored cover letter for the job application described below.
 
 Use the candidate's profile (CV, career narrative, agent instructions) to personalise the letter. Reference specific skills and experiences that match the job requirements.
 
@@ -18,7 +18,7 @@ Rules:
 - Keep the letter to 3-4 paragraphs (250-400 words).
 - End with a confident call to action.`,
 
-  resume_tailor: `You are an expert resume strategist. Based on the job description and the candidate's profile, provide specific, actionable suggestions for tailoring their resume for this application.
+    resume_tailor: `You are an expert resume strategist. Based on the job description and the candidate's profile, provide specific, actionable suggestions for tailoring their resume for this application.
 
 Rules:
 - Output ONLY the suggestions — no explanations of why you're giving suggestions, no markdown code blocks.
@@ -27,7 +27,7 @@ Rules:
 - Reference specific keywords from the job description.
 - Consider the candidate's agent_emphasize and agent_avoid preferences if provided.`,
 
-  interview_prep: `You are an expert interview coach. Prepare a concise interview brief for the candidate based on the job description, their profile, and any stage notes.
+    interview_prep: `You are an expert interview coach. Prepare a concise interview brief for the candidate based on the job description, their profile, and any stage notes.
 
 Rules:
 - Output ONLY the brief — no markdown code blocks, no meta-commentary.
@@ -39,52 +39,61 @@ Rules:
 };
 
 function buildContextMessage(context) {
-  const parts = [];
+    const parts = [];
 
-  const app = context.application;
-  if (app) {
-    parts.push(`Company: ${app.company_name || 'Unknown'}`);
-    parts.push(`Role: ${app.role_title || 'Unknown'}`);
-    parts.push(`Location: ${app.location || 'Not specified'}`);
-    parts.push(`Status: ${app.status || 'Unknown'}`);
-  }
-
-  if (context.job_description) {
-    parts.push(`\nJob Description:\n${context.job_description}`);
-  }
-
-  if (context.profile) {
-    const p = context.profile;
-    parts.push(`\nCandidate Profile:`);
-    if (p.full_name) parts.push(`Name: ${p.full_name}`);
-    if (p.location_city || p.location_country) parts.push(`Location: ${[p.location_city, p.location_country].filter(Boolean).join(', ')}`);
-    if (p.target_roles) parts.push(`Target roles: ${p.target_roles}`);
-    if (p.cv_markdown) parts.push(`CV:\n${p.cv_markdown}`);
-    if (p.career_narrative) parts.push(`Career narrative:\n${p.career_narrative}`);
-    if (p.agent_tone) parts.push(`Preferred tone: ${p.agent_tone}`);
-    if (p.agent_emphasize) parts.push(`Emphasise: ${p.agent_emphasize}`);
-    if (p.agent_avoid) parts.push(`Avoid: ${p.agent_avoid}`);
-    if (p.agent_instructions) parts.push(`Agent instructions:\n${p.agent_instructions}`);
-  }
-
-  if (context.notes && context.notes.length > 0) {
-    parts.push(`\nStage Notes:`);
-    for (const note of context.notes) {
-      parts.push(`- [${note.stage}] ${note.content}`);
+    const app = context.application;
+    if (app) {
+        parts.push(`Company: ${app.company_name || "Unknown"}`);
+        parts.push(`Role: ${app.role_title || "Unknown"}`);
+        parts.push(`Location: ${app.job_location || "Not specified"}`);
+        parts.push(`Status: ${app.status || "Unknown"}`);
     }
-  }
 
-  if (context.attachments && context.attachments.length > 0) {
-    const textAttachments = context.attachments.filter(a => a.extracted_text);
-    if (textAttachments.length > 0) {
-      parts.push(`\nAttachment Extracts:`);
-      for (const att of textAttachments) {
-        parts.push(`--- ${att.original_filename} ---\n${att.extracted_text}`);
-      }
+    if (context.job_description) {
+        parts.push(`\nJob Description:\n${context.job_description}`);
     }
-  }
 
-  return parts.join('\n');
+    if (context.profile) {
+        const p = context.profile;
+        parts.push(`\nCandidate Profile:`);
+        if (p.full_name) parts.push(`Name: ${p.full_name}`);
+        if (p.location_city || p.location_country)
+            parts.push(
+                `Location: ${[p.location_city, p.location_country].filter(Boolean).join(", ")}`,
+            );
+        if (p.target_roles) parts.push(`Target roles: ${p.target_roles}`);
+        if (p.cv_markdown) parts.push(`CV:\n${p.cv_markdown}`);
+        if (p.career_narrative)
+            parts.push(`Career narrative:\n${p.career_narrative}`);
+        if (p.agent_tone) parts.push(`Preferred tone: ${p.agent_tone}`);
+        if (p.agent_emphasize) parts.push(`Emphasise: ${p.agent_emphasize}`);
+        if (p.agent_avoid) parts.push(`Avoid: ${p.agent_avoid}`);
+        if (p.agent_instructions)
+            parts.push(`Agent instructions:\n${p.agent_instructions}`);
+    }
+
+    if (context.notes && context.notes.length > 0) {
+        parts.push(`\nStage Notes:`);
+        for (const note of context.notes) {
+            parts.push(`- [${note.stage}] ${note.content}`);
+        }
+    }
+
+    if (context.attachments && context.attachments.length > 0) {
+        const textAttachments = context.attachments.filter(
+            (a) => a.extracted_text,
+        );
+        if (textAttachments.length > 0) {
+            parts.push(`\nAttachment Extracts:`);
+            for (const att of textAttachments) {
+                parts.push(
+                    `--- ${att.original_filename} ---\n${att.extracted_text}`,
+                );
+            }
+        }
+    }
+
+    return parts.join("\n");
 }
 
 /**
@@ -96,54 +105,80 @@ function buildContextMessage(context) {
  * @throws {ServiceError}
  */
 async function generateDocument(context, task) {
-  if (!VALID_TASKS.includes(task)) {
-    throw new ServiceError(400, `Invalid task. Must be one of: ${VALID_TASKS.join(', ')}`);
-  }
-
-  const client = extraction.getOpenAIClient();
-  if (!client) {
-    console.error('[generation] failed reason="OPENAI_API_KEY not configured"');
-    throw new ServiceError(503, 'Document generation is not available. OpenAI API key is not configured.');
-  }
-
-  const model = process.env.LLM_MODEL || 'gpt-4o-mini';
-  const contextText = buildContextMessage(context);
-
-  console.log(`[generation] start task="${task}" model="${model}" context_length=${contextText.length}`);
-
-  try {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: PROMPTS[task] },
-        { role: 'user', content: contextText.slice(0, 20000) },
-      ],
-      temperature: 0.7,
-      max_tokens: 4000,
-    });
-
-    const text = response.choices[0]?.message?.content?.trim();
-    if (!text) {
-      console.error('[generation] failed reason="empty response from LLM"');
-      throw new ServiceError(502, 'Generation failed. The LLM returned an empty response.');
+    if (!VALID_TASKS.includes(task)) {
+        throw new ServiceError(
+            400,
+            `Invalid task. Must be one of: ${VALID_TASKS.join(", ")}`,
+        );
     }
 
-    console.log(`[generation] success task="${task}" length=${text.length}`);
-    return text;
-  } catch (err) {
-    if (err instanceof ServiceError) throw err;
-
-    console.error(`[generation] failed error="${err.message}"`);
-
-    if (err.code === 'insufficient_quota' || err.status === 429) {
-      throw new ServiceError(502, 'Generation failed due to rate limiting or quota exhaustion. Please try again later.');
-    }
-    if (err.code === 'context_length_exceeded') {
-      throw new ServiceError(502, 'Generation failed because the context is too long for the model.');
+    const client = extraction.getOpenAIClient();
+    if (!client) {
+        console.error(
+            '[generation] failed reason="OPENAI_API_KEY not configured"',
+        );
+        throw new ServiceError(
+            503,
+            "Document generation is not available. OpenAI API key is not configured.",
+        );
     }
 
-    throw new ServiceError(502, 'Generation failed due to an LLM service error. Please try again later.');
-  }
+    const model = process.env.LLM_MODEL || "gpt-4o-mini";
+    const contextText = buildContextMessage(context);
+
+    console.log(
+        `[generation] start task="${task}" model="${model}" context_length=${contextText.length}`,
+    );
+
+    try {
+        const response = await client.chat.completions.create({
+            model,
+            messages: [
+                { role: "system", content: PROMPTS[task] },
+                { role: "user", content: contextText.slice(0, 20000) },
+            ],
+            temperature: 0.7,
+            max_tokens: 4000,
+        });
+
+        const text = response.choices[0]?.message?.content?.trim();
+        if (!text) {
+            console.error(
+                '[generation] failed reason="empty response from LLM"',
+            );
+            throw new ServiceError(
+                502,
+                "Generation failed. The LLM returned an empty response.",
+            );
+        }
+
+        console.log(
+            `[generation] success task="${task}" length=${text.length}`,
+        );
+        return text;
+    } catch (err) {
+        if (err instanceof ServiceError) throw err;
+
+        console.error(`[generation] failed error="${err.message}"`);
+
+        if (err.code === "insufficient_quota" || err.status === 429) {
+            throw new ServiceError(
+                502,
+                "Generation failed due to rate limiting or quota exhaustion. Please try again later.",
+            );
+        }
+        if (err.code === "context_length_exceeded") {
+            throw new ServiceError(
+                502,
+                "Generation failed because the context is too long for the model.",
+            );
+        }
+
+        throw new ServiceError(
+            502,
+            "Generation failed due to an LLM service error. Please try again later.",
+        );
+    }
 }
 
 module.exports = { generateDocument, VALID_TASKS };

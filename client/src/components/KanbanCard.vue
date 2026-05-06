@@ -57,7 +57,7 @@ import { computed } from 'vue'
 const props = defineProps({ application: Object, showUser: Boolean, quiet: Boolean })
 defineEmits(['select'])
 
-const STALE_STAGES = new Set(['applied', 'screening', 'interview', 'offer'])
+const STALE_STAGES = new Set(['applied', 'responded', 'interview', 'offer'])
 
 const staleDays = computed(() => {
   if (!STALE_STAGES.has(props.application.status)) return 0

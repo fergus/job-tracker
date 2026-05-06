@@ -226,7 +226,7 @@ onUnmounted(() => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value)
 })
 
-const allStages = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
+const allStages = ['interested', 'applied', 'responded', 'interview', 'offer', 'accepted', 'rejected']
 
 const minDate = computed(() => {
   if (!props.applications?.length) return today.value
@@ -255,7 +255,7 @@ function sortApps(apps) {
     case 'start':
       return list.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
     case 'status': {
-      const order = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
+      const order = ['interested', 'applied', 'responded', 'interview', 'offer', 'accepted', 'rejected']
       return list.sort((a, b) => {
         const aIdx = order.indexOf(a.status)
         const bIdx = order.indexOf(b.status)
@@ -280,7 +280,7 @@ const sortedApps = computed(() => {
 })
 
 const groupedApps = computed(() => {
-  const order = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
+  const order = ['interested', 'applied', 'responded', 'interview', 'offer', 'accepted', 'rejected']
   const groups = []
   for (const status of order) {
     const apps = sortedApps.value.filter(a => a.status === status)

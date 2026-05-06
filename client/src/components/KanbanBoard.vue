@@ -241,7 +241,7 @@ const emit = defineEmits(['status-change', 'select', 'toggle-show-closed', 'drag
 const activeStages = [
   { value: 'interested', label: 'Interested' },
   { value: 'applied', label: 'Applied' },
-  { value: 'screening', label: 'Screening' },
+  { value: 'responded', label: 'Responded' },
   { value: 'interview', label: 'Interview' },
 ]
 
@@ -250,7 +250,7 @@ const mobileActiveGroup = {
   stages: [
     { value: 'interested', label: 'Interested' },
     { value: 'applied', label: 'Applied' },
-    { value: 'screening', label: 'Screening' },
+    { value: 'responded', label: 'Responded' },
     { value: 'interview', label: 'Interview' },
   ],
 }
@@ -266,7 +266,7 @@ const mobileClosedGroup = {
 const columns = reactive({
   interested: [],
   applied: [],
-  screening: [],
+  responded: [],
   interview: [],
   accepted: [],
   rejected: [],

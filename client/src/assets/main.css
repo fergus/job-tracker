@@ -2,209 +2,296 @@
 
 /* ─── Design tokens ─────────────────────────────────────────────── */
 :root {
-  color-scheme: light dark;
+    color-scheme: light dark;
 
-  /* Accent — amber-bronze, "tactical, forward, sharp" */
-  --accent:        oklch(65%  0.18  52);
-  --accent-hover:  oklch(57%  0.18  52);
-  --accent-fg:     oklch(15%  0.012 52);
-  --accent-muted:  oklch(96.5% 0.022 58);
+    /* Accent — amber-bronze, "tactical, forward, sharp" */
+    --accent: oklch(65% 0.18 52);
+    --accent-hover: oklch(57% 0.18 52);
+    --accent-fg: oklch(15% 0.012 52);
+    --accent-muted: oklch(96.5% 0.022 58);
 
-  /* Surface hierarchy */
-  --canvas:  oklch(97.5% 0.007 58);
-  --panel:   oklch(100%  0     0);
-  --raised:  oklch(96%   0.008 58);
-  --sunken:  oklch(93%   0.012 58);
+    /* Surface hierarchy */
+    --canvas: oklch(97.5% 0.007 58);
+    --panel: oklch(100% 0 0);
+    --raised: oklch(96% 0.008 58);
+    --sunken: oklch(93% 0.012 58);
 
-  /* Text hierarchy */
-  --ink:   oklch(18%  0.012 58);
-  --ink-2: oklch(36%  0.010 58);
-  --ink-3: oklch(45%  0.008 58);
+    /* Text hierarchy */
+    --ink: oklch(18% 0.012 58);
+    --ink-2: oklch(36% 0.01 58);
+    --ink-3: oklch(45% 0.008 58);
 
-  /* Borders */
-  --line:   oklch(88% 0.010 58);
-  --line-2: oklch(78% 0.010 58);
+    /* Borders */
+    --line: oklch(88% 0.01 58);
+    --line-2: oklch(78% 0.01 58);
 
-  /* Semantic */
-  --success:      oklch(52% 0.16 145);
-  --danger:       oklch(50% 0.20 22);
-  --danger-hover: oklch(42% 0.20 22);
+    /* Semantic */
+    --success: oklch(52% 0.16 145);
+    --danger: oklch(50% 0.2 22);
+    --danger-hover: oklch(42% 0.2 22);
 
-  /* Stage bar colors */
-  --stage-interested: oklch(57%  0.04  240);
-  --stage-applied:    oklch(55%  0.17  262);
-  --stage-screening:  oklch(64%  0.16   72);
-  --stage-interview:  oklch(62%  0.18   52);
-  --stage-offer:      oklch(56%  0.18  148);
-  --stage-accepted:   oklch(47%  0.20  148);
-  --stage-rejected:   oklch(50%  0.14   18);
+    /* Stage bar colors */
+    --stage-interested: oklch(57% 0.04 240);
+    --stage-applied: oklch(55% 0.17 262);
+    --stage-responded: oklch(58% 0.15 165);
+    --stage-interview: oklch(62% 0.18 52);
+    --stage-offer: oklch(56% 0.18 148);
+    --stage-accepted: oklch(47% 0.2 148);
+    --stage-rejected: oklch(50% 0.14 18);
 
-  /* Stage badge pairs — bg / fg */
-  --stage-interested-bg: oklch(94%  0.015 240); --stage-interested-fg: oklch(33%  0.08  240);
-  --stage-applied-bg:    oklch(93%  0.040 262); --stage-applied-fg:    oklch(28%  0.15  262);
-  --stage-screening-bg:  oklch(95%  0.035  72); --stage-screening-fg:  oklch(36%  0.12   72);
-  --stage-interview-bg:  oklch(95%  0.035  52); --stage-interview-fg:  oklch(36%  0.16   52);
-  --stage-offer-bg:      oklch(93%  0.040 148); --stage-offer-fg:      oklch(28%  0.16  148);
-  --stage-accepted-bg:   oklch(92%  0.045 148); --stage-accepted-fg:   oklch(23%  0.16  148);
-  --stage-rejected-bg:   oklch(95%  0.035  18); --stage-rejected-fg:   oklch(33%  0.12   18);
+    /* Stage badge pairs — bg / fg */
+    --stage-interested-bg: oklch(94% 0.015 240);
+    --stage-interested-fg: oklch(33% 0.08 240);
+    --stage-applied-bg: oklch(93% 0.04 262);
+    --stage-applied-fg: oklch(28% 0.15 262);
+    --stage-responded-bg: oklch(94% 0.03 165);
+    --stage-responded-fg: oklch(30% 0.12 165);
+    --stage-interview-bg: oklch(95% 0.035 52);
+    --stage-interview-fg: oklch(36% 0.16 52);
+    --stage-offer-bg: oklch(93% 0.04 148);
+    --stage-offer-fg: oklch(28% 0.16 148);
+    --stage-accepted-bg: oklch(92% 0.045 148);
+    --stage-accepted-fg: oklch(23% 0.16 148);
+    --stage-rejected-bg: oklch(95% 0.035 18);
+    --stage-rejected-fg: oklch(33% 0.12 18);
 }
 
 /* ─── Dark mode overrides ────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --accent:        oklch(68%  0.18  52);
-    --accent-hover:  oklch(74%  0.18  52);
-    --accent-fg:     oklch(14%  0.012 52);
-    --accent-muted:  oklch(24%  0.022 52);
+    :root {
+        --accent: oklch(68% 0.18 52);
+        --accent-hover: oklch(74% 0.18 52);
+        --accent-fg: oklch(14% 0.012 52);
+        --accent-muted: oklch(24% 0.022 52);
 
-    --canvas:  oklch(14%  0.010 240);
-    --panel:   oklch(18%  0.010 240);
-    --raised:  oklch(22%  0.010 240);
-    --sunken:  oklch(11%  0.010 240);
+        --canvas: oklch(14% 0.01 240);
+        --panel: oklch(18% 0.01 240);
+        --raised: oklch(22% 0.01 240);
+        --sunken: oklch(11% 0.01 240);
 
-    --ink:   oklch(94%  0.006 240);
-    --ink-2: oklch(77%  0.006 240);
-    --ink-3: oklch(62%  0.006 240);
+        --ink: oklch(94% 0.006 240);
+        --ink-2: oklch(77% 0.006 240);
+        --ink-3: oklch(62% 0.006 240);
 
-    --line:   oklch(28%  0.010 240);
-    --line-2: oklch(36%  0.010 240);
+        --line: oklch(28% 0.01 240);
+        --line-2: oklch(36% 0.01 240);
 
-    --success:      oklch(65% 0.14 145);
-    --danger:       oklch(62% 0.18 22);
-    --danger-hover: oklch(70% 0.18 22);
+        --success: oklch(65% 0.14 145);
+        --danger: oklch(62% 0.18 22);
+        --danger-hover: oklch(70% 0.18 22);
 
-    --stage-interested: oklch(65%  0.04  240);
-    --stage-applied:    oklch(62%  0.17  262);
-    --stage-screening:  oklch(72%  0.16   72);
-    --stage-interview:  oklch(70%  0.18   52);
-    --stage-offer:      oklch(64%  0.18  148);
-    --stage-accepted:   oklch(58%  0.20  148);
-    --stage-rejected:   oklch(60%  0.14   18);
+        --stage-interested: oklch(65% 0.04 240);
+        --stage-applied: oklch(62% 0.17 262);
+        --stage-responded: oklch(66% 0.15 165);
+        --stage-interview: oklch(70% 0.18 52);
+        --stage-offer: oklch(64% 0.18 148);
+        --stage-accepted: oklch(58% 0.2 148);
+        --stage-rejected: oklch(60% 0.14 18);
 
-    --stage-interested-bg: oklch(24% 0.03  240); --stage-interested-fg: oklch(72% 0.06 240);
-    --stage-applied-bg:    oklch(22% 0.06  262); --stage-applied-fg:    oklch(72% 0.14 262);
-    --stage-screening-bg:  oklch(24% 0.06   72); --stage-screening-fg:  oklch(78% 0.14  72);
-    --stage-interview-bg:  oklch(24% 0.06   52); --stage-interview-fg:  oklch(78% 0.16  52);
-    --stage-offer-bg:      oklch(22% 0.06  148); --stage-offer-fg:      oklch(72% 0.14 148);
-    --stage-accepted-bg:   oklch(20% 0.07  148); --stage-accepted-fg:   oklch(68% 0.16 148);
-    --stage-rejected-bg:   oklch(24% 0.05   18); --stage-rejected-fg:   oklch(72% 0.12  18);
-  }
+        --stage-interested-bg: oklch(24% 0.03 240);
+        --stage-interested-fg: oklch(72% 0.06 240);
+        --stage-applied-bg: oklch(22% 0.06 262);
+        --stage-applied-fg: oklch(72% 0.14 262);
+        --stage-responded-bg: oklch(22% 0.05 165);
+        --stage-responded-fg: oklch(72% 0.12 165);
+        --stage-interview-bg: oklch(24% 0.06 52);
+        --stage-interview-fg: oklch(78% 0.16 52);
+        --stage-offer-bg: oklch(22% 0.06 148);
+        --stage-offer-fg: oklch(72% 0.14 148);
+        --stage-accepted-bg: oklch(20% 0.07 148);
+        --stage-accepted-fg: oklch(68% 0.16 148);
+        --stage-rejected-bg: oklch(24% 0.05 18);
+        --stage-rejected-fg: oklch(72% 0.12 18);
+    }
 }
 
 /* ─── Tailwind theme integration ─────────────────────────────────── */
 @theme inline {
-  --color-canvas:        var(--canvas);
-  --color-panel:         var(--panel);
-  --color-raised:        var(--raised);
-  --color-sunken:        var(--sunken);
-  --color-ink:           var(--ink);
-  --color-ink-2:         var(--ink-2);
-  --color-ink-3:         var(--ink-3);
-  --color-line:          var(--line);
-  --color-line-2:        var(--line-2);
-  --color-accent:        var(--accent);
-  --color-accent-hover:  var(--accent-hover);
-  --color-accent-fg:     var(--accent-fg);
-  --color-accent-muted:  var(--accent-muted);
-  --color-success:       var(--success);
-  --color-danger:        var(--danger);
-  --color-danger-hover:  var(--danger-hover);
+    --color-canvas: var(--canvas);
+    --color-panel: var(--panel);
+    --color-raised: var(--raised);
+    --color-sunken: var(--sunken);
+    --color-ink: var(--ink);
+    --color-ink-2: var(--ink-2);
+    --color-ink-3: var(--ink-3);
+    --color-line: var(--line);
+    --color-line-2: var(--line-2);
+    --color-accent: var(--accent);
+    --color-accent-hover: var(--accent-hover);
+    --color-accent-fg: var(--accent-fg);
+    --color-accent-muted: var(--accent-muted);
+    --color-success: var(--success);
+    --color-danger: var(--danger);
+    --color-danger-hover: var(--danger-hover);
 
-  --font-sans:      'Barlow', system-ui, sans-serif;
-  --font-condensed: 'Barlow Condensed', system-ui, sans-serif;
+    --font-sans: "Barlow", system-ui, sans-serif;
+    --font-condensed: "Barlow Condensed", system-ui, sans-serif;
 }
 
 /* ─── Motion tokens ─────────────────────────────────────────────── */
 :root {
-  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
-  --ease-in-expo:   cubic-bezier(0.7,  0, 0.84, 0);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-in-expo: cubic-bezier(0.7, 0, 0.84, 0);
 }
 
 /* Stage advancement — decisive stamp, not bounce */
 @keyframes stage-stamp {
-  0%   { transform: scale(1); }
-  40%  { transform: scale(1.15); }
-  72%  { transform: scale(0.97); }
-  100% { transform: scale(1); }
+    0% {
+        transform: scale(1);
+    }
+    40% {
+        transform: scale(1.15);
+    }
+    72% {
+        transform: scale(0.97);
+    }
+    100% {
+        transform: scale(1);
+    }
 }
 .stage-stamp {
-  animation: stage-stamp 380ms var(--ease-out-quart) forwards;
+    animation: stage-stamp 380ms var(--ease-out-quart) forwards;
 }
 
 /* View crossfade (Board ↔ Table ↔ Timeline) */
-.view-enter-active { transition: opacity 180ms var(--ease-out-quart); }
-.view-leave-active { transition: opacity 130ms var(--ease-in-expo); }
+.view-enter-active {
+    transition: opacity 180ms var(--ease-out-quart);
+}
+.view-leave-active {
+    transition: opacity 130ms var(--ease-in-expo);
+}
 .view-enter-from,
-.view-leave-to     { opacity: 0; }
+.view-leave-to {
+    opacity: 0;
+}
 
 /* Easing utility classes */
-.ease-out-expo  { transition-timing-function: var(--ease-out-expo); }
-.ease-out-quart { transition-timing-function: var(--ease-out-quart); }
+.ease-out-expo {
+    transition-timing-function: var(--ease-out-expo);
+}
+.ease-out-quart {
+    transition-timing-function: var(--ease-out-quart);
+}
 
 /* Accessibility — collapse all motion for users who need it */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration:        0.01ms !important;
-    animation-iteration-count: 1      !important;
-    transition-duration:       0.01ms !important;
-  }
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 /* ─── Logo colour tokens ─────────────────────────────────────────── */
 :root {
-  --logo-bg:      var(--accent);
-  --logo-chevron: var(--panel);
+    --logo-bg: var(--accent);
+    --logo-chevron: var(--panel);
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --logo-bg:      var(--accent-muted);
-    --logo-chevron: var(--accent);
-  }
+    :root {
+        --logo-bg: var(--accent-muted);
+        --logo-chevron: var(--accent);
+    }
 }
 
 /* ─── Build animation (header logo) ─────────────────────────────── */
 @keyframes jt-build {
-  0%   { opacity: 0; transform: translateX(-14px) scale(0.85); }
-  100% { opacity: 1; transform: translateX(0)     scale(1);    }
+    0% {
+        opacity: 0;
+        transform: translateX(-14px) scale(0.85);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
 }
-.b  { animation: jt-build 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
-      transform-box: fill-box; transform-origin: center; }
-.b1 { animation-delay: 0.00s; }
-.b2 { animation-delay: 0.12s; }
-.b3 { animation-delay: 0.24s; }
+.b {
+    animation: jt-build 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+.b1 {
+    animation-delay: 0s;
+}
+.b2 {
+    animation-delay: 0.12s;
+}
+.b3 {
+    animation-delay: 0.24s;
+}
 
 /* ─── Conveyor animation (loading states) ────────────────────────── */
 @keyframes jt-conveyor {
-  0%   { opacity: 0; transform: translateX(-12px); }
-  25%  { opacity: 1; transform: translateX(0);     }
-  75%  { opacity: 1; transform: translateX(0);     }
-  100% { opacity: 0; transform: translateX(12px);  }
+    0% {
+        opacity: 0;
+        transform: translateX(-12px);
+    }
+    25% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    75% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(12px);
+    }
 }
-.c  { animation: jt-conveyor 1.2s linear infinite;
-      transform-box: fill-box; transform-origin: center; }
-.c1 { animation-delay: 0.00s; }
-.c2 { animation-delay: 0.15s; }
-.c3 { animation-delay: 0.30s; }
+.c {
+    animation: jt-conveyor 1.2s linear infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+.c1 {
+    animation-delay: 0s;
+}
+.c2 {
+    animation-delay: 0.15s;
+}
+.c3 {
+    animation-delay: 0.3s;
+}
 
 /* ─── Toast transitions ─────────────────────────────────────────── */
-.toast-enter-from { opacity: 0; transform: translateY(10px); }
-.toast-enter-active { transition: opacity 240ms var(--ease-out-expo), transform 240ms var(--ease-out-expo); }
-.toast-leave-to { opacity: 0; transform: translateY(-6px); }
-.toast-leave-active { transition: opacity 160ms var(--ease-in-expo), transform 160ms var(--ease-in-expo); }
-.toast-move { transition: transform 240ms var(--ease-out-expo); }
+.toast-enter-from {
+    opacity: 0;
+    transform: translateY(10px);
+}
+.toast-enter-active {
+    transition:
+        opacity 240ms var(--ease-out-expo),
+        transform 240ms var(--ease-out-expo);
+}
+.toast-leave-to {
+    opacity: 0;
+    transform: translateY(-6px);
+}
+.toast-leave-active {
+    transition:
+        opacity 160ms var(--ease-in-expo),
+        transform 160ms var(--ease-in-expo);
+}
+.toast-move {
+    transition: transform 240ms var(--ease-out-expo);
+}
 
 /* ─── Scrollbar utilities ───────────────────────────────────────── */
 .scrollbar-none {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 .scrollbar-none::-webkit-scrollbar {
-  display: none;
+    display: none;
 }
 
 /* ─── Base ───────────────────────────────────────────────────────── */
-html, body {
-  background-color: var(--canvas);
-  color: var(--ink);
+html,
+body {
+    background-color: var(--canvas);
+    color: var(--ink);
 }

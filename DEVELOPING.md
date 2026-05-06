@@ -211,7 +211,7 @@ Content-Type: application/json
 { "status": "interview" }
 ```
 
-Valid statuses: `interested`, `applied`, `screening`, `interview`, `offer`, `accepted`, `rejected`.
+Valid statuses: `interested`, `applied`, `responded`, `interview`, `offer`, `accepted`, `rejected`.
 
 Automatically sets the corresponding date field (e.g. `interview_at`) to the current time.
 
@@ -224,11 +224,11 @@ Content-Type: application/json
 {
   "interested_at": "2024-01-15T10:00:00.000Z",
   "applied_at": "2024-01-20T10:00:00.000Z",
-  "screening_at": null
+  "responded_at": null
 }
 ```
 
-Valid fields: `interested_at`, `applied_at`, `screening_at`, `interview_at`, `offer_at`, `closed_at`. Pass `null` to clear a date.
+Valid fields: `interested_at`, `applied_at`, `responded_at`, `interview_at`, `offer_at`, `closed_at`. Pass `null` to clear a date.
 
 #### Delete application
 
@@ -488,13 +488,13 @@ curl -s -X POST http://localhost:3000/api/applications \
 curl -s -X POST http://localhost:3000/api/applications/1/notes \
   -H 'X-Forwarded-Email: dev@localhost' \
   -H 'Content-Type: application/json' \
-  -d '{"stage":"screening","content":"Phone screen scheduled"}' | jq
+  -d '{"stage":"responded","content":"Recruiter replied"}' | jq
 
 # Change status
 curl -s -X PATCH http://localhost:3000/api/applications/1/status \
   -H 'X-Forwarded-Email: dev@localhost' \
   -H 'Content-Type: application/json' \
-  -d '{"status":"screening"}' | jq
+  -d '{"status":"responded"}' | jq
 
 # Upload an attachment
 curl -s -X POST http://localhost:3000/api/applications/1/attachments \

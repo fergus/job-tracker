@@ -757,14 +757,14 @@ const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
 
 const isEdit = computed(() => !!(props.panelApp?.id))
 
-const statuses = ['interested', 'applied', 'screening', 'interview', 'offer', 'accepted', 'rejected']
+const statuses = ['interested', 'applied', 'responded', 'interview', 'offer', 'accepted', 'rejected']
 
 
 const dates = [
   { key: 'created_at', label: 'Created' },
   { key: 'interested_at', label: 'Interested' },
   { key: 'applied_at', label: 'Applied' },
-  { key: 'screening_at', label: 'Screening' },
+  { key: 'responded_at', label: 'Responded' },
   { key: 'interview_at', label: 'Interview' },
   { key: 'offer_at', label: 'Offer' },
   { key: 'closed_at', label: 'Closed' },
