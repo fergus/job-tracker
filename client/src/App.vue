@@ -149,11 +149,15 @@ import {
 import { TERMINAL_STAGES } from "./utils/timeline.js";
 import { useToast } from "./composables/useToast";
 import LogoBuild from "./components/LogoBuild.vue";
+import { defineAsyncComponent } from 'vue'
 import KanbanBoard from "./components/KanbanBoard.vue";
 import TimelineView from "./components/TimelineView.vue";
-import ApplicationPanel from "./components/ApplicationPanel.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import ToastContainer from "./components/ToastContainer.vue";
+
+const ApplicationPanel = defineAsyncComponent(() =>
+    import("./components/ApplicationPanel.vue")
+);
 
 const toast = useToast();
 
