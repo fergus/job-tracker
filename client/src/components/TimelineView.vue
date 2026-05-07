@@ -193,22 +193,21 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { computeSegments, durationDays, isRejected, isAccepted, isTerminal } from '../utils/timeline'
+import { storageGetString, storageSet } from '../utils/storage.js'
+import { formatShortDate } from '../utils/date.js'
 
 const props = defineProps({ applications: Array, showClosed: Boolean, closedCount: Number })
 const emit = defineEmits(['open-detail', 'toggle-show-closed', 'set-view'])
 
 const SORT_KEY = 'jobtracker_timeline_sort'
 
-function lsGet(key) { try { return localStorage.getItem(key) } catch { return null } }
-function lsSet(key, val) { try { localStorage.setItem(key, val) } catch {} }
-
 const today = ref(new Date().toISOString())
-const sortKey = ref(lsGet(SORT_KEY) || 'updated')
+const sortKey = ref(storageGetString(SORT_KEY, 'updated'))
 const tooltip = ref(null)
 const tooltipTimer = ref(null)
 
 watch(sortKey, (val) => {
-  lsSet(SORT_KEY, val)
+  storageSet(SORT_KEY, val)
 })
 
 let dateInterval
@@ -390,12 +389,6 @@ function segmentStyle(seg, appStatus) {
   }
 
   return baseStyle
-}
-
-function formatShortDate(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 function showTooltip(event, seg) {

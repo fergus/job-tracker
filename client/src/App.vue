@@ -148,6 +148,8 @@ import {
 } from "./api";
 import { TERMINAL_STAGES } from "./utils/timeline.js";
 import { useToast } from "./composables/useToast";
+import { storageGetBool, storageSet } from "./utils/storage.js";
+import { getErrorMessage } from "./utils/error.js";
 import LogoBuild from "./components/LogoBuild.vue";
 import { defineAsyncComponent } from 'vue'
 import KanbanBoard from "./components/KanbanBoard.vue";
@@ -166,18 +168,7 @@ const version = __APP_VERSION__;
 const COMPACT_KEY = "jobtracker_compact_header";
 const SHOW_CLOSED_KEY = "jobtracker_show_closed";
 
-function lsGet(key) {
-    try {
-        return localStorage.getItem(key);
-    } catch {
-        return null;
-    }
-}
-function lsSet(key, val) {
-    try {
-        localStorage.setItem(key, val);
-    } catch {}
-}
+
 
 const view = ref("kanban");
 const applications = ref([]);
@@ -192,8 +183,7 @@ const statusVersion = ref(0);
 const dragActive = ref(false);
 const settingsBtn = ref(null);
 
-const _stored = lsGet(SHOW_CLOSED_KEY);
-const showClosed = ref(_stored === null ? true : _stored === "true");
+const showClosed = ref(storageGetBool(SHOW_CLOSED_KEY, true));
 
 const displayApplications = computed(() => {
     if (showClosed.value) return applications.value;
@@ -213,7 +203,7 @@ const closedCount = computed(() => {
 function toggleShowClosed() {
     if (dragActive.value) return;
     showClosed.value = !showClosed.value;
-    lsSet(SHOW_CLOSED_KEY, String(showClosed.value));
+    storageSet(SHOW_CLOSED_KEY, String(showClosed.value));
 }
 
 function closeSettings() {
@@ -240,7 +230,7 @@ watch(showPanel, (panel) => {
 
 function toggleCompact() {
     compactHeader.value = !compactHeader.value;
-    lsSet(COMPACT_KEY, String(compactHeader.value));
+    storageSet(COMPACT_KEY, String(compactHeader.value));
 }
 
 async function loadApplications() {
@@ -295,7 +285,7 @@ async function refreshApplication(id) {
         } else {
             toast.error(
                 "Error refreshing application: " +
-                    (err.response?.data?.error || err.message),
+                    getErrorMessage(err),
             );
         }
     }
@@ -348,8 +338,7 @@ function setShowAll(val) {
 onMounted(async () => {
     const isMobile = window.innerWidth < 768;
     view.value = isMobile ? "kanban" : "kanban";
-    const saved = lsGet(COMPACT_KEY);
-    compactHeader.value = saved !== null ? saved === "true" : isMobile;
+    compactHeader.value = storageGetBool(COMPACT_KEY, isMobile);
     currentUser.value = await fetchMe();
     loadApplications();
 });

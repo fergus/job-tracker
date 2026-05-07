@@ -751,8 +751,6 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
 import {
   createApplication, updateApplication, updateStatus, deleteApplication,
   updateDates, createNote, updateNote, deleteNote,
@@ -761,19 +759,19 @@ import {
 } from '../api'
 import { computeSegments, stageColor, durationDays } from '../utils/timeline'
 import { useToast } from '../composables/useToast'
+import { renderMarkdown } from '../utils/markdown.js'
+import { storageGetBool, storageSet } from '../utils/storage.js'
+import { formatDate, formatShortDate, formatDateTime } from '../utils/date.js'
+import { getErrorMessage, getErrorType } from '../utils/error.js'
 
 const toast = useToast()
 
 const NOTES_TIP_KEY = 'jobtracker_notes_tip_dismissed'
-function lsGet(key) { try { return localStorage.getItem(key) } catch { return null } }
-function lsSet(key, val) { try { localStorage.setItem(key, val) } catch {} }
-const notesTipDismissed = ref(lsGet(NOTES_TIP_KEY) === 'true')
+const notesTipDismissed = ref(storageGetBool(NOTES_TIP_KEY, false))
 function dismissNotesTip() {
   notesTipDismissed.value = true
-  lsSet(NOTES_TIP_KEY, 'true')
+  storageSet(NOTES_TIP_KEY, 'true')
 }
-
-marked.setOptions({ breaks: true })
 
 const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768
 const datesOpen = ref(isDesktop)
@@ -989,7 +987,7 @@ async function onStatusClick(s) {
       }
     } catch (err) {
       form.status = prevStatus
-      toast.error('Error updating status: ' + (err.response?.data?.error || err.message))
+      toast.error('Error updating status: ' + getErrorMessage(err))
     }
   }
 }
@@ -1046,7 +1044,7 @@ async function save() {
       toast.success('Application created')
     }
   } catch (err) {
-    toast.error('Error saving: ' + (err.response?.data?.error || err.message))
+    toast.error('Error saving: ' + getErrorMessage(err))
   } finally {
     saving.value = false
   }
@@ -1064,7 +1062,7 @@ async function confirmDelete() {
     setTimeout(() => { emit('saved'); emit('close') }, 300)
   } catch (err) {
     pendingDelete.value = false
-    toast.error('Error deleting: ' + (err.response?.data?.error || err.message))
+    toast.error('Error deleting: ' + getErrorMessage(err))
   }
 }
 
@@ -1081,8 +1079,8 @@ async function onFetchJd() {
     toast.success('Job description fetched and extracted')
     emit('saved')
   } catch (err) {
-    const message = err.response?.data?.error || 'Could not fetch the job description.'
-    const type = err.response?.data?.type
+    const message = getErrorMessage(err, 'Could not fetch the job description.')
+    const type = getErrorType(err)
     fetchError.value = message
     // Auto-expand job description textarea so user can paste manually
     editingJobDesc.value = true
@@ -1110,7 +1108,7 @@ async function onExtractJd() {
     toast.success('Details extracted from job description')
     emit('saved')
   } catch (err) {
-    const message = err.response?.data?.error || 'Extraction failed.'
+    const message = getErrorMessage(err, 'Extraction failed.')
     toast.error(message)
   } finally {
     fetchingJd.value = false
@@ -1127,7 +1125,7 @@ async function onGenerateDocument() {
     toast.success('Document generated')
     await loadAttachments()
   } catch (err) {
-    const message = err.response?.data?.error || 'Document generation failed.'
+    const message = getErrorMessage(err, 'Document generation failed.')
     toast.error(message)
   } finally {
     generatingDoc.value = false
@@ -1148,7 +1146,7 @@ async function onDateChange(key, event) {
     await updateDates(props.panelApp.id, { [key]: isoValue })
     emit('saved')
   } catch (err) {
-    toast.error('Error updating date: ' + (err.response?.data?.error || err.message))
+    toast.error('Error updating date: ' + getErrorMessage(err))
   }
 }
 
@@ -1158,7 +1156,7 @@ async function clearDate(key) {
     await updateDates(props.panelApp.id, { [key]: null })
     emit('saved')
   } catch (err) {
-    toast.error('Error clearing date: ' + (err.response?.data?.error || err.message))
+    toast.error('Error clearing date: ' + getErrorMessage(err))
   }
 }
 
@@ -1336,7 +1334,7 @@ async function removeAttachment(attachmentId) {
     await deleteAttachment(props.panelApp.id, attachmentId)
     attachments.value = attachments.value.filter(a => a.id !== attachmentId)
   } catch (err) {
-    toast.error('Error deleting attachment: ' + (err.response?.data?.error || err.message))
+    toast.error('Error deleting attachment: ' + getErrorMessage(err))
   }
 }
 
@@ -1359,7 +1357,7 @@ async function addNote() {
     newNoteContent.value = ''
     emit('saved')
   } catch (err) {
-    toast.error('Error adding note: ' + (err.response?.data?.error || err.message))
+    toast.error('Error adding note: ' + getErrorMessage(err))
   }
 }
 
@@ -1373,7 +1371,7 @@ async function removeNote(noteId) {
     await deleteNote(props.panelApp.id, noteId)
     emit('saved')
   } catch (err) {
-    toast.error('Error deleting note: ' + (err.response?.data?.error || err.message))
+    toast.error('Error deleting note: ' + getErrorMessage(err))
   }
 }
 
@@ -1397,7 +1395,7 @@ async function saveEdit(noteId) {
     await updateNote(props.panelApp.id, noteId, { content, stage: editingStage.value })
     emit('saved')
   } catch (err) {
-    toast.error('Error updating note: ' + (err.response?.data?.error || err.message))
+    toast.error('Error updating note: ' + getErrorMessage(err))
   }
 }
 
@@ -1407,35 +1405,7 @@ function cancelEdit() {
   editingStage.value = ''
 }
 
-const MAX_MARKDOWN_CACHE = 100
-const markdownCache = new Map()
-function renderMarkdown(content) {
-  const key = content || ''
-  if (!markdownCache.has(key)) {
-    markdownCache.set(key, DOMPurify.sanitize(marked.parse(key)))
-    if (markdownCache.size > MAX_MARKDOWN_CACHE) {
-      const firstKey = markdownCache.keys().next().value
-      markdownCache.delete(firstKey)
-    }
-  }
-  return markdownCache.get(key)
-}
 
-function formatDate(iso) {
-  if (!iso) return '-'
-  return new Date(iso).toLocaleDateString()
-}
-
-function formatShortDate(iso) {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-function formatDateTime(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
 
 function fileTypeMeta(filename) {
   const ext = (filename.split('.').pop() || '').toLowerCase()

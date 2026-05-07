@@ -29,7 +29,7 @@
           :class="stalenessDotClass"
           aria-hidden="true"
         ></span>
-        {{ formatDate(application.updated_at) }}
+        {{ formatRelativeDate(application.updated_at) }}
       </span>
       <span class="flex gap-1.5 items-center">
         <span v-if="application.attachment_count > 0" class="flex items-center gap-0.5 text-ink-3" :title="`${application.attachment_count} attachment${application.attachment_count > 1 ? 's' : ''}`">
@@ -94,25 +94,5 @@ const stalenessLabel = computed(() => {
   return `No movement in ${duration}`
 })
 
-function formatDate(iso) {
-  if (!iso) return ''
-  const date = new Date(iso)
-  const now = new Date()
-  const diffMs = now - date
-  const diffDays = Math.floor(diffMs / 86_400_000)
-
-  if (diffDays < 1) return 'today'
-  if (diffDays < 7) {
-    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-    return rtf.format(-diffDays, 'day')
-  }
-  if (diffDays < 30) {
-    const weeks = Math.floor(diffDays / 7)
-    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-    return rtf.format(-weeks, 'week')
-  }
-  const months = Math.floor(diffDays / 30)
-  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-  return rtf.format(-months, 'month')
-}
+import { formatRelativeDate } from '../utils/date.js'
 </script>

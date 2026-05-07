@@ -417,8 +417,8 @@
                   <div class="min-w-0">
                     <p class="text-sm font-medium text-ink truncate">{{ key.label || 'Unnamed' }}</p>
                     <p class="text-xs text-ink-3 mt-0.5">
-                      Created {{ relativeTime(key.created_at) }} ·
-                      {{ key.last_used_at ? `Last used ${relativeTime(key.last_used_at)}` : 'Never used' }}
+                      Created {{ formatTimeAgo(key.created_at) }} ·
+                      {{ key.last_used_at ? `Last used ${formatTimeAgo(key.last_used_at)}` : 'Never used' }}
                     </p>
                   </div>
                   <div class="shrink-0 flex items-center">
@@ -544,6 +544,8 @@
 <script setup>
 import { ref, onMounted, watch, nextTick, onUnmounted } from 'vue'
 import { generateApiKey, listApiKeys, revokeApiKey, fetchProfile, updateProfile } from '../api'
+import { formatTimeAgo } from '../utils/date.js'
+import { getErrorMessage } from '../utils/error.js'
 
 const props = defineProps({
   show: Boolean,
@@ -736,8 +738,7 @@ async function generate() {
     generateLabel.value = ''
     await loadKeys()
   } catch (err) {
-    const msg = err?.response?.data?.error
-    generateError.value = msg || 'Failed to generate key. Please try again.'
+    generateError.value = getErrorMessage(err, 'Failed to generate key. Please try again.')
   } finally {
     isGenerating.value = false
   }
@@ -749,7 +750,7 @@ async function confirmRevoke(id) {
     confirmRevokeId.value = null
     await loadKeys()
   } catch (err) {
-    generateError.value = 'Failed to revoke key. Please try again.'
+    generateError.value = getErrorMessage(err, 'Failed to revoke key. Please try again.')
     confirmRevokeId.value = null
   }
 }
@@ -784,7 +785,7 @@ async function loadProfile() {
     originalProfile.value = JSON.parse(JSON.stringify(profile.value))
     isDirty.value = false
   } catch (err) {
-    profileLoadError.value = 'Failed to load profile. Please try again.'
+    profileLoadError.value = getErrorMessage(err, 'Failed to load profile. Please try again.')
   } finally {
     profileLoading.value = false
   }
@@ -813,26 +814,12 @@ async function saveProfile() {
     saveTimeout = setTimeout(() => { profileSaved.value = false }, 4000)
     return true
   } catch (err) {
-    const msg = err?.response?.data?.error
-    profileError.value = msg || 'Failed to save profile. Please try again.'
+    profileError.value = getErrorMessage(err, 'Failed to save profile. Please try again.')
     return false
   } finally {
     isSavingProfile.value = false
   }
 }
 
-function relativeTime(isoString) {
-  if (!isoString) return ''
-  const diff = Date.now() - new Date(isoString).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  return `${Math.floor(months / 12)}y ago`
-}
+
 </script>

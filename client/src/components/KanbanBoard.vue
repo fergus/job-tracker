@@ -279,12 +279,12 @@ const dragActive = ref(false)
 
 const closedCount = computed(() => columns.accepted.length + columns.rejected.length)
 
-const RECENT_CLOSED_DAYS = 14
+import { RECENT_CLOSED_DAYS, MS_PER_DAY } from '../utils/date.js'
 
 function daysSinceClosed(app) {
   const dateStr = app.closed_at || app.updated_at
   if (!dateStr) return Infinity
-  return (Date.now() - new Date(dateStr).getTime()) / 86_400_000
+  return (Date.now() - new Date(dateStr).getTime()) / MS_PER_DAY
 }
 
 function isRecent(app) {
