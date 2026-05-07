@@ -1,5 +1,6 @@
 services:
   oauth2-proxy:
+    container_name: job-tracker-oauth2
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.2
     ports:
       - "${LISTEN_PORT:-3000}:4180"
@@ -27,6 +28,7 @@ services:
         condition: service_healthy
 
   job-tracker:
+    container_name: job-tracker-app
     build: .
     expose:
       - "3000"
