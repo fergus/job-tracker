@@ -594,6 +594,41 @@
               </div>
             </details>
 
+            <!-- Activity -->
+            <details :open="auditLogOpen" @toggle="auditLogOpen = $event.target.open" class="group mt-4 pt-4 border-t border-line">
+              <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+                <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Activity</span>
+                <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </summary>
+              <div class="mt-3">
+                <div v-if="auditLogLoading" class="text-sm text-ink-3 mb-2">Loading...</div>
+                <div v-else-if="auditLog.length === 0" class="text-sm text-ink-3">No activity yet.</div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="entry in auditLog"
+                    :key="entry.id"
+                    class="bg-raised rounded-lg p-3"
+                  >
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="text-sm font-medium text-ink">{{ humanizeAction(entry.action) }}</span>
+                      <span
+                        class="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+                        :class="entry.auth_method === 'api_key' ? 'bg-accent-muted/30 text-accent' : 'bg-sunken text-ink-2'"
+                      >{{ entry.auth_method === 'api_key' ? 'Agent' : 'You' }}</span>
+                      <span class="text-[9px] uppercase tracking-wide text-ink-3">{{ entry.source === 'mcp' ? 'MCP' : 'Web' }}</span>
+                    </div>
+                    <div class="text-xs text-ink-3 mt-1">{{ formatDateTime(entry.created_at) }}</div>
+                    <div v-if="entry.details" class="mt-1.5">
+                      <details class="text-xs">
+                        <summary class="text-ink-3 cursor-pointer hover:text-ink-2">Details</summary>
+                        <pre class="mt-1 p-2 bg-sunken rounded text-ink-2 overflow-x-auto">{{ JSON.stringify(entry.details, null, 2) }}</pre>
+                      </details>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
           </template>
 
           <!-- Files -->
@@ -722,7 +757,7 @@ import {
   createApplication, updateApplication, updateStatus, deleteApplication,
   updateDates, createNote, updateNote, deleteNote,
   fetchAttachments, uploadAttachments, getAttachmentUrl, deleteAttachment,
-  extractJd, fetchJd, generateDocument,
+  extractJd, fetchJd, generateDocument, fetchAuditLog,
 } from '../api'
 import { computeSegments, stageColor, durationDays } from '../utils/timeline'
 import { useToast } from '../composables/useToast'
@@ -751,6 +786,9 @@ const fetchError = ref('')
 const generatingDoc = ref(false)
 const generatedDocPreview = ref(null)
 const selectedTask = ref('cover_letter')
+const auditLog = ref([])
+const auditLogLoading = ref(false)
+const auditLogOpen = ref(false)
 
 const props = defineProps({ panelApp: Object, totalApplications: { type: Number, default: 0 } })
 const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
@@ -826,6 +864,7 @@ onMounted(() => {
   requestAnimationFrame(() => { visible.value = true })
   if (props.panelApp?.id) {
     loadAttachments()
+    loadAuditLog()
     newNoteStage.value = props.panelApp.status
   }
 })
@@ -867,10 +906,12 @@ watch(() => props.panelApp?.id, (newId) => {
   fetchError.value = ''
   if (newId) {
     loadAttachments()
+    loadAuditLog()
     newNoteStage.value = props.panelApp.status
   } else {
     attachments.value = []
     queuedFiles.value = []
+    auditLog.value = []
   }
 })
 
@@ -1194,6 +1235,39 @@ async function loadAttachments() {
   } finally {
     attachmentsLoading.value = false
   }
+}
+
+async function loadAuditLog() {
+  if (!props.panelApp?.id) return
+  auditLogLoading.value = true
+  try {
+    auditLog.value = await fetchAuditLog(props.panelApp.id)
+  } catch {
+    auditLog.value = []
+  } finally {
+    auditLogLoading.value = false
+  }
+}
+
+function humanizeAction(action) {
+  const map = {
+    create_application: 'Created application',
+    update_application: 'Updated application',
+    update_status: 'Changed status',
+    upload_cv: 'Uploaded CV',
+    upload_cover_letter: 'Uploaded cover letter',
+    upload_attachment: 'Uploaded attachment',
+    delete_attachment: 'Deleted attachment',
+    update_dates: 'Updated dates',
+    delete_application: 'Deleted application',
+    add_note: 'Added note',
+    update_note: 'Updated note',
+    delete_note: 'Deleted note',
+    extract_job_description: 'Extracted job description',
+    fetch_job_description: 'Fetched job description',
+    generate_document: 'Generated document',
+  }
+  return map[action] || action.replace(/_/g, ' ')
 }
 
 function onDragEnter(event) {

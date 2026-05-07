@@ -13,7 +13,7 @@ const fs = require("fs");
 const path = require("path");
 const supertest = require("supertest");
 const app = require("../app");
-const { uploadsDir } = require("../services/applications");
+const { uploadsDir } = require("../lib/files");
 
 const req = supertest(app);
 
@@ -32,12 +32,10 @@ async function createApp(overrides = {}) {
 }
 
 async function createNote(appId, overrides = {}) {
-    const res = await req
-        .post(`/api/applications/${appId}/notes`)
-        .send({
-            stage: overrides.stage ?? "interview",
-            content: overrides.content ?? "Initial note",
-        });
+    const res = await req.post(`/api/applications/${appId}/notes`).send({
+        stage: overrides.stage ?? "interview",
+        content: overrides.content ?? "Initial note",
+    });
     assert.equal(res.status, 201);
     return res.body;
 }
@@ -287,12 +285,10 @@ describe("Date editing", () => {
 
     test("PATCH /api/applications/:id/dates ignores unknown fields", async () => {
         const app = await createApp();
-        const res = await req
-            .patch(`/api/applications/${app.id}/dates`)
-            .send({
-                applied_at: "2025-06-15T12:00:00.000Z",
-                bogus_field: "ignored",
-            });
+        const res = await req.patch(`/api/applications/${app.id}/dates`).send({
+            applied_at: "2025-06-15T12:00:00.000Z",
+            bogus_field: "ignored",
+        });
         assert.equal(res.status, 200);
         assert.equal(res.body.applied_at, "2025-06-15T12:00:00.000Z");
     });
@@ -833,12 +829,9 @@ describe("Job Description Extraction", () => {
 
     test("POST /api/applications/:id/extract-jd returns 502 when OPENAI_API_KEY is not set", async () => {
         const app = await createApp();
-        await req
-            .put(`/api/applications/${app.id}`)
-            .send({
-                job_description:
-                    "Senior Engineer role. Requires Python and AWS.",
-            });
+        await req.put(`/api/applications/${app.id}`).send({
+            job_description: "Senior Engineer role. Requires Python and AWS.",
+        });
         const res = await req.post(`/api/applications/${app.id}/extract-jd`);
         assert.equal(res.status, 502);
         assert.ok(res.body.error.includes("unavailable"));
@@ -858,12 +851,10 @@ describe("Job Description Extraction", () => {
 
     test("POST /api/applications/:id/fetch-jd returns 502 when fetch fails", async () => {
         const app = await createApp();
-        await req
-            .put(`/api/applications/${app.id}`)
-            .send({
-                job_posting_url:
-                    "https://invalid-domain-that-does-not-exist-12345.example.com/job",
-            });
+        await req.put(`/api/applications/${app.id}`).send({
+            job_posting_url:
+                "https://invalid-domain-that-does-not-exist-12345.example.com/job",
+        });
         const res = await req.post(`/api/applications/${app.id}/fetch-jd`);
         assert.equal(res.status, 502);
         assert.ok(res.body.error);
@@ -1656,6 +1647,156 @@ describe("Attachments", () => {
             )
             .set("X-Forwarded-Email", "other@example.com");
         assert.equal(res.status, 404);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Audit Log
+// ---------------------------------------------------------------------------
+
+describe("Audit Log", () => {
+    test("POST /api/applications creates an audit log entry", async () => {
+        const res = await req
+            .post("/api/applications")
+            .field("company_name", "AuditTest")
+            .field("role_title", "Engineer");
+        assert.equal(res.status, 201);
+
+        const auditRes = await req.get(
+            `/api/applications/${res.body.id}/audit-log`,
+        );
+        assert.equal(auditRes.status, 200);
+        assert.equal(auditRes.body.length, 1);
+        assert.equal(auditRes.body[0].action, "create_application");
+        assert.equal(auditRes.body[0].source, "rest");
+        assert.equal(auditRes.body[0].auth_method, "oauth");
+        assert.equal(auditRes.body[0].details.company_name, "AuditTest");
+    });
+
+    test("PUT /api/applications/:id creates an audit log entry", async () => {
+        const app = await createApp();
+        const res = await req.put(`/api/applications/${app.id}`).send({
+            company_name: "UpdatedCo",
+        });
+        assert.equal(res.status, 200);
+
+        const auditRes = await req.get(`/api/applications/${app.id}/audit-log`);
+        assert.equal(auditRes.status, 200);
+        const updateEntry = auditRes.body.find(
+            (e) => e.action === "update_application",
+        );
+        assert.ok(updateEntry);
+        assert.equal(updateEntry.source, "rest");
+        assert.equal(updateEntry.auth_method, "oauth");
+        assert.deepEqual(updateEntry.details.fields, ["company_name"]);
+    });
+
+    test("PATCH /api/applications/:id/status creates an audit log entry", async () => {
+        const app = await createApp();
+        const res = await req
+            .patch(`/api/applications/${app.id}/status`)
+            .send({ status: "applied" });
+        assert.equal(res.status, 200);
+
+        const auditRes = await req.get(`/api/applications/${app.id}/audit-log`);
+        assert.equal(auditRes.status, 200);
+        const statusEntry = auditRes.body.find(
+            (e) => e.action === "update_status",
+        );
+        assert.ok(statusEntry);
+        assert.equal(statusEntry.details.status, "applied");
+    });
+
+    test("POST /api/applications/:id/notes creates an audit log entry", async () => {
+        const app = await createApp();
+        const res = await req.post(`/api/applications/${app.id}/notes`).send({
+            stage: "interview",
+            content: "Test note",
+        });
+        assert.equal(res.status, 201);
+
+        const auditRes = await req.get(`/api/applications/${app.id}/audit-log`);
+        assert.equal(auditRes.status, 200);
+        const noteEntry = auditRes.body.find((e) => e.action === "add_note");
+        assert.ok(noteEntry);
+        assert.equal(noteEntry.details.stage, "interview");
+    });
+
+    test("DELETE /api/applications/:id creates an audit log entry before deletion", async () => {
+        const app = await createApp();
+        const auditBefore = await req.get(
+            `/api/applications/${app.id}/audit-log`,
+        );
+        assert.equal(auditBefore.body.length, 1);
+
+        const del = await req.delete(`/api/applications/${app.id}`);
+        assert.equal(del.status, 200);
+
+        // Audit log is cascaded with the application
+        const auditAfter = await req.get(
+            `/api/applications/${app.id}/audit-log`,
+        );
+        assert.equal(auditAfter.status, 404);
+    });
+
+    test("API key actions are logged with auth_method=api_key", async () => {
+        const keyRes = await req
+            .post("/api/keys")
+            .set("X-Forwarded-Email", "apikey-audit@example.com")
+            .send({ label: "audit-test" });
+        assert.equal(keyRes.status, 201);
+        const key = keyRes.body.key;
+
+        const res = await req
+            .post("/api/applications")
+            .set("Authorization", `Bearer ${key}`)
+            .field("company_name", "ApiKeyCo")
+            .field("role_title", "Dev");
+        assert.equal(res.status, 201);
+
+        const auditRes = await req
+            .get(`/api/applications/${res.body.id}/audit-log`)
+            .set("Authorization", `Bearer ${key}`);
+        assert.equal(auditRes.status, 200);
+        assert.equal(auditRes.body.length, 1);
+        assert.equal(auditRes.body[0].auth_method, "api_key");
+    });
+
+    test("GET /api/applications/:id/audit-log returns 404 for non-owner", async () => {
+        const app = await createApp();
+        const res = await req
+            .get(`/api/applications/${app.id}/audit-log`)
+            .set("X-Forwarded-Email", "other@example.com");
+        assert.equal(res.status, 404);
+    });
+
+    test("admin can access another user's audit log", async () => {
+        const app = await createApp();
+        const res = await req
+            .get(`/api/applications/${app.id}/audit-log`)
+            .set("X-Forwarded-Email", "admin@example.com");
+        assert.equal(res.status, 200);
+        assert.ok(Array.isArray(res.body));
+    });
+
+    test("audit log entries are sorted newest-first", async () => {
+        const app = await createApp();
+        await req
+            .patch(`/api/applications/${app.id}/status`)
+            .send({ status: "applied" });
+        await req
+            .patch(`/api/applications/${app.id}/status`)
+            .send({ status: "responded" });
+
+        const auditRes = await req.get(`/api/applications/${app.id}/audit-log`);
+        assert.equal(auditRes.status, 200);
+        assert.equal(auditRes.body.length, 3);
+        const statuses = auditRes.body.map((e) => e.action);
+        assert.deepEqual(statuses, [
+            "update_status",
+            "update_status",
+            "create_application",
+        ]);
     });
 });
 

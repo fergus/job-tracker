@@ -1,5 +1,5 @@
 "use strict";
-const { randomUUID, createHmac } = require("node:crypto");
+const { randomUUID } = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const express = require("express");
@@ -12,41 +12,12 @@ const {
 const { z } = require("zod");
 const db = require("./db");
 const svc = require("./services/applications");
+const { resolveApiKey } = require("./lib/apiKeySecret");
+const { uploadsDir } = require("./lib/files");
 const { extractStructuredJD } = require("./services/extraction");
 const { fetchJobDescription, FetchError } = require("./services/fetch-jd");
 const { generateDocument, VALID_TASKS } = require("./services/generation");
-
-// API key secret — same config as auth middleware
-let apiKeySecret;
-if (process.env.NODE_ENV === "production") {
-    if (!process.env.SERVER_API_KEY_SECRET) {
-        throw new Error(
-            "SERVER_API_KEY_SECRET environment variable is required in production",
-        );
-    }
-    apiKeySecret = process.env.SERVER_API_KEY_SECRET;
-} else {
-    if (!process.env.SERVER_API_KEY_SECRET) {
-        console.warn(
-            "[mcp] SERVER_API_KEY_SECRET not set — using static dev fallback. Set this in production.",
-        );
-    }
-    apiKeySecret =
-        process.env.SERVER_API_KEY_SECRET ||
-        "dev-fallback-secret-do-not-use-in-production";
-}
-
-function resolveApiKey(rawToken) {
-    const keyHash = createHmac("sha256", apiKeySecret)
-        .update(rawToken)
-        .digest("hex");
-    const row = db.getApiKeyByHash.get(keyHash);
-    if (!row) return null;
-    Promise.resolve()
-        .then(() => db.updateApiKeyLastUsed.run(row.id))
-        .catch(() => {});
-    return row.user_email;
-}
+const { logAuditEvent, READ_ONLY_TOOLS } = require("./services/audit");
 
 // Convert a ServiceError into MCP tool content so the LLM sees the message.
 function toolError(err) {
@@ -63,6 +34,66 @@ function toolError(err) {
 
 function createMcpServer() {
     const server = new McpServer({ name: "job-tracker", version: "1.0.0" });
+
+    // Wrap server.tool to audit mutating tool calls
+    const originalTool = server.tool.bind(server);
+    server.tool = (name, description, schema, handler) => {
+        const isReadOnly = READ_ONLY_TOOLS.has(name);
+        return originalTool(name, description, schema, async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            let result;
+            try {
+                result = await handler(args, extra);
+            } catch (err) {
+                throw err;
+            }
+
+            if (!isReadOnly && userEmail && !result?.isError) {
+                let applicationId = args.id || args.application_id || null;
+                let details = null;
+
+                if (name === "create_application") {
+                    try {
+                        const parsed = JSON.parse(result.content[0].text);
+                        applicationId = parsed.id || null;
+                    } catch {
+                        // ignore parse errors
+                    }
+                    details = {
+                        company_name: args.company_name,
+                        role_title: args.role_title,
+                    };
+                } else if (name === "update_status") {
+                    details = { status: args.status };
+                } else if (name === "add_note") {
+                    details = { stage: args.stage };
+                } else if (name === "upload_attachment") {
+                    details = { file_path: args.file_path };
+                } else if (name === "generate_document") {
+                    details = { task: args.task };
+                } else if (name === "extract_job_description") {
+                    details = {};
+                } else if (name === "fetch_job_description") {
+                    details = {};
+                } else if (name === "update_application") {
+                    details = {
+                        fields: Object.keys(args).filter((k) => k !== "id"),
+                    };
+                }
+
+                logAuditEvent({
+                    userEmail,
+                    action: name,
+                    applicationId,
+                    source: "mcp",
+                    authMethod: "api_key",
+                    details,
+                });
+            }
+
+            return result;
+        });
+    };
 
     server.tool(
         "list_applications",
@@ -625,7 +656,7 @@ function createMcpServer() {
                 const unique =
                     Date.now() + "-" + Math.round(Math.random() * 1e9);
                 const filename = `${args.task}_${unique}.md`;
-                const filePath = path.join(svc.uploadsDir, filename);
+                const filePath = path.join(uploadsDir, filename);
                 fs.writeFileSync(filePath, generatedText, "utf-8");
                 const fileSize = fs.statSync(filePath).size;
 

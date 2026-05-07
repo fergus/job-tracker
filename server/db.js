@@ -165,6 +165,24 @@ if (!extractedJdCheck.some((c) => c.name === "extracted_jd")) {
     db.exec("ALTER TABLE applications ADD COLUMN extracted_jd TEXT");
 }
 
+// Audit log table (activity timeline for all mutations)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
+    user_email TEXT NOT NULL,
+    action TEXT NOT NULL,
+    source TEXT NOT NULL,
+    auth_method TEXT NOT NULL,
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_audit_log_app_created ON audit_log(application_id, created_at DESC)",
+);
+
 // User profiles table (candidate identity, narrative, and agent instructions)
 db.exec(`
   CREATE TABLE IF NOT EXISTS user_profiles (
@@ -391,6 +409,14 @@ db.updateApiKeyLastUsed = db.prepare(
 );
 db.countApiKeysByUser = db.prepare(
     `SELECT COUNT(*) as count FROM api_keys WHERE user_email = ?`,
+);
+
+// Audit log prepared statement
+db.insertAuditLog = db.prepare(
+    `INSERT INTO audit_log (application_id, user_email, action, source, auth_method, details) VALUES (?, ?, ?, ?, ?, ?)`,
+);
+db.listAuditLogByApp = db.prepare(
+    `SELECT * FROM audit_log WHERE application_id = ? ORDER BY created_at DESC, id DESC`,
 );
 
 // Orphaned file sweeper: remove files in uploads/ not referenced by DB

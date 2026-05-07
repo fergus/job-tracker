@@ -4,26 +4,17 @@ const path = require("path");
 const fs = require("fs");
 const db = require("../db");
 const svc = require("../services/applications");
-const { ServiceError, VALID_STATUSES, uploadsDir, safePath, safeDeleteFile } =
-    svc;
+const { ServiceError, VALID_STATUSES, getOwnApp, attachNotes } = svc;
+const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
+const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
 const { extractStructuredJD } = require("../services/extraction");
 const { fetchJobDescription, FetchError } = require("../services/fetch-jd");
 const { generateDocument, VALID_TASKS } = require("../services/generation");
+const { logAuditEvent } = require("../services/audit");
 
 const router = express.Router();
 
 fs.mkdirSync(uploadsDir, { recursive: true });
-
-const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".md", ".txt"];
-
-const MIME_MAP = {
-    ".pdf": "application/pdf",
-    ".doc": "application/msword",
-    ".docx":
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".md": "text/plain",
-    ".txt": "text/plain",
-};
 
 const storage = multer.diskStorage({
     destination: uploadsDir,
@@ -59,29 +50,6 @@ function handleError(res, err) {
     throw err;
 }
 
-// Ownership check used by routes that aren't delegated to a service function.
-function getOwnApp(id, userEmail) {
-    return db
-        .prepare("SELECT * FROM applications WHERE id = ? AND user_email = ?")
-        .get(id, userEmail);
-}
-
-function attachNotes(rows) {
-    const ids = rows.map((r) => r.id);
-    if (ids.length === 0) return rows;
-    const placeholders = ids.map(() => "?").join(",");
-    const notes = db
-        .prepare(
-            `SELECT * FROM stage_notes WHERE application_id IN (${placeholders}) ORDER BY created_at ASC`,
-        )
-        .all(...ids);
-    const notesByApp = {};
-    for (const n of notes) {
-        (notesByApp[n.application_id] ||= []).push(n);
-    }
-    return rows.map((r) => ({ ...r, notes: notesByApp[r.id] || [] }));
-}
-
 // List applications (scoped to user, or all if admin with ?all=true)
 router.get("/", (req, res) => {
     try {
@@ -109,6 +77,36 @@ router.get("/:id", (req, res) => {
                 isAdmin: req.isAdmin,
             }),
         );
+    } catch (e) {
+        handleError(res, e);
+    }
+});
+
+// Get audit log for an application (own or admin view)
+router.get("/:id/audit-log", (req, res) => {
+    try {
+        const existing = req.isAdmin
+            ? db
+                  .prepare("SELECT * FROM applications WHERE id = ?")
+                  .get(req.params.id)
+            : getOwnApp(req.params.id, req.userEmail);
+        if (!existing) return res.status(404).json({ error: "Not found" });
+
+        if (req.isAdmin && existing.user_email !== req.userEmail) {
+            console.info(
+                "[admin] %s accessed audit log for app %s owned by %s",
+                req.userEmail,
+                req.params.id,
+                existing.user_email,
+            );
+        }
+
+        const rows = db.listAuditLogByApp.all(req.params.id);
+        const parsed = rows.map((row) => ({
+            ...row,
+            details: row.details ? JSON.parse(row.details) : null,
+        }));
+        res.json(parsed);
     } catch (e) {
         handleError(res, e);
     }
@@ -178,7 +176,19 @@ router.post(
                     req.files.cover_letter[0].originalname;
                 data.cover_letter_path = req.files.cover_letter[0].filename;
             }
-            res.status(201).json(svc.createApplication(req.userEmail, data));
+            const result = svc.createApplication(req.userEmail, data);
+            logAuditEvent({
+                userEmail: req.userEmail,
+                action: "create_application",
+                applicationId: result.id,
+                source: "rest",
+                authMethod: req.authMethod,
+                details: {
+                    company_name: result.company_name,
+                    role_title: result.role_title,
+                },
+            });
+            res.status(201).json(result);
         } catch (e) {
             handleError(res, e);
         }
@@ -188,7 +198,20 @@ router.post(
 // Update application fields (owner only)
 router.put("/:id", (req, res) => {
     try {
-        res.json(svc.updateApplication(req.userEmail, req.params.id, req.body));
+        const result = svc.updateApplication(
+            req.userEmail,
+            req.params.id,
+            req.body,
+        );
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "update_application",
+            applicationId: parseInt(req.params.id, 10),
+            source: "rest",
+            authMethod: req.authMethod,
+            details: { fields: Object.keys(req.body) },
+        });
+        res.json(result);
     } catch (e) {
         handleError(res, e);
     }
@@ -197,9 +220,20 @@ router.put("/:id", (req, res) => {
 // Change status (owner only)
 router.patch("/:id/status", (req, res) => {
     try {
-        res.json(
-            svc.updateStatus(req.userEmail, req.params.id, req.body.status),
+        const result = svc.updateStatus(
+            req.userEmail,
+            req.params.id,
+            req.body.status,
         );
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "update_status",
+            applicationId: parseInt(req.params.id, 10),
+            source: "rest",
+            authMethod: req.authMethod,
+            details: { status: req.body.status },
+        });
+        res.json(result);
     } catch (e) {
         handleError(res, e);
     }
@@ -226,6 +260,15 @@ router.post("/:id/cv", upload.single("cv"), (req, res) => {
     );
 
     if (oldPath) safeDeleteFile(oldPath);
+
+    logAuditEvent({
+        userEmail: req.userEmail,
+        action: "upload_cv",
+        applicationId: parseInt(req.params.id, 10),
+        source: "rest",
+        authMethod: req.authMethod,
+        details: { filename: req.file.originalname },
+    });
 
     res.json(
         db
@@ -287,6 +330,15 @@ router.post("/:id/cover-letter", upload.single("cover_letter"), (req, res) => {
     );
 
     if (oldPath) safeDeleteFile(oldPath);
+
+    logAuditEvent({
+        userEmail: req.userEmail,
+        action: "upload_cover_letter",
+        applicationId: parseInt(req.params.id, 10),
+        source: "rest",
+        authMethod: req.authMethod,
+        details: { filename: req.file.originalname },
+    });
 
     res.json(
         db
@@ -364,6 +416,14 @@ router.post("/:id/attachments", (req, res, next) => {
                     fs.unlinkSync(f.path);
                 } catch {}
             });
+            logAuditEvent({
+                userEmail: req.userEmail,
+                action: "upload_attachment",
+                applicationId: parseInt(req.params.id, 10),
+                source: "rest",
+                authMethod: req.authMethod,
+                details: { filenames: req.files.map((f) => f.originalname) },
+            });
             res.status(201).json(inserted);
         } catch (e) {
             // Clean up temp multer files on error
@@ -429,11 +489,9 @@ router.get("/:id/attachments/:attachmentId/extracted-text", (req, res) => {
             attachment.extracted_text === null ||
             attachment.extracted_text === undefined
         ) {
-            return res
-                .status(404)
-                .json({
-                    error: "No extracted text available for this attachment",
-                });
+            return res.status(404).json({
+                error: "No extracted text available for this attachment",
+            });
         }
         res.json({
             text: attachment.extracted_text,
@@ -468,6 +526,18 @@ router.delete("/:id/attachments/:attachmentId", (req, res) => {
 
     const filePath = safePath(uploadsDir, attachment.stored_filename);
     if (filePath) safeDeleteFile(filePath);
+
+    logAuditEvent({
+        userEmail: req.userEmail,
+        action: "delete_attachment",
+        applicationId: parseInt(req.params.id, 10),
+        source: "rest",
+        authMethod: req.authMethod,
+        details: {
+            attachment_id: parseInt(req.params.attachmentId, 10),
+            filename: attachment.original_filename,
+        },
+    });
 
     res.json({ success: true });
 });
@@ -519,12 +589,33 @@ router.patch("/:id/dates", (req, res) => {
     const row = db
         .prepare("SELECT * FROM applications WHERE id = ?")
         .get(req.params.id);
+
+    logAuditEvent({
+        userEmail: req.userEmail,
+        action: "update_dates",
+        applicationId: parseInt(req.params.id, 10),
+        source: "rest",
+        authMethod: req.authMethod,
+        details: {
+            fields: DATE_FIELDS.filter((f) => req.body[f] !== undefined),
+        },
+    });
+
     res.json(attachNotes([row])[0]);
 });
 
 // Delete application (owner only — no admin bypass)
 router.delete("/:id", (req, res) => {
     try {
+        const appId = parseInt(req.params.id, 10);
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "delete_application",
+            applicationId: appId,
+            source: "rest",
+            authMethod: req.authMethod,
+            details: null,
+        });
         res.json(svc.deleteApplication(req.userEmail, req.params.id));
     } catch (e) {
         handleError(res, e);
@@ -534,9 +625,16 @@ router.delete("/:id", (req, res) => {
 // Create a stage note (owner only)
 router.post("/:id/notes", (req, res) => {
     try {
-        res.status(201).json(
-            svc.addNote(req.userEmail, req.params.id, req.body),
-        );
+        const result = svc.addNote(req.userEmail, req.params.id, req.body);
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "add_note",
+            applicationId: parseInt(req.params.id, 10),
+            source: "rest",
+            authMethod: req.authMethod,
+            details: { stage: result.stage },
+        });
+        res.status(201).json(result);
     } catch (e) {
         handleError(res, e);
     }
@@ -557,11 +655,9 @@ router.put("/:id/notes/:noteId", (req, res) => {
     const { content, stage } = req.body;
     if (!content) return res.status(400).json({ error: "content is required" });
     if (content.length > 10000) {
-        return res
-            .status(400)
-            .json({
-                error: "content exceeds maximum length of 10000 characters",
-            });
+        return res.status(400).json({
+            error: "content exceeds maximum length of 10000 characters",
+        });
     }
 
     const now = new Date().toISOString();
@@ -584,6 +680,18 @@ router.put("/:id/notes/:noteId", (req, res) => {
         now,
         req.params.id,
     );
+
+    logAuditEvent({
+        userEmail: req.userEmail,
+        action: "update_note",
+        applicationId: parseInt(req.params.id, 10),
+        source: "rest",
+        authMethod: req.authMethod,
+        details: {
+            note_id: parseInt(req.params.noteId, 10),
+            stage: stage || note.stage,
+        },
+    });
 
     res.json(
         db
@@ -610,6 +718,16 @@ router.delete("/:id/notes/:noteId", (req, res) => {
         now,
         req.params.id,
     );
+
+    logAuditEvent({
+        userEmail: req.userEmail,
+        action: "delete_note",
+        applicationId: parseInt(req.params.id, 10),
+        source: "rest",
+        authMethod: req.authMethod,
+        details: { note_id: parseInt(req.params.noteId, 10) },
+    });
+
     res.json({ success: true });
 });
 
@@ -638,17 +756,24 @@ router.post("/:id/extract-jd", async (req, res) => {
 
         const extracted = await extractStructuredJD(existing.job_description);
         if (!extracted) {
-            return res
-                .status(502)
-                .json({
-                    error: "Extraction failed. The LLM service may be unavailable.",
-                });
+            return res.status(502).json({
+                error: "Extraction failed. The LLM service may be unavailable.",
+            });
         }
 
         const now = new Date().toISOString();
         db.prepare(
             "UPDATE applications SET extracted_jd = ?, updated_at = ? WHERE id = ?",
         ).run(JSON.stringify(extracted), now, req.params.id);
+
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "extract_job_description",
+            applicationId: parseInt(req.params.id, 10),
+            source: "rest",
+            authMethod: req.authMethod,
+            details: {},
+        });
 
         res.json({ extracted_jd: extracted });
     } catch (e) {
@@ -704,6 +829,15 @@ router.post("/:id/fetch-jd", async (req, res) => {
             ).run(JSON.stringify(extracted), req.params.id);
         }
 
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "fetch_job_description",
+            applicationId: parseInt(req.params.id, 10),
+            source: "rest",
+            authMethod: req.authMethod,
+            details: {},
+        });
+
         res.json({
             job_description: text,
             extracted_jd: extracted,
@@ -725,11 +859,9 @@ router.post("/:id/generate", async (req, res) => {
 
         const task = req.body.task;
         if (!task || !VALID_TASKS.includes(task)) {
-            return res
-                .status(400)
-                .json({
-                    error: `Invalid task. Must be one of: ${VALID_TASKS.join(", ")}`,
-                });
+            return res.status(400).json({
+                error: `Invalid task. Must be one of: ${VALID_TASKS.join(", ")}`,
+            });
         }
 
         if (req.isAdmin && existing.user_email !== req.userEmail) {
@@ -797,6 +929,15 @@ router.post("/:id/generate", async (req, res) => {
         const attachment = db
             .prepare("SELECT * FROM attachments WHERE id = ?")
             .get(result.lastInsertRowid);
+
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "generate_document",
+            applicationId: parseInt(req.params.id, 10),
+            source: "rest",
+            authMethod: req.authMethod,
+            details: { task },
+        });
 
         res.json({
             text: generatedText,

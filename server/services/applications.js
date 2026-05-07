@@ -1,9 +1,11 @@
 "use strict";
 const db = require("../db");
 const fs = require("fs");
-const fsPromises = require("fs").promises;
 const path = require("path");
 const { extractText } = require("./extraction");
+const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
+const { isValidUrl } = require("../lib/validation");
+const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 
 class ServiceError extends Error {
     constructor(status, message) {
@@ -11,8 +13,6 @@ class ServiceError extends Error {
         this.status = status;
     }
 }
-
-const uploadsDir = path.resolve(path.join(__dirname, "..", "..", "uploads"));
 
 const VALID_STATUSES = [
     "interested",
@@ -34,17 +34,6 @@ const STATUS_DATE_MAP = {
     rejected: "closed_at",
 };
 
-const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".md", ".txt"];
-
-const MIME_MAP = {
-    ".pdf": "application/pdf",
-    ".doc": "application/msword",
-    ".docx":
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".md": "text/plain",
-    ".txt": "text/plain",
-};
-
 const LIMITS = {
     company_name: 200,
     role_title: 200,
@@ -63,38 +52,6 @@ function validateInputLengths(body, fields) {
         }
     }
     return null;
-}
-
-function isValidUrl(url) {
-    if (!url) return true;
-    try {
-        const parsed = new URL(url);
-        return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch {
-        return false;
-    }
-}
-
-function safePath(base, filename) {
-    const resolved = path.resolve(base, filename);
-    if (!resolved.startsWith(base + path.sep) && resolved !== base) {
-        return null;
-    }
-    return resolved;
-}
-
-async function safeDeleteFile(filePath) {
-    try {
-        if (fs.existsSync(filePath)) {
-            await fsPromises.unlink(filePath);
-        }
-    } catch (err) {
-        console.error(
-            "[cleanup] Failed to delete file:",
-            filePath,
-            err.message,
-        );
-    }
 }
 
 function getOwnApp(id, userEmail) {
@@ -568,9 +525,8 @@ function getAttachment(
 module.exports = {
     ServiceError,
     VALID_STATUSES,
-    uploadsDir,
-    safePath,
-    safeDeleteFile,
+    getOwnApp,
+    attachNotes,
     listApplications,
     getApplication,
     createApplication,
