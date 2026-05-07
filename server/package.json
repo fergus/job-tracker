@@ -3,7 +3,7 @@
     "version": "0.16.0",
     "private": true,
     "scripts": {
-        "test": "node --test test/*.test.js"
+        "test": "node --test test/*.test.js test/*/*.test.js"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",

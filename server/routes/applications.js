@@ -4,8 +4,10 @@ const path = require("path");
 const fs = require("fs");
 const db = require("../db");
 const svc = require("../services/applications");
-const { ServiceError, VALID_STATUSES, getOwnApp, attachNotes } = svc;
+const { getOwnApp, attachNotes } = svc;
+const { addNote, updateNote, deleteNote } = require("../services/notes");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
+const { resolveApp, resolveOwnApp, handleError } = require("./_helpers");
 const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
 const { extractStructuredJD } = require("../services/extraction");
 const { fetchJobDescription, FetchError } = require("../services/fetch-jd");
@@ -43,13 +45,6 @@ const upload = multer({
     fileFilter,
 });
 
-// Converts a ServiceError to an HTTP response; re-throws unexpected errors.
-function handleError(res, err) {
-    if (err instanceof ServiceError)
-        return res.status(err.status).json({ error: err.message });
-    throw err;
-}
-
 // List applications (scoped to user, or all if admin with ?all=true)
 router.get("/", (req, res) => {
     try {
@@ -85,21 +80,11 @@ router.get("/:id", (req, res) => {
 // Get audit log for an application (own or admin view)
 router.get("/:id/audit-log", (req, res) => {
     try {
-        const existing = req.isAdmin
-            ? db
-                  .prepare("SELECT * FROM applications WHERE id = ?")
-                  .get(req.params.id)
-            : getOwnApp(req.params.id, req.userEmail);
+        const existing = resolveApp(req, req.params.id, {
+            allowAdmin: true,
+            auditAction: "accessed audit log",
+        });
         if (!existing) return res.status(404).json({ error: "Not found" });
-
-        if (req.isAdmin && existing.user_email !== req.userEmail) {
-            console.info(
-                "[admin] %s accessed audit log for app %s owned by %s",
-                req.userEmail,
-                req.params.id,
-                existing.user_email,
-            );
-        }
 
         const rows = db.listAuditLogByApp.all(req.params.id);
         const parsed = rows.map((row) => ({
@@ -115,21 +100,11 @@ router.get("/:id/audit-log", (req, res) => {
 // Get assembled context for an application (own or admin view)
 router.get("/:id/context", (req, res) => {
     try {
-        const existing = req.isAdmin
-            ? db
-                  .prepare("SELECT * FROM applications WHERE id = ?")
-                  .get(req.params.id)
-            : getOwnApp(req.params.id, req.userEmail);
+        const existing = resolveApp(req, req.params.id, {
+            allowAdmin: true,
+            auditAction: "accessed context",
+        });
         if (!existing) return res.status(404).json({ error: "Not found" });
-
-        if (req.isAdmin && existing.user_email !== req.userEmail) {
-            console.info(
-                "[admin] %s accessed context for app %s owned by %s",
-                req.userEmail,
-                req.params.id,
-                existing.user_email,
-            );
-        }
 
         const notes = db
             .prepare(
@@ -241,7 +216,7 @@ router.patch("/:id/status", (req, res) => {
 
 // Upload/replace CV (owner only)
 router.post("/:id/cv", upload.single("cv"), (req, res) => {
-    const existing = getOwnApp(req.params.id, req.userEmail);
+    const existing = resolveOwnApp(req, req.params.id);
     if (!existing) return res.status(404).json({ error: "Not found" });
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -311,7 +286,7 @@ router.get("/:id/cv", (req, res) => {
 
 // Upload/replace cover letter (owner only)
 router.post("/:id/cover-letter", upload.single("cover_letter"), (req, res) => {
-    const existing = getOwnApp(req.params.id, req.userEmail);
+    const existing = resolveOwnApp(req, req.params.id);
     if (!existing) return res.status(404).json({ error: "Not found" });
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -504,7 +479,7 @@ router.get("/:id/attachments/:attachmentId/extracted-text", (req, res) => {
 
 // Delete a specific attachment (owner only)
 router.delete("/:id/attachments/:attachmentId", (req, res) => {
-    const existing = getOwnApp(req.params.id, req.userEmail);
+    const existing = resolveOwnApp(req, req.params.id);
     if (!existing) return res.status(404).json({ error: "Not found" });
 
     const attachment = db
@@ -544,7 +519,7 @@ router.delete("/:id/attachments/:attachmentId", (req, res) => {
 
 // Update date fields (owner only)
 router.patch("/:id/dates", (req, res) => {
-    const existing = getOwnApp(req.params.id, req.userEmail);
+    const existing = resolveOwnApp(req, req.params.id);
     if (!existing) return res.status(404).json({ error: "Not found" });
 
     const DATE_FIELDS = [
@@ -625,7 +600,7 @@ router.delete("/:id", (req, res) => {
 // Create a stage note (owner only)
 router.post("/:id/notes", (req, res) => {
     try {
-        const result = svc.addNote(req.userEmail, req.params.id, req.body);
+        const result = addNote(req.userEmail, req.params.id, req.body);
         logAuditEvent({
             userEmail: req.userEmail,
             action: "add_note",
@@ -642,116 +617,63 @@ router.post("/:id/notes", (req, res) => {
 
 // Update a stage note (owner only)
 router.put("/:id/notes/:noteId", (req, res) => {
-    const existing = getOwnApp(req.params.id, req.userEmail);
-    if (!existing) return res.status(404).json({ error: "Not found" });
-
-    const note = db
-        .prepare(
-            "SELECT * FROM stage_notes WHERE id = ? AND application_id = ?",
-        )
-        .get(req.params.noteId, req.params.id);
-    if (!note) return res.status(404).json({ error: "Note not found" });
-
-    const { content, stage } = req.body;
-    if (!content) return res.status(400).json({ error: "content is required" });
-    if (content.length > 10000) {
-        return res.status(400).json({
-            error: "content exceeds maximum length of 10000 characters",
+    try {
+        const result = updateNote(
+            req.userEmail,
+            req.params.id,
+            req.params.noteId,
+            req.body,
+        );
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "update_note",
+            applicationId: parseInt(req.params.id, 10),
+            source: "rest",
+            authMethod: req.authMethod,
+            details: {
+                note_id: parseInt(req.params.noteId, 10),
+                stage: result.stage,
+            },
         });
+        res.json(result);
+    } catch (e) {
+        handleError(res, e);
     }
-
-    const now = new Date().toISOString();
-    const updates = ["content = ?", "updated_at = ?"];
-    const values = [content, now];
-
-    if (stage) {
-        if (!VALID_STATUSES.includes(stage)) {
-            return res.status(400).json({ error: "Invalid stage" });
-        }
-        updates.push("stage = ?");
-        values.push(stage);
-    }
-
-    values.push(req.params.noteId);
-    db.prepare(`UPDATE stage_notes SET ${updates.join(", ")} WHERE id = ?`).run(
-        ...values,
-    );
-    db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
-        now,
-        req.params.id,
-    );
-
-    logAuditEvent({
-        userEmail: req.userEmail,
-        action: "update_note",
-        applicationId: parseInt(req.params.id, 10),
-        source: "rest",
-        authMethod: req.authMethod,
-        details: {
-            note_id: parseInt(req.params.noteId, 10),
-            stage: stage || note.stage,
-        },
-    });
-
-    res.json(
-        db
-            .prepare("SELECT * FROM stage_notes WHERE id = ?")
-            .get(req.params.noteId),
-    );
 });
 
 // Delete a stage note (owner only)
 router.delete("/:id/notes/:noteId", (req, res) => {
-    const existing = getOwnApp(req.params.id, req.userEmail);
-    if (!existing) return res.status(404).json({ error: "Not found" });
-
-    const note = db
-        .prepare(
-            "SELECT * FROM stage_notes WHERE id = ? AND application_id = ?",
-        )
-        .get(req.params.noteId, req.params.id);
-    if (!note) return res.status(404).json({ error: "Note not found" });
-
-    const now = new Date().toISOString();
-    db.prepare("DELETE FROM stage_notes WHERE id = ?").run(req.params.noteId);
-    db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
-        now,
-        req.params.id,
-    );
-
-    logAuditEvent({
-        userEmail: req.userEmail,
-        action: "delete_note",
-        applicationId: parseInt(req.params.id, 10),
-        source: "rest",
-        authMethod: req.authMethod,
-        details: { note_id: parseInt(req.params.noteId, 10) },
-    });
-
-    res.json({ success: true });
+    try {
+        const result = deleteNote(
+            req.userEmail,
+            req.params.id,
+            req.params.noteId,
+        );
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "delete_note",
+            applicationId: parseInt(req.params.id, 10),
+            source: "rest",
+            authMethod: req.authMethod,
+            details: { note_id: parseInt(req.params.noteId, 10) },
+        });
+        res.json(result);
+    } catch (e) {
+        handleError(res, e);
+    }
 });
 
 // Extract structured data from existing job_description (owner or admin)
 router.post("/:id/extract-jd", async (req, res) => {
     try {
-        const existing = req.isAdmin
-            ? db
-                  .prepare("SELECT * FROM applications WHERE id = ?")
-                  .get(req.params.id)
-            : getOwnApp(req.params.id, req.userEmail);
+        const existing = resolveApp(req, req.params.id, {
+            allowAdmin: true,
+            auditAction: "triggered JD extraction",
+        });
         if (!existing) return res.status(404).json({ error: "Not found" });
 
         if (!existing.job_description || !existing.job_description.trim()) {
             return res.status(422).json({ error: "Job description is empty" });
-        }
-
-        if (req.isAdmin && existing.user_email !== req.userEmail) {
-            console.info(
-                "[admin] %s triggered JD extraction for app %s owned by %s",
-                req.userEmail,
-                req.params.id,
-                existing.user_email,
-            );
         }
 
         const extracted = await extractStructuredJD(existing.job_description);
@@ -784,24 +706,14 @@ router.post("/:id/extract-jd", async (req, res) => {
 // Fetch job description from URL and auto-extract (owner or admin)
 router.post("/:id/fetch-jd", async (req, res) => {
     try {
-        const existing = req.isAdmin
-            ? db
-                  .prepare("SELECT * FROM applications WHERE id = ?")
-                  .get(req.params.id)
-            : getOwnApp(req.params.id, req.userEmail);
+        const existing = resolveApp(req, req.params.id, {
+            allowAdmin: true,
+            auditAction: "triggered JD fetch",
+        });
         if (!existing) return res.status(404).json({ error: "Not found" });
 
         if (!existing.job_posting_url || !existing.job_posting_url.trim()) {
             return res.status(422).json({ error: "Job posting URL is empty" });
-        }
-
-        if (req.isAdmin && existing.user_email !== req.userEmail) {
-            console.info(
-                "[admin] %s triggered JD fetch for app %s owned by %s",
-                req.userEmail,
-                req.params.id,
-                existing.user_email,
-            );
         }
 
         let text;
@@ -850,11 +762,10 @@ router.post("/:id/fetch-jd", async (req, res) => {
 // Generate a tailored document for an application (owner or admin)
 router.post("/:id/generate", async (req, res) => {
     try {
-        const existing = req.isAdmin
-            ? db
-                  .prepare("SELECT * FROM applications WHERE id = ?")
-                  .get(req.params.id)
-            : getOwnApp(req.params.id, req.userEmail);
+        const existing = resolveApp(req, req.params.id, {
+            allowAdmin: true,
+            auditAction: "triggered generation",
+        });
         if (!existing) return res.status(404).json({ error: "Not found" });
 
         const task = req.body.task;
@@ -862,16 +773,6 @@ router.post("/:id/generate", async (req, res) => {
             return res.status(400).json({
                 error: `Invalid task. Must be one of: ${VALID_TASKS.join(", ")}`,
             });
-        }
-
-        if (req.isAdmin && existing.user_email !== req.userEmail) {
-            console.info(
-                "[admin] %s triggered generation (%s) for app %s owned by %s",
-                req.userEmail,
-                task,
-                req.params.id,
-                existing.user_email,
-            );
         }
 
         // Build context payload (same as GET /:id/context)
