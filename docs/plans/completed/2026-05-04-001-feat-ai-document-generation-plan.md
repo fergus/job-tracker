@@ -1,7 +1,7 @@
 ---
 title: AI Document Generation Pipeline
 type: feat
-status: active
+status: complete
 date: 2026-05-04
 origin: docs/ideation/2026-04-06-smb-to-mcp-agent-integration-ideation.md
 ---

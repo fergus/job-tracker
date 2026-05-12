@@ -1,7 +1,7 @@
 ---
 title: Application Activity Audit Trail
 type: feat
-status: active
+status: complete
 date: 2026-05-06
 origin: docs/ideation/2026-04-06-smb-to-mcp-agent-integration-ideation.md
 ---
