@@ -11,7 +11,9 @@ FROM node:26-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY server/package*.json ./server/
-RUN cd server && npm install --omit=dev
+RUN apk add --no-cache --virtual .build-deps python3 make g++ gcc \
+    && cd server && npm install --omit=dev \
+    && apk del .build-deps
 COPY server/ ./server/
 COPY --from=build /app/client/dist ./client/dist
 RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
