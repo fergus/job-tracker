@@ -266,7 +266,9 @@ A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`).
 
 **Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`
 
-**`upload_attachment` parameters:** `application_id` (int), `filename` (string, e.g. `cover-letter.pdf`), `file_content` (base64-encoded string). The tool accepts file content directly rather than a filesystem path, so it works correctly when the MCP server is hosted remotely.
+**`upload_attachment`** — for small files (<~30KB): parameters `application_id`, `filename`, `file_content` (base64-encoded string). Accepts file bytes directly; works over remote HTTP transport.
+
+**`get_upload_url`** — for larger files: parameters `application_id`, `filename`. Returns a one-time pre-signed URL valid for 15 minutes. The client uploads the file directly via `curl -X PUT <url> -F "file=@/path/to/file"`. The attachment is linked to the application on successful upload. Requires `PUBLIC_URL` env var in the app container (see docker-compose.yml).
 
 ### Connecting an AI client
 

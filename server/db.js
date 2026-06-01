@@ -206,6 +206,24 @@ db.exec(`
   )
 `);
 
+// Upload tokens — short-lived single-use tokens for the pre-signed file upload flow
+db.exec(`
+  CREATE TABLE IF NOT EXISTS upload_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT UNIQUE NOT NULL,
+    user_email TEXT NOT NULL,
+    application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    original_filename TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_upload_tokens_token ON upload_tokens(token)",
+);
+
 // Migrations tracking table
 db.exec(
     `CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT)`,

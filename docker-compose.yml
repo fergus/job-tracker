@@ -42,6 +42,8 @@ services:
       - MCP_PORT=3001
       # Required in production — generate with: openssl rand -hex 32
       - SERVER_API_KEY_SECRET=${SERVER_API_KEY_SECRET}
+      # Required for get_upload_url MCP tool — the public-facing base URL of the app
+      - PUBLIC_URL=${PUBLIC_URL}
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads

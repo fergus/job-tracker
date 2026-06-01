@@ -1606,6 +1606,185 @@ describe("MCP Server", () => {
         const parsed = JSON.parse(dataLine.slice("data: ".length));
         assert.equal(parsed.result.isError, true);
     });
+
+    test("get_upload_url MCP tool returns a pre-signed upload URL", async () => {
+        const appRes = await req
+            .post("/api/applications")
+            .set("X-Forwarded-Email", "mcp-test@example.com")
+            .field("company_name", "UrlUploadCo")
+            .field("role_title", "Engineer");
+        assert.equal(appRes.status, 201);
+        const appId = appRes.body.id;
+
+        const init = await mcpReq
+            .post("/")
+            .set("Authorization", `Bearer ${apiKey}`)
+            .set("Accept", "application/json, text/event-stream")
+            .set("Content-Type", "application/json")
+            .send({
+                jsonrpc: "2.0",
+                id: 1,
+                method: "initialize",
+                params: {
+                    protocolVersion: "2024-11-05",
+                    capabilities: {},
+                    clientInfo: { name: "test", version: "1.0" },
+                },
+            });
+        assert.equal(init.status, 200);
+        const sessionId = init.headers["mcp-session-id"];
+
+        const toolRes = await mcpReq
+            .post("/")
+            .set("Authorization", `Bearer ${apiKey}`)
+            .set("Mcp-Session-Id", sessionId)
+            .set("Accept", "application/json, text/event-stream")
+            .set("Content-Type", "application/json")
+            .send({
+                jsonrpc: "2.0",
+                id: 2,
+                method: "tools/call",
+                params: {
+                    name: "get_upload_url",
+                    arguments: { application_id: appId, filename: "resume.pdf" },
+                },
+            });
+
+        assert.equal(toolRes.status, 200);
+        const dataLine = toolRes.text
+            .trim()
+            .split("\n")
+            .find((l) => l.startsWith("data: "));
+        assert.ok(dataLine);
+        const parsed = JSON.parse(dataLine.slice("data: ".length));
+        assert.equal(parsed.result.isError, undefined);
+        const payload = JSON.parse(parsed.result.content[0].text);
+        assert.ok(payload.upload_url);
+        assert.ok(payload.upload_url.includes("/upload/"));
+        assert.equal(payload.method, "PUT");
+        assert.equal(payload.field, "file");
+        assert.equal(payload.expires_in_minutes, 15);
+        assert.ok(payload.curl_example.includes("resume.pdf"));
+    });
+
+    test("get_upload_url MCP tool returns error for unknown application", async () => {
+        const init = await mcpReq
+            .post("/")
+            .set("Authorization", `Bearer ${apiKey}`)
+            .set("Accept", "application/json, text/event-stream")
+            .set("Content-Type", "application/json")
+            .send({
+                jsonrpc: "2.0",
+                id: 1,
+                method: "initialize",
+                params: {
+                    protocolVersion: "2024-11-05",
+                    capabilities: {},
+                    clientInfo: { name: "test", version: "1.0" },
+                },
+            });
+        const sessionId = init.headers["mcp-session-id"];
+
+        const toolRes = await mcpReq
+            .post("/")
+            .set("Authorization", `Bearer ${apiKey}`)
+            .set("Mcp-Session-Id", sessionId)
+            .set("Accept", "application/json, text/event-stream")
+            .set("Content-Type", "application/json")
+            .send({
+                jsonrpc: "2.0",
+                id: 2,
+                method: "tools/call",
+                params: {
+                    name: "get_upload_url",
+                    arguments: { application_id: 999999, filename: "resume.pdf" },
+                },
+            });
+
+        const dataLine = toolRes.text
+            .trim()
+            .split("\n")
+            .find((l) => l.startsWith("data: "));
+        const parsed = JSON.parse(dataLine.slice("data: ".length));
+        assert.equal(parsed.result.isError, true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Token upload endpoint
+// ---------------------------------------------------------------------------
+
+describe("Token upload endpoint (PUT /upload/:token)", () => {
+    test("uploads file with valid token and links it to the application", async () => {
+        const appRes = await req
+            .post("/api/applications")
+            .field("company_name", "TokenUploadCo")
+            .field("role_title", "Engineer");
+        assert.equal(appRes.status, 201);
+        const appId = appRes.body.id;
+
+        // Create a token directly via the helper
+        const { createUploadToken } = require("../lib/uploadTokens");
+        const token = createUploadToken("dev@localhost", appId, "notes.txt");
+
+        const uploadRes = await req
+            .put(`/upload/${token}`)
+            .attach("file", Buffer.from("my notes content"), "notes.txt");
+
+        assert.equal(uploadRes.status, 201);
+        assert.equal(uploadRes.body.original_filename, "notes.txt");
+        assert.equal(uploadRes.body.mime_type, "text/plain");
+
+        const attachments = await req.get(
+            `/api/applications/${appId}/attachments`,
+        );
+        assert.equal(attachments.body.length, 1);
+        assert.equal(attachments.body[0].original_filename, "notes.txt");
+    });
+
+    test("rejects an invalid token with 401", async () => {
+        const res = await req
+            .put("/upload/deadbeefdeadbeef")
+            .attach("file", Buffer.from("x"), "x.txt");
+        assert.equal(res.status, 401);
+    });
+
+    test("rejects a token a second time (single-use)", async () => {
+        const appRes = await req
+            .post("/api/applications")
+            .field("company_name", "SingleUse Co")
+            .field("role_title", "Engineer");
+        const appId = appRes.body.id;
+
+        const { createUploadToken } = require("../lib/uploadTokens");
+        const token = createUploadToken("dev@localhost", appId, "doc.txt");
+
+        // First use — should succeed
+        const first = await req
+            .put(`/upload/${token}`)
+            .attach("file", Buffer.from("hello"), "doc.txt");
+        assert.equal(first.status, 201);
+
+        // Second use — token already consumed
+        const second = await req
+            .put(`/upload/${token}`)
+            .attach("file", Buffer.from("hello"), "doc.txt");
+        assert.equal(second.status, 401);
+    });
+
+    test("returns 400 when no file is included", async () => {
+        const appRes = await req
+            .post("/api/applications")
+            .field("company_name", "NoFile Co")
+            .field("role_title", "Engineer");
+        const appId = appRes.body.id;
+
+        const { createUploadToken } = require("../lib/uploadTokens");
+        const token = createUploadToken("dev@localhost", appId, "doc.txt");
+
+        const res = await req.put(`/upload/${token}`);
+        assert.equal(res.status, 400);
+    });
 });
 
 // ---------------------------------------------------------------------------

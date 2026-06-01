@@ -18,6 +18,7 @@ const { extractStructuredJD } = require("./services/extraction");
 const { fetchJobDescription, FetchError } = require("./services/fetch-jd");
 const { generateDocument, VALID_TASKS } = require("./services/generation");
 const { logAuditEvent, READ_ONLY_TOOLS } = require("./services/audit");
+const { createUploadToken } = require("./lib/uploadTokens");
 
 // Convert a ServiceError into MCP tool content so the LLM sees the message.
 function toolError(err) {
@@ -68,6 +69,8 @@ function createMcpServer() {
                 } else if (name === "add_note") {
                     details = { stage: args.stage };
                 } else if (name === "upload_attachment") {
+                    details = { filename: args.filename };
+                } else if (name === "get_upload_url") {
                     details = { filename: args.filename };
                 } else if (name === "generate_document") {
                     details = { task: args.task };
@@ -702,7 +705,7 @@ function createMcpServer() {
 
     server.tool(
         "upload_attachment",
-        "Upload a file attachment to an existing job application. Provide the file as base64-encoded content along with the original filename.",
+        "Upload a small file attachment (under ~30KB) to a job application using base64-encoded content. For larger files use get_upload_url instead.",
         {
             application_id: z
                 .number()
@@ -735,6 +738,76 @@ function createMcpServer() {
                 return {
                     content: [
                         { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "get_upload_url",
+        "Get a one-time pre-signed upload URL for attaching a file to a job application. Use this for files larger than ~30KB. Returns a URL and curl command — upload the file directly to that URL with HTTP PUT (multipart field name: 'file'). The attachment is linked to the application immediately on successful upload. The URL is valid for 15 minutes.",
+        {
+            application_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Application ID"),
+            filename: z
+                .string()
+                .min(1)
+                .describe(
+                    "Original filename including extension (e.g. cover-letter.pdf)",
+                ),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const app = db
+                    .prepare(
+                        "SELECT id FROM applications WHERE id = ? AND user_email = ?",
+                    )
+                    .get(args.application_id, userEmail);
+                if (!app)
+                    return {
+                        content: [
+                            { type: "text", text: "Application not found" },
+                        ],
+                        isError: true,
+                    };
+
+                const token = createUploadToken(
+                    userEmail,
+                    args.application_id,
+                    args.filename,
+                );
+                const baseUrl =
+                    process.env.PUBLIC_URL || "http://localhost:3000";
+                const uploadUrl = `${baseUrl}/upload/${token}`;
+
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify(
+                                {
+                                    upload_url: uploadUrl,
+                                    method: "PUT",
+                                    field: "file",
+                                    expires_in_minutes: 15,
+                                    curl_example: `curl -X PUT "${uploadUrl}" -F "file=@/path/to/${args.filename}"`,
+                                },
+                                null,
+                                2,
+                            ),
+                        },
                     ],
                 };
             } catch (err) {

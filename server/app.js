@@ -8,6 +8,7 @@ const authMiddleware = require('./middleware/auth');
 const applicationsRouter = require('./routes/applications');
 const keysRouter = require('./routes/keys');
 const profileRouter = require('./routes/profile');
+const uploadsRouter = require('./routes/uploads');
 
 const app = express();
 
@@ -55,6 +56,11 @@ app.use('/api', apiLimiter);
 app.use('/api/applications/:id/attachments', uploadLimiter);
 app.use('/api/applications/:id/cv', uploadLimiter);
 app.use('/api/applications/:id/cover-letter', uploadLimiter);
+
+// Token-authenticated file upload — must be mounted before authMiddleware
+// since the upload token is the sole credential for this endpoint
+app.use('/upload', uploadLimiter);
+app.use('/upload', uploadsRouter);
 
 app.use('/api', authMiddleware);
 

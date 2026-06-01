@@ -110,7 +110,8 @@ A Model Context Protocol (MCP) server is included for AI clients to interact wit
 - `update_application` — update fields on an existing application
 - `update_status` — change status (auto-sets the corresponding date)
 - `list_attachments` — list file attachments for an application
-- `upload_attachment` — upload a file to an application (base64-encoded content + filename)
+- `upload_attachment` — upload a small file (<~30KB) via base64-encoded content
+- `get_upload_url` — get a pre-signed upload URL for larger files (any size)
 
 ### Connecting from Claude Code
 
