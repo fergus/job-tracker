@@ -1,141 +1,158 @@
 ---
 name: fs-update
-description: Check all dependencies for updates, auto-apply safe patch-level npm upgrades, flag CVEs as high priority, prompt for decisions on minor/major/Docker/Actions changes, then commit and display a summary table.
+description: Check all dependencies for updates, surface everything for human review with safety metadata, apply approved changes in one batch, then commit and display a summary table. No automatic application of any dependency change.
 ---
 
 # Dependency Update
 
-Check all dependencies across the project, automatically apply safe patch-level npm upgrades, flag security vulnerabilities separately, prompt the user for decisions on anything riskier, then commit and display a summary table.
+Check all dependencies across the project, surface every finding for human review with safety metadata, then apply approved changes in a single batch. **No update is applied without explicit approval.**
+
+## Safety Principle
+
+npm has suffered multiple supply-chain compromises in patch-level releases of well-known packages (colors, faker, rc, ua-parser-js, @types/estree, and others). Even a patch bump from 3.3.1 to 3.3.2 can introduce malicious code. **This skill therefore never auto-applies any npm update.** Every change is presented for review first.
+
+**No npm output is ever piped through Python or any external parsing script.** The agent reads npm's JSON output directly.
 
 ## Scope
 
 This skill checks five categories:
-1. **npm packages** — `server/` and `client/` (via `npm outdated`)
-2. **npm security** — `npm audit` in both directories
+1. **npm packages** — `server/` and `client/` (via `npm outdated --json`)
+2. **npm security** — `npm audit --json` in both directories
 3. **GitHub Actions** — versions pinned in `.github/workflows/*.yml`
 4. **Docker images** — base image in `Dockerfile` and third-party images in `docker-compose.yml`
 5. **Impeccable skill** — `.claude/skills/impeccable/` (via GitHub raw check)
 
-## Safe vs. Prompt
-
-- **Auto-apply**: npm patch-level bumps only (Current and Wanted match, Latest differs only in patch segment)
-- **Always prompt**: npm minor bumps, npm major bumps, GitHub Actions version bumps, Docker image bumps
-- **CVEs**: Treated as higher priority — always surfaced separately with severity, even if the fix requires a major bump
-
 ## Steps
 
-### 1. Gather all dependency information in parallel
+### 1. Gather all dependency information
 
-Run all checks simultaneously:
+Run all checks. `npm outdated` exits 1 when outdated packages exist — that's expected.
 
 ```bash
-# npm outdated (exit code 1 when outdated packages exist — that's normal)
-cd server && npm outdated --json 2>/dev/null || true
-cd client && npm outdated --json 2>/dev/null || true
+# npm outdated
+cd server && npm outdated --json 2>/dev/null; true
+cd client && npm outdated --json 2>/dev/null; true
 
 # Security audits
-cd server && npm audit --json 2>/dev/null || true
-cd client && npm audit --json 2>/dev/null || true
+cd server && npm audit --json 2>/dev/null; true
+cd client && npm audit --json 2>/dev/null; true
 ```
 
 For GitHub Actions, read all workflow files in `.github/workflows/` and extract `uses:` lines with their pinned versions.
 
 For Docker images, read `Dockerfile` for `FROM` lines and `docker-compose.yml` for `image:` lines.
 
-For the Impeccable skill, read the local `SKILL.md` version and compare against the latest on GitHub:
+For the Impeccable skill, compare the local version against the latest on GitHub:
 ```bash
 local_version=$(grep -E '^version:' .claude/skills/impeccable/SKILL.md | sed 's/version: //')
 remote_version=$(curl -s https://raw.githubusercontent.com/pbakaus/impeccable/main/.claude/skills/impeccable/SKILL.md | grep -E '^version:' | sed 's/version: //')
 ```
 
-### 2. Categorise findings
+**The agent reads all npm JSON output directly. Do not pipe npm output to Python, jq, or any external script for parsing.**
 
-Build four lists:
+### 2. Categorise and annotate findings
 
-**A. Auto-apply (npm patch-only)**
-A package qualifies if:
-- The version difference is patch-only: e.g. `3.3.1` → `3.3.3` (same major.minor)
-- It is NOT flagged by `npm audit` (CVEs are handled separately)
+Build **one unified list** of all findings. For each npm package, annotate with safety metadata:
 
-**B. CVEs (security vulnerabilities)**
-From `npm audit --json`, extract each vulnerability: package name, severity (critical/high/moderate/low), affected range, and the fix version. Order by severity descending.
+| Metadata field | How to determine |
+|---|---|
+| **Package name** | From `npm outdated --json` key |
+| **Location** | `server` or `client` |
+| **Current version** | From `npm outdated --json` |
+| **Latest version** | From `npm outdated --json` |
+| **Version change** | patch / minor / major (compare semver segments) |
+| **CVE?** | Yes if the package appears in `npm audit --json` output |
+| **CVE severity** | critical / high / moderate / low (from audit, if applicable) |
+| **Direct or transitive?** | Check `package.json` in the relevant directory — if the package is listed in `dependencies` or `devDependencies`, it's direct; otherwise transitive |
+| **Publisher verified?** | `npm view <package> --json` and check `signingKeys` or `provenance` fields. Note: this is advisory — many legitimate packages lack provenance |
+| **Update age** | `npm view <package>@<latest> time --json` — if the latest version was published less than 48 hours ago, flag as "fresh" (higher risk of undetected compromise) |
+| **Blast radius** | `npm why <package>` in the relevant directory to see how many packages depend on it |
 
-**C. Prompt items (non-patch npm)**
-Minor and major npm version bumps that weren't auto-applied.
+### 3. Present all findings in a consolidated summary
 
-**D. Prompt items (Docker/Actions)**
-GitHub Actions version bumps and Docker image version bumps. For each:
-- Check the latest available version:
-  - GitHub Actions: `gh api repos/<owner>/<repo>/releases/latest --jq '.tag_name'`
-  - Docker Hub / Quay images: use the registry API or `curl` the tags endpoint
-  - Node.js Docker image: check `https://hub.docker.com/v2/repositories/library/node/tags` filtering for `XX-alpine` tags
+Display a single markdown table containing ALL findings, grouped by category. Include the safety metadata for npm packages.
 
-**E. Prompt items (Impeccable skill)**
-If `remote_version` differs from `local_version`, present the update with:
-- Current installed version and latest available version
-- Options: **Update now**, **Create a todo**, **Skip**
+```markdown
+## Dependency Update Summary
 
-For "Update now":
+### Security Vulnerabilities (CVEs) — FIX REQUIRED
+| Package | Location | Current | Fix Version | Severity | Direct? | Update Age | Action |
+|---------|----------|---------|-------------|----------|---------|------------|--------|
+| semver  | server   | 7.5.0   | 7.7.1       | high     | transitive | 3 days    | Will fix |
+
+### npm Package Updates
+| Package | Location | Current | Latest | Change | CVE? | Direct? | Publisher Verified? | Update Age |
+|---------|----------|---------|--------|--------|------|---------|--------------------|------------|
+| vite    | client   | 7.3.1   | 8.0.2  | major  | No   | direct  | Yes                | 12 days    |
+| axios   | client   | 1.11.0  | 1.11.1 | patch  | No   | direct  | No                 | 6 hours ⚠️ |
+
+### Docker / GitHub Actions
+| Dependency       | Type    | Current | Latest | Notes |
+|------------------|---------|---------|--------|-------|
+| node alpine      | Docker  | 22      | 24     | node:24-alpine available |
+| actions/checkout | Actions | v6      | v7     |       |
+
+### Skills
+| Skill      | Current | Latest | Notes |
+|------------|---------|--------|-------|
+| impeccable | 2.1.1   | 2.2.0  |       |
+```
+
+For fresh updates (<48h old), add the ⚠️ marker and a brief warning below the table.
+
+**If any CVEs are found**, they are non-negotiable — present them with a clear note that they will be fixed.
+
+### 4. Single approval prompt
+
+Using `AskUserQuestion`, present a single question:
+
+> "Apply all proposed updates? CVEs will be fixed regardless. Patch/minor/major updates, Docker images, Actions versions, and skills are optional. Choose:"
+
+Options:
+1. **Apply everything** — fix CVEs + apply all npm/Docker/Actions/skill updates
+2. **CVEs only** — fix only security vulnerabilities, skip the rest
+3. **Choose manually** — I want to pick which updates to apply
+4. **Skip all** — don't apply anything, just record findings as todos
+
+If the user chooses "Choose manually", present each non-CVE category group as a follow-up question with the same four options scoped to that group.
+
+Do NOT prompt per-package. One approval covers the batch.
+
+### 5. Apply approved changes
+
+Only apply changes the user explicitly approved.
+
+For npm packages (CVEs and user-approved updates):
+
+```bash
+cd /path/to/project/server && npm install <package>@<version>   # for server packages
+cd /path/to/project/client && npm install <package>@<version>   # for client packages
+```
+
+Replace `/path/to/project` with the actual git repository root.
+
+For GitHub Actions version bumps, edit the `uses:` line in the workflow YAML.
+
+For Docker image bumps, edit the `FROM` line in `Dockerfile` or the `image:` line in `docker-compose.yml`.
+
+For the Impeccable skill (if approved):
 ```bash
 cd /tmp && rm -rf impeccable && git clone --depth 1 https://github.com/pbakaus/impeccable.git
 cp -r /tmp/impeccable/.claude/skills/* /home/fstevens/code/job-tracker/.claude/skills/
-# Re-run cleanup and remove post-update section as per skill instructions
 node .claude/skills/impeccable/scripts/cleanup-deprecated.mjs
 ```
-Then remove the `<post-update-cleanup>` section from `.claude/skills/impeccable/SKILL.md` if it exists.
+Then remove any `<post-update-cleanup>` section from `.claude/skills/impeccable/SKILL.md`.
 
-### 3. Auto-apply patch updates
+Track everything that was applied for the final summary.
 
-For each package in list A:
+### 6. Create todos for skipped items
 
-Always use absolute paths to avoid working-directory drift between Bash calls:
-
-```bash
-cd /path/to/project/server && npm update <package>   # for server packages
-cd /path/to/project/client && npm update <package>   # for client packages
-```
-
-Replace `/path/to/project` with the actual project root (the git repository root).
-
-Track what was updated and the old → new versions for the summary.
-
-### 4. Prompt for CVEs
-
-If list B is non-empty, present each CVE group (there may be multiple per package) to the user one at a time using AskUserQuestion with options:
-
-- **Fix now** — apply `npm audit fix` (or `npm audit fix --force` if a major bump is required, with a warning)
-- **Create a todo** — create a file in `todos/` (see Todo Format below)
-- **Skip** — note it in the summary and continue
-
-For critical/high severity, lead with a clear warning.
-
-### 5. Prompt for non-patch npm updates
-
-If list C is non-empty, present them grouped (minor bumps together, major bumps together) using AskUserQuestion with options:
-
-- **Update now** — run `npm install <package>@<version>`
-- **Create a todo** — create a file in `todos/` (see Todo Format below)
-- **Skip** — note in summary
-
-### 6. Prompt for Docker/Actions updates
-
-If list D is non-empty, present each item using AskUserQuestion with:
-- The current version and latest available version
-- Options: **Update now**, **Create a todo**, **Skip**
-
-For "Update now":
-- GitHub Actions: edit the `uses:` line in the workflow YAML
-- Dockerfile `FROM`: edit the image tag
-- `docker-compose.yml` `image:`: edit the image tag
-
-### 7. Todo Format
-
-When creating a todo, write a markdown file to `todos/` following this exact naming convention and structure:
+For any finding the user chose to skip, create a todo file following this format:
 
 **Filename**: `<NNN>-pending-<priority>-<short-slug>.md`
 - `NNN` — three-digit number, one higher than the current highest `issue_id` in the `todos/` directory
-- `priority` — use `p2` for CVEs, `p3` for minor/major/Docker/Actions bumps
-- `short-slug` — kebab-case description, e.g. `upgrade-vite-v8`
+- `priority` — `p2` for CVEs, `p3` for minor/major/Docker/Actions bumps
+- `short-slug` — kebab-case description
 
 **Content**:
 ```markdown
@@ -156,6 +173,7 @@ dependencies: []
 - Current version: X.Y.Z
 - Latest version: A.B.C
 - Upgrade type: major / minor / Docker / Actions
+- Safety: <publisher verified? / update age at time of check>
 
 ## Proposed Solutions
 ### Option A: Upgrade now
@@ -167,31 +185,32 @@ Run `npm install <package>@latest` (or equivalent), verify build passes, then re
 - [ ] Build passes with no regressions
 ```
 
-Use `tags: [dependencies, security]` for CVEs. Adjust the template as needed to capture relevant context (e.g. migration guide URL for major bumps, CVE identifier for security issues).
+Use `tags: [dependencies, security]` for CVEs.
 
-### 8. Commit
+### 7. Commit
 
-Stage all modified files:
+Stage all files that were actually changed:
 
 ```bash
 git add \
-  server/package-lock.json \
+  server/package.json server/package-lock.json \
   client/package.json client/package-lock.json \
   Dockerfile \
   docker-compose.yml \
   .github/workflows/*.yml \
+  .claude/skills/impeccable/ \
   todos/
 ```
 
-Only stage files that were actually changed. Commit with:
+Only stage files that were modified. Commit with:
 
 ```bash
 git commit -m "chore: dependency updates"
 ```
 
-Do not include Co-Authored-By or any Claude attribution in the commit message.
+Do not include Co-Authored-By or any AI attribution in the commit message.
 
-If nothing changed (all items were skipped or todo'd), skip the commit and push, and say so.
+If nothing changed (everything skipped), skip the commit and push, and say so.
 
 After a successful commit, push to the remote:
 
@@ -199,46 +218,52 @@ After a successful commit, push to the remote:
 git push -u origin HEAD:<current-branch>
 ```
 
-If the repo is in a detached HEAD state, determine the target branch by checking
-`git ls-remote origin` and push to `main` (or whichever branch HEAD was on before
-the detach). Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on
-network failures.
+If the repo is in a detached HEAD state, determine the target branch via `git ls-remote origin` and push to `main` (or whichever branch HEAD was on before detach). Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network failures.
 
-### 8. Display summary table
+### 8. Display final summary
 
-Print a markdown table of all findings and their outcomes:
+Print a markdown table of what was actually applied and what was recorded as todos:
 
-```
-## Dependency Update Summary
+```markdown
+## Dependency Update — Applied
 
-### Auto-applied (patch)
-| Package    | Location | Old     | New     |
-|------------|----------|---------|---------|
-| dompurify  | client   | 3.3.1   | 3.3.3   |
+### Security (CVEs fixed)
+| Package | Location | Old → New | Severity |
+|---------|----------|-----------|----------|
+| semver  | server   | 7.5.0 → 7.7.1 | high |
 
-### Security (CVEs)
-| Package | Severity | Fix     | Action       |
-|---------|----------|---------|--------------|
-| ...     | moderate | 3.3.3   | Fixed / Todo |
+### npm updates applied
+| Package | Location | Old → New | Change |
+|---------|----------|-----------|--------|
+| axios   | client   | 1.11.0 → 1.11.1 | patch |
 
-### Minor / Major npm
-| Package | Location | Current | Latest | Action       |
-|---------|----------|---------|--------|--------------|
-| vite    | client   | 7.3.1   | 8.0.2  | Todo created |
+### Docker / Actions applied
+| Dependency | Old → New |
+|------------|-----------|
+| ...        | ...       |
 
-### Docker / Actions
-| Dependency       | Type    | Current | Latest  | Action       |
-|------------------|---------|---------|---------|--------------|
-| node alpine      | Docker  | 22      | 24      | Updated      |
-| actions/checkout | Actions | v6      | v7      | Skipped      |
+### Skills updated
+| Skill      | Old → New |
+|------------|-----------|
+| ...        | ...       |
 
-### Skills
-| Skill      | Current | Latest | Action       |
-|------------|---------|--------|--------------|
-| impeccable | 2.1.1   | 2.2.0  | Updated      |
+### Recorded as todos
+| Item | Priority | Todo file |
+|------|----------|-----------|
+| ...  | p2       | todos/NNN-... |
 
-### Notes
-- List any caveats, skipped items, or things to be aware of
+### Skipped
+| Item | Reason |
+|------|--------|
+| ...  | User chose to skip |
 ```
 
-If there were no changes of a given type, omit that section.
+## Guardrails
+
+- **Never auto-apply any npm update**, even patch-level. Supply-chain attacks often ship in patch bumps.
+- **Never pipe npm output through Python or external scripts** for parsing. The agent reads JSON directly.
+- Present all findings in one table; prompt once for batch approval.
+- Fresh updates (<48h old) are flagged with ⚠️ and a warning.
+- CVEs are non-negotiable — they will be fixed. The user can only choose how (now vs. record as todo).
+- If `npm outdated` or `npm audit` fail (network issues, etc.), report what was found and move on — don't block.
+- Do not fabricate version information. If you can't verify a version or safety property, note it as "unknown".
