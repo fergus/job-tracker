@@ -1486,6 +1486,126 @@ describe("MCP Server", () => {
             extraction.getOpenAIClient = original;
         }
     });
+
+    test("upload_attachment MCP tool uploads base64 file content", async () => {
+        const appRes = await req
+            .post("/api/applications")
+            .set("X-Forwarded-Email", "mcp-test@example.com")
+            .field("company_name", "UploadCo")
+            .field("role_title", "Engineer");
+        assert.equal(appRes.status, 201);
+        const appId = appRes.body.id;
+
+        const initBody = {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize",
+            params: {
+                protocolVersion: "2024-11-05",
+                capabilities: {},
+                clientInfo: { name: "test", version: "1.0" },
+            },
+        };
+        const init = await mcpReq
+            .post("/")
+            .set("Authorization", `Bearer ${apiKey}`)
+            .set("Accept", "application/json, text/event-stream")
+            .set("Content-Type", "application/json")
+            .send(initBody);
+        assert.equal(init.status, 200);
+        const sessionId = init.headers["mcp-session-id"];
+
+        const fileContent = Buffer.from("resume text here").toString("base64");
+        const toolBody = {
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/call",
+            params: {
+                name: "upload_attachment",
+                arguments: {
+                    application_id: appId,
+                    filename: "resume.txt",
+                    file_content: fileContent,
+                },
+            },
+        };
+        const toolRes = await mcpReq
+            .post("/")
+            .set("Authorization", `Bearer ${apiKey}`)
+            .set("Mcp-Session-Id", sessionId)
+            .set("Accept", "application/json, text/event-stream")
+            .set("Content-Type", "application/json")
+            .send(toolBody);
+
+        assert.equal(toolRes.status, 200);
+        const lines = toolRes.text.trim().split("\n");
+        const dataLine = lines.find((l) => l.startsWith("data: "));
+        assert.ok(dataLine);
+        const parsed = JSON.parse(dataLine.slice("data: ".length));
+        const result = parsed.result;
+        assert.equal(result.isError, undefined);
+        const payload = JSON.parse(result.content[0].text);
+        assert.ok(Array.isArray(payload));
+        assert.equal(payload.length, 1);
+        assert.equal(payload[0].original_filename, "resume.txt");
+        assert.equal(payload[0].mime_type, "text/plain");
+
+        // Verify attachment appears via REST
+        const attachCheck = await req
+            .get(`/api/applications/${appId}/attachments`)
+            .set("X-Forwarded-Email", "mcp-test@example.com");
+        assert.equal(attachCheck.body.length, 1);
+        assert.equal(attachCheck.body[0].original_filename, "resume.txt");
+    });
+
+    test("upload_attachment MCP tool returns error for unknown application", async () => {
+        const initBody = {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize",
+            params: {
+                protocolVersion: "2024-11-05",
+                capabilities: {},
+                clientInfo: { name: "test", version: "1.0" },
+            },
+        };
+        const init = await mcpReq
+            .post("/")
+            .set("Authorization", `Bearer ${apiKey}`)
+            .set("Accept", "application/json, text/event-stream")
+            .set("Content-Type", "application/json")
+            .send(initBody);
+        assert.equal(init.status, 200);
+        const sessionId = init.headers["mcp-session-id"];
+
+        const toolBody = {
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/call",
+            params: {
+                name: "upload_attachment",
+                arguments: {
+                    application_id: 999999,
+                    filename: "resume.txt",
+                    file_content: Buffer.from("x").toString("base64"),
+                },
+            },
+        };
+        const toolRes = await mcpReq
+            .post("/")
+            .set("Authorization", `Bearer ${apiKey}`)
+            .set("Mcp-Session-Id", sessionId)
+            .set("Accept", "application/json, text/event-stream")
+            .set("Content-Type", "application/json")
+            .send(toolBody);
+
+        assert.equal(toolRes.status, 200);
+        const lines = toolRes.text.trim().split("\n");
+        const dataLine = lines.find((l) => l.startsWith("data: "));
+        assert.ok(dataLine);
+        const parsed = JSON.parse(dataLine.slice("data: ".length));
+        assert.equal(parsed.result.isError, true);
+    });
 });
 
 // ---------------------------------------------------------------------------

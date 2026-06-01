@@ -266,6 +266,8 @@ A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`).
 
 **Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`
 
+**`upload_attachment` parameters:** `application_id` (int), `filename` (string, e.g. `cover-letter.pdf`), `file_content` (base64-encoded string). The tool accepts file content directly rather than a filesystem path, so it works correctly when the MCP server is hosted remotely.
+
 ### Connecting an AI client
 
 Clients must support the MCP Streamable HTTP transport and send:

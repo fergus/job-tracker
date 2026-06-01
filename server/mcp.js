@@ -68,7 +68,7 @@ function createMcpServer() {
                 } else if (name === "add_note") {
                     details = { stage: args.stage };
                 } else if (name === "upload_attachment") {
-                    details = { file_path: args.file_path };
+                    details = { filename: args.filename };
                 } else if (name === "generate_document") {
                     details = { task: args.task };
                 } else if (name === "extract_job_description") {
@@ -702,17 +702,21 @@ function createMcpServer() {
 
     server.tool(
         "upload_attachment",
-        "Upload a file attachment to an existing job application.",
+        "Upload a file attachment to an existing job application. Provide the file as base64-encoded content along with the original filename.",
         {
             application_id: z
                 .number()
                 .int()
                 .positive()
                 .describe("Application ID"),
-            file_path: z
+            filename: z
                 .string()
                 .min(1)
-                .describe("Absolute path to the file on disk"),
+                .describe("Original filename including extension (e.g. cover-letter.pdf)"),
+            file_content: z
+                .string()
+                .min(1)
+                .describe("Base64-encoded file content"),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -722,23 +726,11 @@ function createMcpServer() {
                     isError: true,
                 };
             try {
-                if (!fs.existsSync(args.file_path)) {
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `File not found: ${args.file_path}`,
-                            },
-                        ],
-                        isError: true,
-                    };
-                }
-                const buffer = fs.readFileSync(args.file_path);
-                const originalname = path.basename(args.file_path);
+                const buffer = Buffer.from(args.file_content, "base64");
                 const result = await svc.uploadAttachments(
                     userEmail,
                     args.application_id,
-                    [{ originalname, buffer }],
+                    [{ originalname: args.filename, buffer }],
                 );
                 return {
                     content: [
