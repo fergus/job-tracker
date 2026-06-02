@@ -10,7 +10,7 @@ services:
       - OAUTH2_PROXY_CLIENT_ID=${OIDC_CLIENT_ID}
       - OAUTH2_PROXY_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
       - OAUTH2_PROXY_COOKIE_SECRET=${COOKIE_SECRET}
-      - OAUTH2_PROXY_REDIRECT_URL=https://jobs.intervl.com/oauth2/callback
+      - OAUTH2_PROXY_REDIRECT_URL=${PUBLIC_URL}/oauth2/callback
       - OAUTH2_PROXY_UPSTREAMS=http://job-tracker:3000
       - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
       # WARNING: OAUTH2_PROXY_EMAIL_DOMAINS=* is ONLY safe with a private OIDC provider
@@ -43,7 +43,7 @@ services:
       # Required in production — generate with: openssl rand -hex 32
       - SERVER_API_KEY_SECRET=${SERVER_API_KEY_SECRET}
       # Required for get_upload_url MCP tool — the public-facing base URL of the app
-      - PUBLIC_URL=https://jobs.intervl.com
+      - PUBLIC_URL=${PUBLIC_URL}
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
