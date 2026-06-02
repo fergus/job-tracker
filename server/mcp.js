@@ -788,9 +788,13 @@ function createMcpServer() {
                     args.application_id,
                     args.filename,
                 );
-                const baseUrl =
-                    process.env.PUBLIC_URL || "http://localhost:3000";
-                const uploadUrl = `${baseUrl}/upload/${token}`;
+                const baseUrl = process.env.PUBLIC_URL;
+                if (!baseUrl) {
+                    console.warn(
+                        "[mcp] get_upload_url: PUBLIC_URL not set, returning localhost URL which is unreachable from external clients",
+                    );
+                }
+                const uploadUrl = `${baseUrl || "http://localhost:3000"}/upload/${token}`;
 
                 return {
                     content: [
@@ -973,6 +977,12 @@ function createMcpServer() {
 }
 
 function startMcpServer(port) {
+    if (!process.env.PUBLIC_URL) {
+        console.warn(
+            "[mcp] WARNING: PUBLIC_URL is not set. get_upload_url will return localhost URLs that are unreachable from MCP clients. Set PUBLIC_URL to the externally-accessible base URL of this server.",
+        );
+    }
+
     const app = express();
     app.set("trust proxy", 1);
 
