@@ -100,7 +100,7 @@ function createMcpServer() {
 
     server.tool(
         "list_applications",
-        "List all job applications with their current status and key dates.",
+        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work.",
         {
             status: z
                 .enum([
@@ -114,6 +114,35 @@ function createMcpServer() {
                 ])
                 .optional()
                 .describe("Filter by status"),
+            company_name: z
+                .string()
+                .optional()
+                .describe("Filter by company name (partial match)"),
+            updated_since: z
+                .string()
+                .optional()
+                .describe(
+                    "Return only records updated after this ISO 8601 datetime (useful for incremental refresh)",
+                ),
+            fields: z
+                .array(z.string())
+                .optional()
+                .describe(
+                    "Limit which fields are returned per record. Omit to return all fields. Suggested summary preset: [\"id\",\"company_name\",\"role_title\",\"status\",\"job_location\",\"job_posting_url\",\"salary_min\",\"salary_max\",\"interested_at\",\"applied_at\",\"closed_at\",\"updated_at\"]",
+                ),
+            limit: z
+                .number()
+                .int()
+                .positive()
+                .max(200)
+                .optional()
+                .describe("Maximum number of records to return (default 50, max 200)"),
+            offset: z
+                .number()
+                .int()
+                .nonnegative()
+                .optional()
+                .describe("Number of records to skip for pagination (default 0)"),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -123,12 +152,46 @@ function createMcpServer() {
                     isError: true,
                 };
             try {
+                const usePagination =
+                    args.limit !== undefined || args.offset !== undefined;
+                const includeNotes =
+                    !args.fields || args.fields.includes("notes");
+
+                // Apply default pagination at the MCP layer so all list_applications
+                // calls are bounded. The service only applies SQL LIMIT when limit/offset
+                // are explicitly passed.
+                const limit = args.limit ?? 50;
+                const offset = args.offset ?? 0;
+
                 const result = svc.listApplications(userEmail, {
                     status: args.status,
+                    company_name: args.company_name,
+                    updated_since: args.updated_since,
+                    limit,
+                    offset,
+                    includeNotes,
                 });
+
+                // result is always {total, items} because we pass limit/offset
+                let { total, items } = result;
+
+                if (args.fields) {
+                    const fieldSet = new Set(args.fields);
+                    items = items.map((app) => {
+                        const obj = {};
+                        for (const f of fieldSet) {
+                            if (f in app) obj[f] = app[f];
+                        }
+                        return obj;
+                    });
+                }
+
                 return {
                     content: [
-                        { type: "text", text: JSON.stringify(result, null, 2) },
+                        {
+                            type: "text",
+                            text: JSON.stringify({ total, items }, null, 2),
+                        },
                     ],
                 };
             } catch (err) {
@@ -139,7 +202,7 @@ function createMcpServer() {
 
     server.tool(
         "get_application",
-        "Get a job application by ID, including all notes and attachment metadata.",
+        "Get a job application by ID, returning the full record including job_description, extracted_jd, interview_notes, prep_work, notes, and attachment metadata. The intended pattern is: call list_applications (with sparse fields) to locate a record, then call get_application to fetch full detail.",
         {
             id: z.number().int().positive().describe("Application ID"),
         },

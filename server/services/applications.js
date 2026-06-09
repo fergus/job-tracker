@@ -80,11 +80,18 @@ function attachNotes(rows) {
 
 function listApplications(
     userEmail,
-    { status, all, updated_since, isAdmin = false } = {},
+    {
+        status,
+        all,
+        updated_since,
+        company_name,
+        limit,
+        offset,
+        includeNotes = true,
+        isAdmin = false,
+    } = {},
 ) {
     const showAll = isAdmin && all === "true";
-    let sql =
-        "SELECT a.*, (SELECT COUNT(*) FROM attachments WHERE application_id = a.id) as attachment_count FROM applications a";
     const conditions = [];
     const params = [];
 
@@ -109,10 +116,43 @@ function listApplications(
         params.push(updated_since);
     }
 
-    if (conditions.length > 0) sql += " WHERE " + conditions.join(" AND ");
-    sql += " ORDER BY a.updated_at DESC";
+    if (company_name) {
+        conditions.push("a.company_name LIKE ?");
+        params.push(`%${company_name}%`);
+    }
 
-    return attachNotes(db.prepare(sql).all(...params));
+    const where =
+        conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
+
+    const usePagination = limit !== undefined || offset !== undefined;
+
+    if (usePagination) {
+        const total = db
+            .prepare(
+                `SELECT COUNT(*) as cnt FROM applications a${where}`,
+            )
+            .get(...params).cnt;
+
+        const resolvedLimit = Math.min(limit ?? 50, 200);
+        const resolvedOffset = offset ?? 0;
+
+        const rows = db
+            .prepare(
+                `SELECT a.*, (SELECT COUNT(*) FROM attachments WHERE application_id = a.id) as attachment_count FROM applications a${where} ORDER BY a.updated_at DESC LIMIT ? OFFSET ?`,
+            )
+            .all(...params, resolvedLimit, resolvedOffset);
+
+        const items = includeNotes ? attachNotes(rows) : rows;
+        return { total, items };
+    }
+
+    const rows = db
+        .prepare(
+            `SELECT a.*, (SELECT COUNT(*) FROM attachments WHERE application_id = a.id) as attachment_count FROM applications a${where} ORDER BY a.updated_at DESC`,
+        )
+        .all(...params);
+
+    return includeNotes ? attachNotes(rows) : rows;
 }
 
 function getApplication(userEmail, id, { isAdmin = false } = {}) {

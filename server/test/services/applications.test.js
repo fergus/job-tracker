@@ -377,6 +377,87 @@ describe("services/applications", () => {
             const list = listApplications("nobody@example.com", {});
             assert.deepEqual(list, []);
         });
+
+        test("pagination returns {total, items} envelope", () => {
+            cleanupApps();
+            for (let i = 0; i < 5; i++) {
+                createApplication(TEST_EMAIL, {
+                    company_name: `Company${i}`,
+                    role_title: "E",
+                });
+            }
+            const result = listApplications(TEST_EMAIL, { limit: 2, offset: 0 });
+            assert.ok(result && typeof result === "object" && !Array.isArray(result));
+            assert.equal(result.total, 5);
+            assert.equal(result.items.length, 2);
+        });
+
+        test("pagination offset works correctly", () => {
+            cleanupApps();
+            for (let i = 0; i < 5; i++) {
+                createApplication(TEST_EMAIL, {
+                    company_name: `Company${i}`,
+                    role_title: "E",
+                });
+            }
+            const page2 = listApplications(TEST_EMAIL, { limit: 2, offset: 2 });
+            assert.equal(page2.total, 5);
+            assert.equal(page2.items.length, 2);
+            const last = listApplications(TEST_EMAIL, { limit: 2, offset: 4 });
+            assert.equal(last.total, 5);
+            assert.equal(last.items.length, 1);
+        });
+
+        test("company_name partial match filter", () => {
+            cleanupApps();
+            createApplication(TEST_EMAIL, {
+                company_name: "Acme Corp",
+                role_title: "E",
+            });
+            createApplication(TEST_EMAIL, {
+                company_name: "Other Inc",
+                role_title: "E",
+            });
+            const result = listApplications(TEST_EMAIL, { company_name: "Acme" });
+            assert.equal(result.length, 1);
+            assert.equal(result[0].company_name, "Acme Corp");
+        });
+
+        test("includeNotes=false skips notes attachment", () => {
+            cleanupApps();
+            createApplication(TEST_EMAIL, {
+                company_name: "A",
+                role_title: "E",
+            });
+            const result = listApplications(TEST_EMAIL, { includeNotes: false });
+            assert.ok(!("notes" in result[0]));
+        });
+
+        test("pagination total respects filters", () => {
+            cleanupApps();
+            createApplication(TEST_EMAIL, {
+                company_name: "A",
+                role_title: "E",
+                status: "interested",
+            });
+            createApplication(TEST_EMAIL, {
+                company_name: "B",
+                role_title: "E",
+                status: "applied",
+            });
+            createApplication(TEST_EMAIL, {
+                company_name: "C",
+                role_title: "E",
+                status: "applied",
+            });
+            const result = listApplications(TEST_EMAIL, {
+                status: "applied",
+                limit: 10,
+                offset: 0,
+            });
+            assert.equal(result.total, 2);
+            assert.equal(result.items.length, 2);
+        });
     });
 
     describe("getOwnApp", () => {
