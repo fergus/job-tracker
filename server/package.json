@@ -1,13 +1,13 @@
 {
     "name": "job-tracker-server",
-    "version": "0.17.1",
+    "version": "0.17.2",
     "private": true,
     "scripts": {
         "test": "node --test test/*.test.js test/*/*.test.js"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "better-sqlite3": "^12.10.0",
+        "better-sqlite3": "^12.11.1",
         "cors": "^2.8.6",
         "express": "^5.2.1",
         "express-rate-limit": "^8.5.2",
