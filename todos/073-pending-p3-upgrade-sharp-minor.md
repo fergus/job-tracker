@@ -1,6 +1,6 @@
 # sharp 0.34.5 → 0.35.1 (minor bump)
 
-**Status:** pending
+****Status:** complete
 **Priority:** p3
 **Created:** 2026-06-12
 
