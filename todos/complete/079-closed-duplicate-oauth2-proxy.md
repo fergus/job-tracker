@@ -1,4 +1,4 @@
-# Upgrade oauth2-proxy (Docker image)
+# Upgrade oauth2-proxy (Docker image) — CLOSED: duplicate of 074
 
 **Priority:** p3 (patch bump, Docker image)
 

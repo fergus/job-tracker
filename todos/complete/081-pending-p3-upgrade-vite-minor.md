@@ -10,7 +10,7 @@
 
 | Package | Current | Latest | Type |
 |---------|---------|--------|------|
-| `vite` (client) | 8.0.16 | 8.1.3 | minor |
+| `vite` (client) | 8.0.16 | 8.1.4 | minor |
 
 ## Proposed fix
 

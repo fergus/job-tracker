@@ -10,8 +10,8 @@
 
 | Package | Current | Latest | Type |
 |---------|---------|--------|------|
-| `openai` (server) | 6.44.0 | 6.45.0 | minor |
-| `openai` (client) | 6.44.0 | 6.45.0 | minor |
+| `openai` (server) | 6.44.0 | 6.46.0 | minor |
+| `openai` (client) | 6.44.0 | 6.46.0 | minor |
 
 ## Proposed fix
 
