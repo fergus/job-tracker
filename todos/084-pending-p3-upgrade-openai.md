@@ -6,7 +6,7 @@
 
 ## Problem
 
-`openai` is at version `6.46.0` in both `server/` and `client/`. Latest is `6.48.0` (minor bump).
+`openai` is at version `6.46.0` in both `server/` and `client/`. Latest is `6.49.0` (minor bump).
 
 ## Current
 
@@ -14,13 +14,13 @@
 
 ## Target
 
-`openai@6.48.0`
+`openai@6.49.0`
 
 ## Proposed Fix
 
 ```bash
-cd server && npm install openai@6.48.0
-cd client && npm install openai@6.48.0
+cd server && npm install openai@6.49.0
+cd client && npm install openai@6.49.0
 ```
 
 ## Acceptance Criteria

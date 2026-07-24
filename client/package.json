@@ -1,6 +1,6 @@
 {
     "name": "job-tracker-client",
-    "version": "0.17.7",
+    "version": "0.17.8",
     "private": true,
     "type": "module",
     "scripts": {
@@ -14,7 +14,7 @@
     "dependencies": {
         "axios": "^1.18.1",
         "dompurify": "^3.4.12",
-        "marked": "^18.0.6",
+        "marked": "^18.0.7",
         "morgan": "^1.11.0",
         "openai": "^6.46.0",
         "vue": "^3.5.40",
