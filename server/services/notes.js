@@ -1,6 +1,7 @@
 "use strict";
 const db = require("../db");
 const { ServiceError, VALID_STATUSES, getOwnApp } = require("./applications");
+const { emitChange } = require("../lib/events");
 
 function addNote(userEmail, appId, { stage, content }) {
     const existing = getOwnApp(appId, userEmail);
@@ -31,6 +32,7 @@ function addNote(userEmail, appId, { stage, content }) {
     });
 
     const result = insertNote();
+    emitChange(userEmail, "updated", Number(appId));
     return db
         .prepare("SELECT * FROM stage_notes WHERE id = ?")
         .get(result.lastInsertRowid);
@@ -76,6 +78,7 @@ function updateNote(userEmail, appId, noteId, { content, stage }) {
         appId,
     );
 
+    emitChange(userEmail, "updated", Number(appId));
     return db.prepare("SELECT * FROM stage_notes WHERE id = ?").get(noteId);
 }
 
@@ -97,6 +100,7 @@ function deleteNote(userEmail, appId, noteId) {
         appId,
     );
 
+    emitChange(userEmail, "updated", Number(appId));
     return { success: true };
 }
 

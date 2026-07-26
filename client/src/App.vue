@@ -150,6 +150,7 @@ import { TERMINAL_STAGES } from "./utils/timeline.js";
 import { useToast } from "./composables/useToast";
 import { storageGetBool, storageSet } from "./utils/storage.js";
 import { getErrorMessage } from "./utils/error.js";
+import { subscribeToChanges } from "./composables/useLiveUpdates.js";
 import LogoBuild from "./components/LogoBuild.vue";
 import { defineAsyncComponent } from 'vue'
 import KanbanBoard from "./components/KanbanBoard.vue";
@@ -333,6 +334,29 @@ function setShowAll(val) {
     if (showAllUsers.value === val) return;
     showAllUsers.value = val;
     loadApplications();
+    connectLiveUpdates();
+}
+
+let unsubscribeLiveUpdates = null;
+
+function connectLiveUpdates() {
+    unsubscribeLiveUpdates?.();
+    unsubscribeLiveUpdates = subscribeToChanges(
+        showAllUsers.value,
+        handleRemoteChange,
+    );
+}
+
+function handleRemoteChange(evt) {
+    if (evt.type === "deleted") {
+        applications.value = applications.value.filter((a) => a.id !== evt.id);
+        if (panelApp.value?.id === evt.id) {
+            panelApp.value = null;
+            showPanel.value = false;
+        }
+        return;
+    }
+    refreshApplication(evt.id);
 }
 
 onMounted(async () => {
@@ -341,5 +365,10 @@ onMounted(async () => {
     compactHeader.value = storageGetBool(COMPACT_KEY, isMobile);
     currentUser.value = await fetchMe();
     loadApplications();
+    connectLiveUpdates();
+});
+
+onUnmounted(() => {
+    unsubscribeLiveUpdates?.();
 });
 </script>

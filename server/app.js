@@ -9,6 +9,7 @@ const applicationsRouter = require('./routes/applications');
 const keysRouter = require('./routes/keys');
 const profileRouter = require('./routes/profile');
 const uploadsRouter = require('./routes/uploads');
+const eventsRouter = require('./routes/events');
 
 const app = express();
 
@@ -71,6 +72,7 @@ app.get('/api/me', (req, res) => {
 app.use('/api/applications', applicationsRouter);
 app.use('/api/keys', keysRouter);
 app.use('/api', profileRouter);
+app.use('/api/events', eventsRouter);
 
 // OAuth discovery endpoint — MCP clients may probe this before connecting.
 // This server uses Bearer API keys, not OAuth, so return 404 per RFC 8414.

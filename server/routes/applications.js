@@ -13,6 +13,7 @@ const { extractStructuredJD } = require("../services/extraction");
 const { fetchJobDescription, FetchError } = require("../services/fetch-jd");
 const { generateDocument, VALID_TASKS } = require("../services/generation");
 const { logAuditEvent } = require("../services/audit");
+const { emitChange } = require("../lib/events");
 
 const router = express.Router();
 
@@ -236,6 +237,8 @@ router.post("/:id/cv", upload.single("cv"), (req, res) => {
 
     if (oldPath) safeDeleteFile(oldPath);
 
+    emitChange(req.userEmail, "updated", parseInt(req.params.id, 10));
+
     logAuditEvent({
         userEmail: req.userEmail,
         action: "upload_cv",
@@ -305,6 +308,8 @@ router.post("/:id/cover-letter", upload.single("cover_letter"), (req, res) => {
     );
 
     if (oldPath) safeDeleteFile(oldPath);
+
+    emitChange(req.userEmail, "updated", parseInt(req.params.id, 10));
 
     logAuditEvent({
         userEmail: req.userEmail,
@@ -502,6 +507,8 @@ router.delete("/:id/attachments/:attachmentId", (req, res) => {
     const filePath = safePath(uploadsDir, attachment.stored_filename);
     if (filePath) safeDeleteFile(filePath);
 
+    emitChange(req.userEmail, "updated", parseInt(req.params.id, 10));
+
     logAuditEvent({
         userEmail: req.userEmail,
         action: "delete_attachment",
@@ -564,6 +571,8 @@ router.patch("/:id/dates", (req, res) => {
     const row = db
         .prepare("SELECT * FROM applications WHERE id = ?")
         .get(req.params.id);
+
+    emitChange(req.userEmail, "updated", parseInt(req.params.id, 10));
 
     logAuditEvent({
         userEmail: req.userEmail,
@@ -688,6 +697,8 @@ router.post("/:id/extract-jd", async (req, res) => {
             "UPDATE applications SET extracted_jd = ?, updated_at = ? WHERE id = ?",
         ).run(JSON.stringify(extracted), now, req.params.id);
 
+        emitChange(existing.user_email, "updated", parseInt(req.params.id, 10));
+
         logAuditEvent({
             userEmail: req.userEmail,
             action: "extract_job_description",
@@ -740,6 +751,8 @@ router.post("/:id/fetch-jd", async (req, res) => {
                 "UPDATE applications SET extracted_jd = ? WHERE id = ?",
             ).run(JSON.stringify(extracted), req.params.id);
         }
+
+        emitChange(existing.user_email, "updated", parseInt(req.params.id, 10));
 
         logAuditEvent({
             userEmail: req.userEmail,
@@ -830,6 +843,8 @@ router.post("/:id/generate", async (req, res) => {
         const attachment = db
             .prepare("SELECT * FROM attachments WHERE id = ?")
             .get(result.lastInsertRowid);
+
+        emitChange(existing.user_email, "updated", parseInt(req.params.id, 10));
 
         logAuditEvent({
             userEmail: req.userEmail,

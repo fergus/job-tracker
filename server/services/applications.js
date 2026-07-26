@@ -6,6 +6,7 @@ const { extractText } = require("./extraction");
 const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
 const { isValidUrl } = require("../lib/validation");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
+const { emitChange } = require("../lib/events");
 
 class ServiceError extends Error {
     constructor(status, message) {
@@ -274,9 +275,11 @@ function createApplication(userEmail, data) {
             userEmail,
         );
 
-    return db
+    const created = db
         .prepare("SELECT * FROM applications WHERE id = ?")
         .get(result.lastInsertRowid);
+    emitChange(userEmail, "created", created.id);
+    return created;
 }
 
 function updateApplication(userEmail, id, data) {
@@ -369,6 +372,7 @@ function updateApplication(userEmail, id, data) {
     db.prepare(
         `UPDATE applications SET ${updates.join(", ")} WHERE id = ? AND user_email = ?`,
     ).run(...values);
+    emitChange(userEmail, "updated", Number(id));
     return db.prepare("SELECT * FROM applications WHERE id = ?").get(id);
 }
 
@@ -395,6 +399,7 @@ function updateStatus(userEmail, id, status) {
     db.prepare(
         `UPDATE applications SET ${updates.join(", ")} WHERE id = ? AND user_email = ?`,
     ).run(...values);
+    emitChange(userEmail, "updated", Number(id));
     return db.prepare("SELECT * FROM applications WHERE id = ?").get(id);
 }
 
@@ -422,6 +427,7 @@ function deleteApplication(userEmail, id) {
         if (filePath) safeDeleteFile(filePath);
     }
 
+    emitChange(userEmail, "deleted", Number(id));
     return { success: true };
 }
 
@@ -454,6 +460,7 @@ function addNote(userEmail, appId, { stage, content }) {
     });
 
     const result = insertNote();
+    emitChange(userEmail, "updated", Number(appId));
     return db
         .prepare("SELECT * FROM stage_notes WHERE id = ?")
         .get(result.lastInsertRowid);
@@ -525,7 +532,9 @@ async function uploadAttachments(userEmail, appId, files) {
         return inserted;
     });
 
-    return insertAttachments();
+    const inserted = insertAttachments();
+    emitChange(userEmail, "updated", Number(appId));
+    return inserted;
 }
 
 function listAttachments(userEmail, appId, { isAdmin = false } = {}) {

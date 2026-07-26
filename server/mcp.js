@@ -19,6 +19,7 @@ const { fetchJobDescription, FetchError } = require("./services/fetch-jd");
 const { generateDocument, VALID_TASKS } = require("./services/generation");
 const { logAuditEvent, READ_ONLY_TOOLS } = require("./services/audit");
 const { createUploadToken } = require("./lib/uploadTokens");
+const { emitChange } = require("./lib/events");
 
 // Convert a ServiceError into MCP tool content so the LLM sees the message.
 function toolError(err) {
@@ -748,6 +749,8 @@ function createMcpServer() {
                     .prepare("SELECT * FROM attachments WHERE id = ?")
                     .get(result.lastInsertRowid);
 
+                emitChange(userEmail, "updated", args.application_id);
+
                 return {
                     content: [{ type: "text", text: generatedText }],
                     attachmentMetadata: {
@@ -940,6 +943,7 @@ function createMcpServer() {
                 db.prepare(
                     "UPDATE applications SET extracted_jd = ?, updated_at = ? WHERE id = ?",
                 ).run(JSON.stringify(extracted), now, args.application_id);
+                emitChange(userEmail, "updated", args.application_id);
                 return {
                     content: [
                         {
@@ -1015,6 +1019,7 @@ function createMcpServer() {
                         "UPDATE applications SET extracted_jd = ? WHERE id = ?",
                     ).run(JSON.stringify(extracted), args.application_id);
                 }
+                emitChange(userEmail, "updated", args.application_id);
                 return {
                     content: [
                         {
