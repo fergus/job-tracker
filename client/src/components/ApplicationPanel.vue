@@ -547,6 +547,41 @@
               </div>
             </details>
 
+            <!-- Activity -->
+            <details :open="auditLogOpen" @toggle="auditLogOpen = $event.target.open" class="group mt-4 pt-4 border-t border-line">
+              <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+                <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Activity</span>
+                <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </summary>
+              <div class="mt-3">
+                <div v-if="auditLogLoading" class="text-sm text-ink-3 mb-2">Loading...</div>
+                <div v-else-if="auditLog.length === 0" class="text-sm text-ink-3">No activity yet.</div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="entry in auditLog"
+                    :key="entry.id"
+                    class="bg-raised rounded-lg p-3"
+                  >
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="text-sm font-medium text-ink">{{ humanizeAction(entry.action) }}</span>
+                      <span
+                        class="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+                        :class="entry.auth_method === 'api_key' ? 'bg-accent-muted/30 text-accent' : 'bg-sunken text-ink-2'"
+                      >{{ entry.auth_method === 'api_key' ? 'Agent' : 'You' }}</span>
+                      <span class="text-[9px] uppercase tracking-wide text-ink-3">{{ entry.source === 'mcp' ? 'MCP' : 'Web' }}</span>
+                    </div>
+                    <div class="text-xs text-ink-3 mt-1">{{ formatDateTime(entry.created_at) }}</div>
+                    <div v-if="entry.details" class="mt-1.5">
+                      <details class="text-xs">
+                        <summary class="text-ink-3 cursor-pointer hover:text-ink-2">Details</summary>
+                        <pre class="mt-1 p-2 bg-sunken rounded text-ink-2 overflow-x-auto">{{ JSON.stringify(entry.details, null, 2) }}</pre>
+                      </details>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
             <!-- Attachments -->
             <details :open="attachmentsOpen" @toggle="attachmentsOpen = $event.target.open" class="group mt-4 pt-4 border-t border-line">
               <summary class="flex items-center justify-between cursor-pointer list-none select-none">
@@ -594,45 +629,10 @@
               </div>
             </details>
 
-            <!-- Activity -->
-            <details :open="auditLogOpen" @toggle="auditLogOpen = $event.target.open" class="group mt-4 pt-4 border-t border-line">
-              <summary class="flex items-center justify-between cursor-pointer list-none select-none">
-                <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Activity</span>
-                <svg class="w-4 h-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-              </summary>
-              <div class="mt-3">
-                <div v-if="auditLogLoading" class="text-sm text-ink-3 mb-2">Loading...</div>
-                <div v-else-if="auditLog.length === 0" class="text-sm text-ink-3">No activity yet.</div>
-                <div v-else class="space-y-2">
-                  <div
-                    v-for="entry in auditLog"
-                    :key="entry.id"
-                    class="bg-raised rounded-lg p-3"
-                  >
-                    <div class="flex items-center gap-2 flex-wrap">
-                      <span class="text-sm font-medium text-ink">{{ humanizeAction(entry.action) }}</span>
-                      <span
-                        class="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
-                        :class="entry.auth_method === 'api_key' ? 'bg-accent-muted/30 text-accent' : 'bg-sunken text-ink-2'"
-                      >{{ entry.auth_method === 'api_key' ? 'Agent' : 'You' }}</span>
-                      <span class="text-[9px] uppercase tracking-wide text-ink-3">{{ entry.source === 'mcp' ? 'MCP' : 'Web' }}</span>
-                    </div>
-                    <div class="text-xs text-ink-3 mt-1">{{ formatDateTime(entry.created_at) }}</div>
-                    <div v-if="entry.details" class="mt-1.5">
-                      <details class="text-xs">
-                        <summary class="text-ink-3 cursor-pointer hover:text-ink-2">Details</summary>
-                        <pre class="mt-1 p-2 bg-sunken rounded text-ink-2 overflow-x-auto">{{ JSON.stringify(entry.details, null, 2) }}</pre>
-                      </details>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </details>
-
           </template>
 
           <!-- Files -->
-          <div class="mt-7 pt-5 border-t border-line">
+          <div :class="isEdit ? 'mt-3' : 'mt-7 pt-5 border-t border-line'">
             <!-- Onboarding tip -->
             <div v-if="!isEdit && !notesTipDismissed && totalApplications === 0" class="flex items-start gap-2 mb-4 p-2.5 rounded-lg bg-accent-muted/20 border border-accent/10">
               <svg class="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
