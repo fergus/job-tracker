@@ -1,0 +1,28 @@
+# Upgrade @playwright/test (minor)
+
+- **Priority:** p3
+- **Created:** 2026-07-31
+- **Category:** Dependency
+
+## Problem
+
+`@playwright/test` (client, devDependency) is at version `1.61.1`. Latest is `1.62.1` (minor bump).
+
+## Current
+
+`@playwright/test@1.61.1`
+
+## Target
+
+`@playwright/test@1.62.1`
+
+## Proposed Fix
+
+```bash
+cd client && npm install -D @playwright/test@1.62.1
+```
+
+## Acceptance Criteria
+
+- [ ] Client E2E tests pass (`npm run test:e2e` with Playwright browsers installed)
+- [ ] No breaking changes in Playwright API

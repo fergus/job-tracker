@@ -2,11 +2,12 @@
 
 - **Priority:** p3
 - **Created:** 2026-07-17
+- **Updated:** 2026-07-31
 - **Category:** Dependency
 
 ## Problem
 
-`express-rate-limit` (server) is at version `8.5.2`. Latest is `8.6.0` (minor bump).
+`express-rate-limit` (server) is at version `8.5.2`. Latest is `8.6.1` (minor bump).
 
 ## Current
 
@@ -14,12 +15,12 @@
 
 ## Target
 
-`express-rate-limit@8.6.0`
+`express-rate-limit@8.6.1`
 
 ## Proposed Fix
 
 ```bash
-cd server && npm install express-rate-limit@8.6.0
+cd server && npm install express-rate-limit@8.6.1
 ```
 
 ## Acceptance Criteria
