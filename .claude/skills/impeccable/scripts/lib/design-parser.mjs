@@ -62,7 +62,7 @@ function parseYamlSubset(yaml) {
       stack.pop();
     }
 
-    const key = content.slice(0, colonIdx).trim();
+    const key = unquoteYamlKey(content.slice(0, colonIdx).trim());
     const rest = stripInlineYamlComment(content.slice(colonIdx + 1).trim());
     const parent = stack[stack.length - 1].obj;
 
@@ -91,6 +91,13 @@ function findTopLevelColon(s) {
     }
   }
   return -1;
+}
+
+function unquoteYamlKey(key) {
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    return key.slice(1, -1);
+  }
+  return key;
 }
 
 function stripInlineYamlComment(s) {
@@ -323,17 +330,16 @@ function extractOverview(section) {
   if (!section) return null;
   const text = section.lines.join('\n');
   const northStar = text.match(/\*\*Creative North Star:\s*"([^"]+)"\*\*/);
-  const keyChars = [];
   const keyCharMatch = text.match(/\*\*Key Characteristics:\*\*\s*\n([\s\S]+?)(?:\n##|\n###|$)/);
-  if (keyCharMatch) {
-    for (const line of keyCharMatch[1].split('\n')) {
-      const m = line.match(/^\s*[-*]\s+(.+)$/);
-      if (m) keyChars.push(stripBold(m[1].trim()));
-    }
-  }
+  const keyChars = keyCharMatch
+    ? collectBullets(keyCharMatch[1].split('\n')).map((bullet) => stripBold(bullet.trim()))
+    : [];
+  const prose = keyCharMatch
+    ? text.slice(0, keyCharMatch.index) + text.slice(keyCharMatch.index + keyCharMatch[0].length)
+    : text;
 
   // Philosophy paragraphs: everything that isn't a rule header or key-char block
-  const paragraphs = collectParagraphs(section.lines).filter(
+  const paragraphs = collectParagraphs(prose.split('\n')).filter(
     (p) =>
       !p.startsWith('**Creative North Star') &&
       !p.startsWith('**Key Characteristics')
