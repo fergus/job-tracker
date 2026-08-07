@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ideation: Search Pain &amp; Friction — Job Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface-raised: #1e2333;
+    --border: #2a2f45;
+    --border-accent: #3d4460;
+    --ink: #e8eaf2;
+    --ink-2: #9ba3bf;
+    --ink-3: #5c6380;
+    --accent: #6366f1;
+    --accent-soft: #1e1f3a;
+    --accent-text: #a5b4fc;
+    --success: #22c55e;
+    --success-soft: #0f2a1a;
+    --success-text: #86efac;
+    --warn: #f59e0b;
+    --warn-soft: #2a1f08;
+    --warn-text: #fcd34d;
+    --danger: #ef4444;
+    --danger-soft: #2a0f0f;
+    --danger-text: #fca5a5;
+    --tag-bg: #252b3b;
+    --code-bg: #141824;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 15px; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.65;
+    padding: 2rem 1rem 6rem;
+  }
+
+  .container {
+    max-width: 900px;
+    margin-inline: auto;
+  }
+
+  /* ── Header ── */
+  .doc-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.75rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .eyebrow {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+    margin-bottom: 0.6rem;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    margin-bottom: 0.9rem;
+  }
+
+  .meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+
+  .meta-strip span { display: flex; align-items: center; gap: 0.35rem; }
+  .meta-strip .label { color: var(--ink-3); }
+  .meta-strip .value { color: var(--ink-2); font-weight: 500; }
+
+  /* ── Stats strip ── */
+  .stats-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .stat-card .stat-num {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent-text);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+
+  .stat-card .stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+  }
+
+  /* ── Sections ── */
+  section {
+    margin-bottom: 3rem;
+  }
+
+  h2 {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Grounding context ── */
+  .grounding-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 600px) { .grounding-grid { grid-template-columns: 1fr; } }
+
+  .ground-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+  }
+
+  .ground-block h3 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 0.6rem;
+  }
+
+  .ground-block ul {
+    list-style: none;
+    padding: 0;
+    font-size: 0.82rem;
+    color: var(--ink-2);
+    line-height: 1.6;
+  }
+
+  .ground-block ul li::before { content: "·  "; color: var(--ink-3); }
+
+  /* ── Topic axes ── */
+  .axes-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .axis-chip {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    border: 1px solid var(--border-accent);
+    border-radius: 6px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    font-family: var(--font-mono);
+  }
+
+  /* ── Jump list ── */
+  .jump-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 1.75rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+  }
+
+  .jump-list a {
+    font-size: 0.83rem;
+    color: var(--ink-2);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.2rem 0;
+    transition: color 0.15s;
+  }
+
+  .jump-list a:hover { color: var(--accent-text); }
+
+  .jump-list .rank-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--ink-3);
+    min-width: 1.4rem;
+    font-family: var(--font-mono);
+  }
+
+  .jump-list .axis-tag {
+    font-size: 0.68rem;
+    color: var(--ink-3);
+    margin-left: auto;
+    font-family: var(--font-mono);
+  }
+
+  /* ── Idea cards ── */
+  article.idea-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+  }
+
+  .idea-card-header {
+    padding: 1.25rem 1.4rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .idea-rank {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    margin-bottom: 0.4rem;
+  }
+
+  .idea-card h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin-bottom: 0.6rem;
+    line-height: 1.3;
+  }
+
+  .idea-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 5px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+    border: 1px solid transparent;
+  }
+
+  .chip-axis {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    border-color: var(--border-accent);
+  }
+
+  .chip-conf-high {
+    background: var(--success-soft);
+    color: var(--success-text);
+    border-color: #1a4a2a;
+  }
+
+  .chip-cx-low {
+    background: var(--tag-bg);
+    color: var(--ink-2);
+    border-color: var(--border);
+  }
+
+  .chip-cx-med {
+    background: var(--warn-soft);
+    color: var(--warn-text);
+    border-color: #3a2a08;
+  }
+
+  .chip-cx-high {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    border-color: #3a1010;
+  }
+
+  .idea-card-body {
+    padding: 1.25rem 1.4rem;
+  }
+
+  .idea-field {
+    margin-bottom: 1rem;
+  }
+
+  .idea-field:last-child { margin-bottom: 0; }
+
+  .idea-field .field-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 0.35rem;
+  }
+
+  .idea-field p {
+    font-size: 0.875rem;
+    color: var(--ink-2);
+    line-height: 1.7;
+    max-width: 70ch;
+  }
+
+  .idea-field code {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    background: var(--code-bg);
+    color: var(--accent-text);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+
+  .basis-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+    font-family: var(--font-mono);
+    color: var(--ink-2);
+    line-height: 1.6;
+  }
+
+  .basis-block .basis-type {
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+
+  .meeting-test-block {
+    background: var(--warn-soft);
+    border: 1px solid #3a2a08;
+    border-radius: 6px;
+    padding: 0.65rem 1rem;
+    font-size: 0.83rem;
+    color: var(--warn-text);
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  .meeting-test-block::before {
+    content: "▸ ";
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  /* ── SVG diagrams ── */
+  .diagram-wrap {
+    margin: 1.1rem 0 0.5rem;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    overflow-x: auto;
+  }
+
+  /* ── Rejection table ── */
+  .rejection-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  .rejection-table th {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .rejection-table td {
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--ink-2);
+    line-height: 1.55;
+  }
+
+  .rejection-table td:first-child {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink-3);
+    white-space: nowrap;
+    width: 2.5rem;
+  }
+
+  .rejection-table td:nth-child(2) {
+    color: var(--ink);
+    font-weight: 500;
+    width: 36%;
+  }
+
+  .rejection-table tr:last-child td { border-bottom: none; }
+
+  .rejection-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* ── Footer ── */
+  footer.composition-signal {
+    margin-top: 4rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ── -->
+  <header class="doc-header">
+    <p class="eyebrow">Ideation · Pain &amp; Friction Frame</p>
+    <h1>Search &amp; Retrieval Gaps in the Job Tracker</h1>
+    <div class="meta-strip">
+      <span><span class="label">Date</span><span class="value"><time datetime="2026-06-23">2026-06-23</time></span></span>
+      <span><span class="label">Topic</span><span class="value">search-pain-friction</span></span>
+      <span><span class="label">Focus</span><span class="value">Pain and Friction frame — search/find/filter</span></span>
+      <span><span class="label">Mode</span><span class="value">repo-grounded</span></span>
+    </div>
+  </header>
+
+  <!-- ── Stats strip ── -->
+  <div class="stats-strip">
+    <div class="stat-card">
+      <div class="stat-num">14</div>
+      <div class="stat-label">Raw candidates</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">7</div>
+      <div class="stat-label">Survivors</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">5</div>
+      <div class="stat-label">Axes covered</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">7</div>
+      <div class="stat-label">Cut</div>
+    </div>
+  </div>
+
+  <!-- ── Grounding Context ── -->
+  <section id="grounding">
+    <h2>Grounding Context</h2>
+    <div class="grounding-grid">
+      <div class="ground-block">
+        <h3>Codebase Context</h3>
+        <ul>
+          <li>Vue 3 + Express 5, SQLite WAL, Docker single-image, oauth2-proxy auth</li>
+          <li>Self-hosted multi-user — technical audience</li>
+          <li>3 views: Kanban (default), Table, Timeline</li>
+          <li>MCP server (port 3001, 14 tools) for AI agent access</li>
+          <li>Design personality: "tactical, forward, sharp — mission board meets editorial spread"</li>
+        </ul>
+      </div>
+      <div class="ground-block">
+        <h3>Current Search State</h3>
+        <ul>
+          <li>No text search exists anywhere in the app</li>
+          <li>Only filters: showClosed toggle (client-side), updated_since, company_name LIKE</li>
+          <li>Client loads full dataset (max 200); filters via computed properties</li>
+          <li>MCP <code>list_applications</code>: same narrow filter surface as REST API</li>
+          <li>extracted_text on attachments, extracted_jd on applications — stored, never queried</li>
+        </ul>
+      </div>
+      <div class="ground-block">
+        <h3>Past Learnings (Constraints)</h3>
+        <ul>
+          <li>Double-array-scan risk: multiple computed properties independently scanning applications array caused perf issues — use a single combined pass</li>
+          <li>dragActive guard: filter changes during drag break Sortable.js drop zones</li>
+          <li>Panel close: close ApplicationPanel synchronously when filter removes panel's app from visible set</li>
+        </ul>
+      </div>
+      <div class="ground-block">
+        <h3>External Research</h3>
+        <ul>
+          <li>MiniSearch: best client-side lib for small datasets; field boosting, fuzzy matching</li>
+          <li>SQLite FTS5: viable with better-sqlite3; BM25 scoring; snippet() highlights</li>
+          <li>Filter chip pattern (Linear/Jira): dismissible chips for active filters</li>
+          <li>JobSync (closest analog, 625 stars): no documented search implemented</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Topic Axes ── -->
+  <section id="topic-axes">
+    <h2>Topic Axes</h2>
+    <div class="axes-list">
+      <span class="axis-chip">query-scope</span>
+      <span class="axis-chip">search-ux</span>
+      <span class="axis-chip">technical-approach</span>
+      <span class="axis-chip">api-integration</span>
+      <span class="axis-chip">state-interaction</span>
+    </div>
+  </section>
+
+  <!-- ── Ranked Ideas ── -->
+  <section id="ranked-ideas">
+    <h2>Ranked Ideas</h2>
+
+    <!-- Jump list -->
+    <nav class="jump-list" aria-label="Idea index">
+      <a href="#idea-1"><span class="rank-badge">1.</span> Attachment Text Search Dead End<span class="axis-tag">query-scope</span></a>
+      <a href="#idea-2"><span class="rank-badge">2.</span> Salary Range Stored, Salary Filter Missing<span class="axis-tag">query-scope</span></a>
+      <a href="#idea-3"><span class="rank-badge">3.</span> No Cmd+K Search Invocation<span class="axis-tag">search-ux</span></a>
+      <a href="#idea-4"><span class="rank-badge">4.</span> "Hide Closed" Toggle Loses Meaning at Scale<span class="axis-tag">search-ux</span></a>
+      <a href="#idea-5"><span class="rank-badge">5.</span> MCP list_applications Has No Text Search<span class="axis-tag">api-integration</span></a>
+      <a href="#idea-6"><span class="rank-badge">6.</span> Panel Auto-Close Logic Doesn't Cover Search Filter<span class="axis-tag">state-interaction</span></a>
+      <a href="#idea-7"><span class="rank-badge">7.</span> Full Dataset Is Client-Side, But No Search Library Installed<span class="axis-tag">technical-approach</span></a>
+    </nav>
+
+    <!-- ═══ Idea 1 ═══ -->
+    <article class="idea-card" id="idea-1">
+      <div class="idea-card-header">
+        <p class="idea-rank">I-1</p>
+        <h3>Attachment Text Search Dead End</h3>
+        <div class="idea-meta">
+          <span class="chip chip-axis">query-scope</span>
+          <span class="chip chip-conf-high">Confidence: High</span>
+          <span class="chip chip-cx-low">Complexity: Low</span>
+        </div>
+      </div>
+      <div class="idea-card-body">
+        <div class="idea-field">
+          <p class="field-label">Description</p>
+          <p>The system already extracts text from CVs, cover letters, and other attachments into <code>extracted_text</code> columns (attachments table) and <code>extracted_jd</code> on applications. That extracted text is piped to the AI generation context — but is completely absent from any search or filter. A user who wants to find "the application where I mentioned 'distributed systems' in my cover letter" has no path forward except opening each application individually. The richer and more tailored the user's documents are, the more painful this is. Stage notes (per-stage interview observations, recruiter call content) face the same blackhole: they are displayable and returned by <code>get_application</code>, but <code>list_applications</code> cannot search by their content.</p>
+        </div>
+
+        <!-- Diagram: what's stored vs what's queryable -->
+        <div class="diagram-wrap" aria-label="Diagram: extracted content stored vs. query surface">
+          <svg width="720" height="180" viewBox="0 0 720 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Extracted content gap: all content stored, narrow query surface">
+            <defs>
+              <marker id="arr1" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                <path d="M0,0 L7,3.5 L0,7 Z" fill="#5c6380"/>
+              </marker>
+              <marker id="arr2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                <path d="M0,0 L7,3.5 L0,7 Z" fill="#6366f1"/>
+              </marker>
+            </defs>
+
+            <!-- Stored data column -->
+            <text x="90" y="22" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#5c6380" font-weight="700" letter-spacing="0.08em">STORED</text>
+            <rect x="10" y="32" width="160" height="30" rx="5" fill="#1e2333" stroke="#2a2f45"/>
+            <text x="90" y="51" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">attachments.extracted_text</text>
+            <rect x="10" y="68" width="160" height="30" rx="5" fill="#1e2333" stroke="#2a2f45"/>
+            <text x="90" y="87" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">applications.extracted_jd</text>
+            <rect x="10" y="104" width="160" height="30" rx="5" fill="#1e2333" stroke="#2a2f45"/>
+            <text x="90" y="123" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">stage_notes.content</text>
+
+            <!-- Arrow to AI context (works) -->
+            <line x1="170" y1="53" x2="258" y2="80" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arr2)"/>
+            <text x="205" y="60" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#6366f1" paint-order="stroke fill" stroke="#141824" stroke-width="3">AI context ✓</text>
+
+            <!-- AI context box -->
+            <rect x="260" y="60" width="140" height="40" rx="5" fill="#1e1f3a" stroke="#3d4460"/>
+            <text x="330" y="83" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#a5b4fc">get_application_context</text>
+
+            <!-- Arrow to search (blocked) -->
+            <line x1="170" y1="100" x2="258" y2="118" stroke="#5c6380" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arr1)"/>
+            <text x="210" y="112" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#5c6380" paint-order="stroke fill" stroke="#141824" stroke-width="3">search ✗</text>
+
+            <!-- Search box -->
+            <rect x="260" y="100" width="140" height="40" rx="5" fill="#2a0f0f" stroke="#3a1010"/>
+            <text x="330" y="118" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#fca5a5">list_applications</text>
+            <text x="330" y="133" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#ef4444">no text search param</text>
+
+            <!-- Gap label -->
+            <rect x="440" y="58" width="260" height="82" rx="8" fill="#2a0f0f" stroke="#3a1010"/>
+            <text x="570" y="78" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#fca5a5">THE GAP</text>
+            <text x="570" y="97" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">Rich content extracted for AI</text>
+            <text x="570" y="113" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">but opaque to user search.</text>
+            <text x="570" y="129" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">Same columns; missing route.</text>
+          </svg>
+        </div>
+
+        <div class="idea-field">
+          <p class="field-label">Basis</p>
+          <div class="basis-block"><span class="basis-type">direct:</span> "extracted_text, extracted_at, generated_by, generation_task columns on attachments table" (evidence-query-scope.md:97) + "extracted_jd column" added at server/db.js:164-166 + "list_applications — Inputs: status (enum), company_name (string, partial match), updated_since (ISO 8601), fields (array), limit (int 1-200), offset (int >= 0)" (evidence-api-integration.md:8) — no full-text param present.</div>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Why It Matters</p>
+          <p>Job seekers who tailor cover letters and CVs per application store the richest, most differentiated signal in the least accessible place. The data pipeline is already complete: upload → extract → store. The retrieval half of the loop was never built. Adding full-text search over <code>extracted_text</code> and <code>stage_notes.content</code> closes the loop without changing the schema.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Downsides</p>
+          <p>FTS5 virtual table requires a migration and sync triggers; client-side search (MiniSearch) can't reach the attachment text without first fetching it, making it server-side only for this field. Either way, attachment content is variable-length, making relevance ranking more important than simple substring matching.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Meeting Test</p>
+          <div class="meeting-test-block">"We already extract the text for AI context — we're just not letting people search it."</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ═══ Idea 2 ═══ -->
+    <article class="idea-card" id="idea-2">
+      <div class="idea-card-header">
+        <p class="idea-rank">I-2</p>
+        <h3>Salary Range Stored, Salary Filter Missing</h3>
+        <div class="idea-meta">
+          <span class="chip chip-axis">query-scope</span>
+          <span class="chip chip-conf-high">Confidence: High</span>
+          <span class="chip chip-cx-low">Complexity: Low</span>
+        </div>
+      </div>
+      <div class="idea-card-body">
+        <div class="idea-field">
+          <p class="field-label">Description</p>
+          <p>Salary fields (<code>salary_min</code>, <code>salary_max</code>) were added via migration and are prominently displayed in the ApplicationPanel. A job seeker comparing offers, reviewing active pipeline, or deciding where to follow up can't ask "show me everything above $120k" or "which applications have no salary recorded." Every filter in the API is string or status-based — no numeric range comparisons exist. This is arguably the most actionable filter for actual job-search decisions, and it's entirely missing.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Basis</p>
+          <div class="basis-block"><span class="basis-type">direct:</span> "salary_min (94), salary_max (96)" migration columns at server/db.js:91-107 (evidence-query-scope.md:15) + "ApplicationPanel.vue:271-289 — salary_min, salary_max displayed in 2-column grid" (evidence-query-scope.md:89) + MCP list_applications inputs listed at evidence-api-integration.md:8 — no salary_min, salary_max, or salary range filter parameter present.</div>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Why It Matters</p>
+          <p>Compensation is often the deciding filter in job search decisions. "Which companies offered 15% above my target?" is a real weekly question. The data is stored — the gap is purely in the query surface. Numeric range params (<code>salary_min_gte</code>, <code>salary_max_lte</code>) are a small API addition with disproportionate decision-support value.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Downsides</p>
+          <p>Salary data is inconsistently recorded — many applications won't have it. A filter for salary range with sparse data will often return an empty set, leading users to conclude the filter is broken. UI should communicate sparsity (e.g., "4 of 23 applications have salary data").</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Meeting Test</p>
+          <div class="meeting-test-block">"Salary data is the most actionable field in the tracker and we can't query it."</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ═══ Idea 3 ═══ -->
+    <article class="idea-card" id="idea-3">
+      <div class="idea-card-header">
+        <p class="idea-rank">I-3</p>
+        <h3>No Cmd+K Search Invocation</h3>
+        <div class="idea-meta">
+          <span class="chip chip-axis">search-ux</span>
+          <span class="chip chip-conf-high">Confidence: High</span>
+          <span class="chip chip-cx-low">Complexity: Low</span>
+        </div>
+      </div>
+      <div class="idea-card-body">
+        <div class="idea-field">
+          <p class="field-label">Description</p>
+          <p>There is no global search shortcut in the application. The keyboard event inventory is complete — Escape closes modals, Ctrl/Cmd+Enter submits notes, Enter/Space selects cards — and the dossier notes explicitly: "no global search shortcut (Ctrl+K, Cmd+K) exists." For a technical, self-hosted user base accustomed to Cmd+K in Linear, Notion, or GitHub, there is no muscle memory to exploit. A search feature without a keyboard invocation path is invisible: users will reach for Cmd+F (browser find), fail to find what they want, and conclude search doesn't exist — even after it's shipped.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Basis</p>
+          <div class="basis-block"><span class="basis-type">direct:</span> "Pattern: Enter/Space triggers select; no global search shortcut (Ctrl+K, Cmd+K) exists." — evidence-search-ux.md:218, confirmed by complete keyboard event survey at lines 174-218 covering all registered keydown handlers across App.vue, ApplicationPanel.vue, KanbanCard.vue, TimelineView.vue, SettingsPanel.vue.</div>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Why It Matters</p>
+          <p>Discoverability determines adoption. This is as important as the search engine itself. A Cmd+K shortcut that focuses a search input and opens a command palette is the expected entry point for power users in this tool category — it is what makes search feel like a first-class feature rather than an afterthought buried in the toolbar.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Downsides</p>
+          <p>Cmd+K on macOS and Ctrl+K on Windows/Linux need to avoid collisions with browser shortcuts (neither is claimed by major browsers in app contexts). The shortcut must not fire when focus is inside a textarea or other text input — standard guard needed.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Meeting Test</p>
+          <div class="meeting-test-block">"If we ship search without Cmd+K, technical users will never find it."</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ═══ Idea 4 ═══ -->
+    <article class="idea-card" id="idea-4">
+      <div class="idea-card-header">
+        <p class="idea-rank">I-4</p>
+        <h3>"Hide Closed" Toggle Loses Meaning at Scale</h3>
+        <div class="idea-meta">
+          <span class="chip chip-axis">search-ux</span>
+          <span class="chip chip-conf-high">Confidence: High</span>
+          <span class="chip chip-cx-med">Complexity: Medium</span>
+        </div>
+      </div>
+      <div class="idea-card-body">
+        <div class="idea-field">
+          <p class="field-label">Description</p>
+          <p>The <code>showClosed</code> toggle (App.vue:186-207) is a binary: all closed visible, or none visible. As the tracker accumulates months of history, the user's real need becomes finer-grained: "hide closed from more than 3 months ago" or "show only closed in the last 30 days to review what went wrong." A 100-application history with the toggle enabled is an unfiltered wall; with it disabled, complete blindness to recent outcomes. Critically, the codebase already distinguishes "recent closed" from "older closed" — KanbanBoard.vue:280-292 has <code>isRecent()</code> logic and an <code>olderCards</code> computed — but this distinction is never surfaced as a user control.</p>
+        </div>
+
+        <div class="diagram-wrap" aria-label="Diagram: current binary toggle vs. temporal closed filter">
+          <svg width="680" height="160" viewBox="0 0 680 160" xmlns="http://www.w3.org/2000/svg">
+            <!-- Current -->
+            <text x="140" y="18" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#5c6380" font-weight="700" letter-spacing="0.08em">CURRENT: BINARY</text>
+            <rect x="10" y="28" width="260" height="52" rx="6" fill="#1e2333" stroke="#2a2f45"/>
+            <rect x="20" y="38" width="100" height="32" rx="4" fill="#1e1f3a" stroke="#3d4460"/>
+            <text x="70" y="58" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#a5b4fc">Show All</text>
+            <rect x="130" y="38" width="130" height="32" rx="4" fill="#2a1f08" stroke="#3a2a08"/>
+            <text x="195" y="58" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#fcd34d">Hide Closed</text>
+            <text x="140" y="97" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#5c6380">200 apps visible  OR  0 closed visible</text>
+            <text x="140" y="115" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#5c6380">No middle ground at scale.</text>
+
+            <!-- Arrow -->
+            <line x1="290" y1="80" x2="340" y2="80" stroke="#5c6380" stroke-width="1.5" marker-end="url(#arr1)"/>
+            <text x="315" y="74" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#5c6380">better</text>
+
+            <!-- Proposed -->
+            <text x="510" y="18" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#6366f1" font-weight="700" letter-spacing="0.08em">PROPOSED: TEMPORAL</text>
+            <rect x="348" y="28" width="320" height="52" rx="6" fill="#1e1f3a" stroke="#3d4460"/>
+            <rect x="358" y="38" width="90" height="32" rx="4" fill="#1e1f3a" stroke="#3d4460"/>
+            <text x="403" y="58" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#a5b4fc">All</text>
+            <rect x="456" y="38" width="100" height="32" rx="4" fill="#1e2333" stroke="#2a2f45"/>
+            <text x="506" y="58" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">Last 30d</text>
+            <rect x="564" y="38" width="94" height="32" rx="4" fill="#1e2333" stroke="#2a2f45"/>
+            <text x="611" y="58" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">Active only</text>
+            <text x="510" y="97" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">Uses isRecent() logic already in</text>
+            <text x="510" y="113" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#9ba3bf">KanbanBoard.vue:280-292</text>
+          </svg>
+        </div>
+
+        <div class="idea-field">
+          <p class="field-label">Basis</p>
+          <div class="basis-block"><span class="basis-type">direct:</span> "const showClosed = ref(storageGetBool(SHOW_CLOSED_KEY, true))" at App.vue:186 (evidence-search-ux.md:6) + "function toggleShowClosed() { if (dragActive.value) return; showClosed.value = !showClosed.value; }" at App.vue:203-207 + KanbanBoard.vue:280-292 isRecent / olderCards logic confirmed in evidence-state-interaction.md:173-198: the code already distinguishes "daysSinceClosed &lt; RECENT_CLOSED_DAYS" but exposes no user control over the boundary.</div>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Why It Matters</p>
+          <p>The most painful UX moment in a long job search is when the "Show closed" button becomes a firehose. The distinction between recent and older closed applications is already encoded in the render logic — this idea is about exposing what already exists internally as a user-facing control, not adding new logic.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Downsides</p>
+          <p>A three-way toggle (All / Recent 30d / Active only) replaces a binary — more cognitive weight. The <code>dragActive</code> guard must cover all three states. The panel-close watcher must be updated to fire for all non-"show all" modes, not just when <code>showClosed</code> becomes false.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Meeting Test</p>
+          <div class="meeting-test-block">"We already split recent vs older closed in the Kanban column code — why isn't that a filter option?"</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ═══ Idea 5 ═══ -->
+    <article class="idea-card" id="idea-5">
+      <div class="idea-card-header">
+        <p class="idea-rank">I-5</p>
+        <h3>MCP list_applications Has No Text Search — AI Agents Are Equally Blind</h3>
+        <div class="idea-meta">
+          <span class="chip chip-axis">api-integration</span>
+          <span class="chip chip-conf-high">Confidence: High</span>
+          <span class="chip chip-cx-med">Complexity: Medium</span>
+        </div>
+      </div>
+      <div class="idea-card-body">
+        <div class="idea-field">
+          <p class="field-label">Description</p>
+          <p>The MCP <code>list_applications</code> tool supports the same narrow filters as the REST API: status enum, company_name LIKE, updated_since, and pagination. An AI agent asked "find me applications where the JD mentions Kubernetes" must call <code>list_applications</code> repeatedly with pagination, then call <code>get_application</code> for each record, then scan the text manually — up to 200 calls for a full corpus scan. There is no text-search parameter in any MCP tool. The app has MCP integration precisely to let AI agents work on the user's behalf; a search gap at the human level is a 200x amplified gap at the agent level.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Basis</p>
+          <div class="basis-block"><span class="basis-type">direct:</span> "list_applications — Inputs: status (enum), company_name (string, partial match), updated_since (ISO 8601), fields (array), limit (int 1-200), offset (int >= 0)" at mcp.js:102-201 (evidence-api-integration.md:8). No <code>q</code>, no <code>search</code>, no <code>query</code>, no <code>text</code> parameter. Default pagination limit 50, max 200, confirmed same file.</div>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Why It Matters</p>
+          <p>Adding a <code>q</code> parameter to <code>list_applications</code> would make AI workflows dramatically more useful without changing the human UI at all. It's the highest-leverage API surface change: one parameter addition unlocks text retrieval for both human callers (REST) and agent callers (MCP) simultaneously. Agent use will grow as this tool matures — getting the query contract right now prevents schema churn later.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Downsides</p>
+          <p>A <code>q</code> parameter requires deciding what fields it searches (company_name + role_title only? or also notes and JD text?) and what implementation backs it (SQLite LIKE, FTS5, or client-side). The decision is entangled with idea #1 and #7 — consistent implementation approach across all three matters.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Meeting Test</p>
+          <div class="meeting-test-block">"Our AI tools have to scan every record one by one to answer a text question — that's a real latency and cost problem."</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ═══ Idea 6 ═══ -->
+    <article class="idea-card" id="idea-6">
+      <div class="idea-card-header">
+        <p class="idea-rank">I-6</p>
+        <h3>Panel Auto-Close Logic Doesn't Cover Search Filter</h3>
+        <div class="idea-meta">
+          <span class="chip chip-axis">state-interaction</span>
+          <span class="chip chip-conf-high">Confidence: High</span>
+          <span class="chip chip-cx-low">Complexity: Low</span>
+        </div>
+      </div>
+      <div class="idea-card-body">
+        <div class="idea-field">
+          <p class="field-label">Description</p>
+          <p>The existing panel-close watcher (App.vue:216-224) closes the ApplicationPanel when <code>showClosed</code> changes and the panel's current application is now filtered out. That watcher is specific to the <code>showClosed</code> ref. When search filters are added, a user could type a query that removes the currently-open application from the visible set — and no watcher handles that case. The panel stays open showing an application that no longer appears in the board, creating a phantom context divergence: the user is editing a record they can't see in any list, with no visual affordance that the panel is "detached." This is the same failure mode documented in past learnings — it was solved for one trigger and will bite again with the second.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Basis</p>
+          <div class="basis-block"><span class="basis-type">direct:</span> "watch(showClosed, (visible) => { if (!visible && panelApp.value && TERMINAL_STAGES.includes(panelApp.value.status)) { showPanel.value = false; } })" at App.vue:216-224 (evidence-state-interaction.md:52-64). The watcher tests TERMINAL_STAGES membership, not whether the app is in the current filtered set — a search filter could hide any application regardless of status, which this watcher ignores.</div>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Why It Matters</p>
+          <p>Past learnings document this exact pattern as a known failure mode. The fix is mechanical: a generalized "if <code>panelApp</code> is not in <code>displayApplications</code>, close synchronously" invariant that covers all filter triggers, not just <code>showClosed</code>. Calling this out before the implementation starts is what prevents it — the failure mode is silent (no error) and data-safe but creates a confusing UX state that is hard to reproduce and debug after the fact.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Downsides</p>
+          <p>A generalized panel-close watcher that fires on any <code>displayApplications</code> change must be carefully debounced if search is debounced — closing the panel mid-keystroke as intermediate query states exclude the current record would be jarring. The watcher should close only when the query is "settled," not on every keystroke.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Meeting Test</p>
+          <div class="meeting-test-block">"We already solved this for showClosed — we need to make sure the search filter triggers the same panel-close logic."</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ═══ Idea 7 ═══ -->
+    <article class="idea-card" id="idea-7">
+      <div class="idea-card-header">
+        <p class="idea-rank">I-7</p>
+        <h3>Full Dataset Is Client-Side, But No Search Library Installed</h3>
+        <div class="idea-meta">
+          <span class="chip chip-axis">technical-approach</span>
+          <span class="chip chip-conf-high">Confidence: High</span>
+          <span class="chip chip-cx-low">Complexity: Low</span>
+        </div>
+      </div>
+      <div class="idea-card-body">
+        <div class="idea-field">
+          <p class="field-label">Description</p>
+          <p>The application loads the full application list client-side (App.vue:174) and performs all filtering via Vue computed properties. This is precisely the dataset profile for which MiniSearch was designed: small-to-medium in-memory collections (personal job tracker max: ~200-500 records) with field boosting and fuzzy matching. No search library is currently installed (confirmed: no MiniSearch, Fuse.js, or lunr in client dependencies). A MiniSearch index over <code>company_name</code>, <code>role_title</code>, <code>job_location</code>, and <code>notes</code> would run entirely in-browser, require no server changes, return results in under a millisecond, and handle the fuzzy company-name problem that SQL LIKE cannot (typing "Googel" still finds Google). The dataset is already in memory — no index sync, no server round-trip.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Basis</p>
+          <div class="basis-block"><span class="basis-type">direct:</span> "App.vue:174 — applications ref: raw array from API" + "Client-side filtering (no API query param for filtering by status)" (evidence-search-ux.md:103-113). <span class="basis-type">external:</span> MiniSearch — described in grounding as "best client-side library for small datasets; supports field boosting, fuzzy matching." Verifier confirmed no search library in client dependencies.</div>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Why It Matters</p>
+          <p>Client-side search is the fastest path to shipping working search for company_name, role_title, and location — no schema migration, no server-side query changes, no FTS5 virtual table. It composes naturally with the existing computed property filtering architecture and can be wired into the same <code>displayApplications</code> pass. The limitation is scope: large text fields (JD text, extracted attachment content) should route to server-side FTS5, making the two approaches complementary rather than competing.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Downsides</p>
+          <p>Client-side search can't reach attachment text or JD content (stored in DB, not in the client-loaded record). The MiniSearch index must be rebuilt when the application list refreshes. Fuzzy matching at low thresholds may surface false positives — tuning the fuzzy tolerance is non-trivial for varied company name formats.</p>
+        </div>
+        <div class="idea-field">
+          <p class="field-label">Meeting Test</p>
+          <div class="meeting-test-block">"We already have every record in memory — adding MiniSearch would give us fuzzy search in an afternoon."</div>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- ── Rejection Summary ── -->
+  <section id="rejection-summary">
+    <h2>Rejection Summary</h2>
+    <div class="rejection-wrap">
+      <table class="rejection-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Idea</th>
+            <th>Reason Rejected</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>C-1</td>
+            <td>No "Stale Applications" Query Mode</td>
+            <td>Correct but low novelty — covered by the query-scope gap; an updated_since inversion is a thin extension of existing API params, not a distinct direction worth standalone discussion at this ideation stage.</td>
+          </tr>
+          <tr>
+            <td>C-2</td>
+            <td>Location Field Stored as Freetext, Never Queryable</td>
+            <td>Valid but lower-leverage — freetext location data is inconsistently entered ("remote", "Remote", "100% remote") and needs normalization before a location filter is reliably useful. Worth a sub-requirement under a broader filter expansion, not a primary idea.</td>
+          </tr>
+          <tr>
+            <td>C-3</td>
+            <td>No Compound Filter Composition</td>
+            <td>Overstated: MCP already supports multi-param calls (status + company_name + updated_since can be combined today). The server WHERE clause already ANDs conditions. The real gap is missing filter types — covered by ideas I-1 and I-2 — not missing AND logic.</td>
+          </tr>
+          <tr>
+            <td>C-4</td>
+            <td>New Search Filter Risks Double-Scan Performance Bug</td>
+            <td>Factually correct, fails the meeting-test at this app's scale. A personal job tracker with &lt;500 records incurs no meaningful performance cost from a third array scan. Valid implementation footnote, not a standalone product idea.</td>
+          </tr>
+          <tr>
+            <td>C-5</td>
+            <td>dragActive Guard Doesn't Cover Search Input State</td>
+            <td>Speculative — describes an interaction with a feature that doesn't exist yet. The failure mode (typing during drag changes column content) is an edge case that is unlikely in practice. Implementation caution note, not a product idea.</td>
+          </tr>
+          <tr>
+            <td>C-6</td>
+            <td>Per-Stage Notes Are Invisible to Any Query</td>
+            <td>Basis refuted by verifier: stage_notes ARE joined in list_applications when includeNotes is true (services/applications.js:67-76). The real gap — searching by note content — is absorbed into idea I-1 (Attachment Text Search Dead End), which covers all rich-text search including notes.</td>
+          </tr>
+          <tr>
+            <td>C-7</td>
+            <td>Audit Log Exists but Cannot Be Queried for Pattern Detection</td>
+            <td>Analytically interesting but scope-adjacent — aggregate funnel analytics ("time-to-response by company type") is a different product direction from search/find/filter. Worth its own ideation session, not a search feature.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="composition-signal">
+    Composed 2026-06-23 by ce-ideate · Pain &amp; Friction frame · repo-grounded · run 6246c50c
+  </footer>
+
+</div>
+</body>
+</html>
