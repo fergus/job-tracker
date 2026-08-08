@@ -182,10 +182,19 @@ import { getErrorMessage } from "./utils/error.js";
 import { useLiveUpdates } from "./composables/useLiveUpdates.js";
 import {
     TIER_PENDING,
+    TIER_LIVE,
     TIER_DEGRADED,
     TIER_STALE,
     TIER_TERMINAL,
+    JUST_NOW_MS,
 } from "./utils/freshness.js";
+import {
+    createRefetchQueue,
+    requestRefetch,
+    flushRefetch,
+    hasContentChanged,
+    shouldHoldJustNow,
+} from "./utils/refetchQueue.js";
 import LogoBuild from "./components/LogoBuild.vue";
 import FreshnessSlot from "./components/FreshnessSlot.vue";
 import FreshnessBar from "./components/FreshnessBar.vue";
@@ -379,7 +388,28 @@ const liveUpdates = shallowRef(null);
 const freshnessTier = computed(
     () => liveUpdates.value?.tier.value ?? TIER_PENDING,
 );
-const freshnessDisplay = computed(() => liveUpdates.value?.display.value ?? "");
+// R11: a reconnect refetch that shifted the board holds the just-now state so
+// the shift has a stated cause. The freshness machine only marks updates for
+// events it saw itself, so the hold is owned here and expires on KTD5's
+// JUST_NOW_MS.
+const justNowHold = ref(false);
+let justNowTimer = null;
+
+function holdJustNow() {
+    justNowHold.value = true;
+    if (justNowTimer !== null) clearTimeout(justNowTimer);
+    justNowTimer = setTimeout(() => {
+        justNowHold.value = false;
+        justNowTimer = null;
+    }, JUST_NOW_MS);
+}
+
+const freshnessDisplay = computed(() => {
+    if (justNowHold.value && freshnessTier.value === TIER_LIVE) {
+        return "SYNCED JUST NOW";
+    }
+    return liveUpdates.value?.display.value ?? "";
+});
 const freshnessAbsolute = computed(
     () => liveUpdates.value?.absolute.value ?? "",
 );
@@ -400,13 +430,63 @@ const assertiveAnnouncement = computed(() =>
         : "",
 );
 
+// R9: the stream has no replay, so anything missed while disconnected is only
+// recovered by refetching the whole list. R10: that refetch must never land
+// under an active drag, so it is gated by the queue both when requested and
+// again when the fetch resolves -- a drag can start while it is in flight.
+let refetchQueue = createRefetchQueue();
+let sawDegraded = false;
+
+watch(freshnessTier, (tier) => {
+    if (
+        tier === TIER_DEGRADED ||
+        tier === TIER_STALE ||
+        tier === TIER_TERMINAL
+    ) {
+        sawDegraded = true;
+    }
+});
+
+async function runRefetch() {
+    let next;
+    try {
+        next = await fetchApplications(null, showAllUsers.value);
+    } catch (err) {
+        toast.error(
+            "Error refreshing applications: " + getErrorMessage(err),
+        );
+        return;
+    }
+
+    const gate = requestRefetch(refetchQueue, dragActive.value);
+    refetchQueue = gate.state;
+    if (!gate.apply) return;
+
+    const changed = hasContentChanged(applications.value, next);
+    applications.value = next;
+    if (shouldHoldJustNow(sawDegraded, changed)) holdJustNow();
+    sawDegraded = false;
+}
+
+function requestReconnectRefetch() {
+    const gate = requestRefetch(refetchQueue, dragActive.value);
+    refetchQueue = gate.state;
+    if (gate.apply) runRefetch();
+}
+
+watch(dragActive, (active) => {
+    if (active) return;
+    const gate = flushRefetch(refetchQueue);
+    refetchQueue = gate.state;
+    if (gate.apply) runRefetch();
+});
+
 function connectLiveUpdates() {
     liveUpdates.value?.stop();
     liveUpdates.value = useLiveUpdates({
         all: showAllUsers.value,
         onChange: handleRemoteChange,
-        // A later unit owns the refetch on reconnect (R9).
-        onReconnect: () => {},
+        onReconnect: requestReconnectRefetch,
     });
 }
 
@@ -437,5 +517,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
     liveUpdates.value?.stop();
+    if (justNowTimer !== null) {
+        clearTimeout(justNowTimer);
+        justNowTimer = null;
+    }
 });
 </script>
