@@ -12,6 +12,13 @@ locally and that is this host, so no different-provider peer was eligible. Agree
 `correctness` and `adversarial` is therefore two contexts on the same model family, not
 independent cross-model corroboration.
 
+That gap was partly closed after the fact by Codex review on PR #5, which is a different model
+family. It independently reproduced the scope-race finding this file originally carried as
+residual — that corroboration is why the finding was fixed rather than deferred — and found one
+the local roster missed entirely (the open detail panel not being reconciled after a bulk
+recovery refetch). Both are now fixed in `a1e0eba`. The lesson worth keeping: the local
+same-family roster missed a defect a different family caught on first read.
+
 ## Unresolved findings
 
 ### P1 — Reconnect refetch storms the shared API rate limit
@@ -62,15 +69,6 @@ independent cross-model corroboration.
   paint the terminal reload bar immediately.
 - **Suggested:** guard each handler with a source-identity check and detach handlers in
   `closeStream()`.
-
-### P2 — Scope toggle racing an in-flight refetch applies the wrong user's data
-
-- **File:** `client/src/App.vue:454`
-- **Reviewer:** adversarial (confidence 75, advisory)
-- The refetch captures the all-users flag at call time. Toggling scope while one is in flight
-  lets the older response land after the toggle, overwriting the board with the other scope.
-- **Suggested:** stamp each fetch with its scope or a monotonic epoch and drop the response if
-  it no longer matches at resolution.
 
 ### P2 — Freshness orchestration sits in App.vue
 
