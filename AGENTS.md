@@ -264,6 +264,8 @@ A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`).
 
 **Transport:** Streamable HTTP (stateful sessions with `Mcp-Session-Id` header)
 
+**Paths:** The transport is mounted at `/` on the MCP port — *not* `/mcp`. Locally that means `http://localhost:3001/`. The public `https://<domain>/mcp` URL below is produced by an external reverse proxy that maps the `/mcp` path to this port; that proxy is not part of this repo's `docker-compose.yml`, which only publishes port 3001 as `${MCP_LISTEN_PORT:-3563}`. MCP does not pass through oauth2-proxy — it authenticates via Bearer API key on its own.
+
 **Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`
 
 **`upload_attachment`** — for small files (<~30KB): parameters `application_id`, `filename`, `file_content` (base64-encoded string). Accepts file bytes directly; works over remote HTTP transport.
