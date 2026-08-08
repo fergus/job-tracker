@@ -448,10 +448,33 @@ watch(freshnessTier, (tier) => {
     }
 });
 
+// A bulk refetch replaces the whole list, so an open detail panel has to be
+// reconciled too -- otherwise a recovered edit or delete leaves the modal
+// showing stale data and still offering actions against it. The per-event
+// path already does this; the recovery path has to match it.
+function syncOpenPanel(list) {
+    const openId = panelApp.value?.id;
+    if (!openId) return;
+
+    const fresh = list.find((a) => a.id === openId);
+    if (fresh) {
+        panelApp.value = fresh;
+        return;
+    }
+    panelApp.value = null;
+    showPanel.value = false;
+}
+
 async function runRefetch() {
     refetchInFlight = true;
     try {
-        const next = await fetchApplications(null, showAllUsers.value);
+        const scope = showAllUsers.value;
+        const next = await fetchApplications(null, scope);
+
+        // Toggling scope mid-flight means this response is for the wrong set
+        // of users. setShowAll already issued its own load, so drop this one
+        // rather than letting the older request win the race.
+        if (scope !== showAllUsers.value) return;
 
         // A drag can begin while the fetch is in flight. Re-gate directly
         // rather than through requestRefetch, which returns a fresh queue and
@@ -463,6 +486,7 @@ async function runRefetch() {
 
         const changed = hasContentChanged(applications.value, next);
         applications.value = next;
+        syncOpenPanel(next);
         if (shouldHoldJustNow(sawDegraded, changed)) holdJustNow();
         sawDegraded = false;
     } catch (err) {
