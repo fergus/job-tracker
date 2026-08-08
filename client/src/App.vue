@@ -435,6 +435,7 @@ const assertiveAnnouncement = computed(() =>
 // under an active drag, so it is gated by the queue both when requested and
 // again when the fetch resolves -- a drag can start while it is in flight.
 let refetchQueue = createRefetchQueue();
+let refetchInFlight = false;
 let sawDegraded = false;
 
 watch(freshnessTier, (tier) => {
@@ -448,37 +449,50 @@ watch(freshnessTier, (tier) => {
 });
 
 async function runRefetch() {
-    let next;
+    refetchInFlight = true;
     try {
-        next = await fetchApplications(null, showAllUsers.value);
+        const next = await fetchApplications(null, showAllUsers.value);
+
+        const gate = requestRefetch(refetchQueue, dragActive.value);
+        refetchQueue = gate.state;
+        if (!gate.apply) return;
+
+        const changed = hasContentChanged(applications.value, next);
+        applications.value = next;
+        if (shouldHoldJustNow(sawDegraded, changed)) holdJustNow();
+        sawDegraded = false;
     } catch (err) {
         toast.error(
             "Error refreshing applications: " + getErrorMessage(err),
         );
-        return;
+    } finally {
+        refetchInFlight = false;
+        // A reconnect that arrived mid-flight was queued rather than started,
+        // so release it now. Without this the second reconnect would be
+        // dropped; without the queue it would race the first and could land
+        // out of order, overwriting fresher data with staler.
+        if (!dragActive.value) flushQueuedRefetch();
     }
+}
 
-    const gate = requestRefetch(refetchQueue, dragActive.value);
+function flushQueuedRefetch() {
+    const gate = flushRefetch(refetchQueue);
     refetchQueue = gate.state;
-    if (!gate.apply) return;
-
-    const changed = hasContentChanged(applications.value, next);
-    applications.value = next;
-    if (shouldHoldJustNow(sawDegraded, changed)) holdJustNow();
-    sawDegraded = false;
+    if (gate.apply) runRefetch();
 }
 
 function requestReconnectRefetch() {
-    const gate = requestRefetch(refetchQueue, dragActive.value);
+    const gate = requestRefetch(
+        refetchQueue,
+        dragActive.value || refetchInFlight,
+    );
     refetchQueue = gate.state;
     if (gate.apply) runRefetch();
 }
 
 watch(dragActive, (active) => {
-    if (active) return;
-    const gate = flushRefetch(refetchQueue);
-    refetchQueue = gate.state;
-    if (gate.apply) runRefetch();
+    if (active || refetchInFlight) return;
+    flushQueuedRefetch();
 });
 
 function connectLiveUpdates() {

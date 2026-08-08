@@ -163,17 +163,3 @@ export function useLiveUpdates(options = {}) {
 
     return { tier, display, absolute, reconnect, stop };
 }
-
-// Subscribes to the server's SSE stream of application changes.
-// Returns an unsubscribe function.
-export function subscribeToChanges(all, onChange) {
-    const source = new EventSource(eventsUrl(all));
-
-    source.addEventListener("change", (e) => {
-        const payload = parse(e);
-        if (payload === undefined) return;
-        onChange(payload);
-    });
-
-    return () => source.close();
-}
