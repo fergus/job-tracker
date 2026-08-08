@@ -26,6 +26,10 @@
                         class="text-xs text-ink-3 hover:text-ink-2 hover:underline"
                         >v{{ version }}</a
                     >
+                    <FreshnessSlot
+                        :display="freshnessDisplay"
+                        :absolute="freshnessAbsolute"
+                    />
                 </div>
                 <div class="flex items-center gap-3">
                     <!-- Show/Hide Closed toggle -->
@@ -88,6 +92,23 @@
             </div>
         </header>
 
+        <!-- Connection escalation bar (KTD7: outside the view so it survives
+             view switches) -->
+        <FreshnessBar
+            :tier="freshnessTier"
+            :display="freshnessDisplay"
+            :absolute="freshnessAbsolute"
+            @retry="retryLiveUpdates"
+        />
+
+        <!-- Tier announcements (KTD8): a summary only, so the ticking
+             duration is never announced (R14). Terminal is assertive because
+             it is the only tier the user must act on (R14a). -->
+        <div class="sr-only" role="status" aria-live="polite">
+            {{ politeAnnouncement }}
+        </div>
+        <div class="sr-only" role="alert">{{ assertiveAnnouncement }}</div>
+
         <!-- Main content -->
         <main id="main-content" class="flex-1 px-4 py-4">
             <Transition name="view" mode="out-in">
@@ -139,7 +160,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
+import {
+    ref,
+    shallowRef,
+    computed,
+    onMounted,
+    onUnmounted,
+    watch,
+    nextTick,
+} from "vue";
 import {
     fetchMe,
     fetchApplications,
@@ -150,8 +179,16 @@ import { TERMINAL_STAGES } from "./utils/timeline.js";
 import { useToast } from "./composables/useToast";
 import { storageGetBool, storageSet } from "./utils/storage.js";
 import { getErrorMessage } from "./utils/error.js";
-import { subscribeToChanges } from "./composables/useLiveUpdates.js";
+import { useLiveUpdates } from "./composables/useLiveUpdates.js";
+import {
+    TIER_PENDING,
+    TIER_DEGRADED,
+    TIER_STALE,
+    TIER_TERMINAL,
+} from "./utils/freshness.js";
 import LogoBuild from "./components/LogoBuild.vue";
+import FreshnessSlot from "./components/FreshnessSlot.vue";
+import FreshnessBar from "./components/FreshnessBar.vue";
 import { defineAsyncComponent } from 'vue'
 import KanbanBoard from "./components/KanbanBoard.vue";
 import TimelineView from "./components/TimelineView.vue";
@@ -337,14 +374,44 @@ function setShowAll(val) {
     connectLiveUpdates();
 }
 
-let unsubscribeLiveUpdates = null;
+const liveUpdates = shallowRef(null);
+
+const freshnessTier = computed(
+    () => liveUpdates.value?.tier.value ?? TIER_PENDING,
+);
+const freshnessDisplay = computed(() => liveUpdates.value?.display.value ?? "");
+const freshnessAbsolute = computed(
+    () => liveUpdates.value?.absolute.value ?? "",
+);
+
+const politeAnnouncement = computed(() => {
+    if (freshnessTier.value === TIER_DEGRADED) {
+        return "Live updates are delayed.";
+    }
+    if (freshnessTier.value === TIER_STALE) {
+        return "Live updates are not being received.";
+    }
+    return "";
+});
+
+const assertiveAnnouncement = computed(() =>
+    freshnessTier.value === TIER_TERMINAL
+        ? "Live updates have stopped. Reload the page to resume."
+        : "",
+);
 
 function connectLiveUpdates() {
-    unsubscribeLiveUpdates?.();
-    unsubscribeLiveUpdates = subscribeToChanges(
-        showAllUsers.value,
-        handleRemoteChange,
-    );
+    liveUpdates.value?.stop();
+    liveUpdates.value = useLiveUpdates({
+        all: showAllUsers.value,
+        onChange: handleRemoteChange,
+        // A later unit owns the refetch on reconnect (R9).
+        onReconnect: () => {},
+    });
+}
+
+function retryLiveUpdates() {
+    liveUpdates.value?.reconnect();
 }
 
 function handleRemoteChange(evt) {
@@ -369,6 +436,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-    unsubscribeLiveUpdates?.();
+    liveUpdates.value?.stop();
 });
 </script>
