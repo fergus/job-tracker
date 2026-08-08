@@ -432,3 +432,36 @@ test("state transitions do not mutate the input state", () => {
 
     assert.strictEqual(JSON.stringify(initial), snapshot);
 });
+
+// Regression: a board degraded through silence has no reconnection window
+// yet. Opening a fresh one on disconnect reset the ladder, so pressing the
+// bar's retry -- the likeliest recovery action -- made a dead board report
+// LIVE for a full minute, contradicting R4b.
+test("disconnecting a silence-degraded stream does not revert the tier to live", () => {
+    let state = markConnected(createFreshnessState(T0), T0);
+    const wedged = T0 + SILENCE_DEGRADE_MS + 1000;
+
+    assert.strictEqual(evaluateFreshness(state, wedged).tier, TIER_DEGRADED);
+
+    state = markDisconnected(state, wedged);
+    assert.strictEqual(evaluateFreshness(state, wedged + 1).tier, TIER_DEGRADED);
+});
+
+test("disconnecting a stale stream does not revert the tier to live", () => {
+    let state = markConnected(createFreshnessState(T0), T0);
+    const longGone = T0 + SILENCE_DEGRADE_MS + STALE_AFTER_DEGRADED_MS + 1000;
+
+    assert.strictEqual(evaluateFreshness(state, longGone).tier, TIER_STALE);
+
+    state = markDisconnected(state, longGone);
+    assert.strictEqual(evaluateFreshness(state, longGone + 1).tier, TIER_STALE);
+});
+
+test("an already-open reconnection window is preserved on further drops", () => {
+    let state = markConnected(createFreshnessState(T0), T0);
+    state = markDisconnected(state, T0 + 1000);
+    const opened = state.reconnectingSince;
+
+    state = markDisconnected(state, T0 + 5000);
+    assert.strictEqual(state.reconnectingSince, opened);
+});

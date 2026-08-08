@@ -453,9 +453,13 @@ async function runRefetch() {
     try {
         const next = await fetchApplications(null, showAllUsers.value);
 
-        const gate = requestRefetch(refetchQueue, dragActive.value);
-        refetchQueue = gate.state;
-        if (!gate.apply) return;
+        // A drag can begin while the fetch is in flight. Re-gate directly
+        // rather than through requestRefetch, which returns a fresh queue and
+        // would discard a reconnect that queued behind this fetch.
+        if (dragActive.value) {
+            refetchQueue = { pending: true };
+            return;
+        }
 
         const changed = hasContentChanged(applications.value, next);
         applications.value = next;

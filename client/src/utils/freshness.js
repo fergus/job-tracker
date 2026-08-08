@@ -86,9 +86,29 @@ export function markDisconnected(state, nowMs) {
     return {
         ...state,
         connected: false,
-        reconnectingSince:
-            state.reconnectingSince === null ? nowMs : state.reconnectingSince,
+        reconnectingSince: reconnectWindowStart(state, nowMs),
     };
+}
+
+/**
+ * Where the reconnection window should start. An already-open window is
+ * preserved so it stays continuous. A stream that degraded through silence
+ * has no window yet, and opening a fresh one at `nowMs` would reset the
+ * ladder and let an already-stale board report itself live -- so it is
+ * backdated to the moment silence was first provable.
+ */
+function reconnectWindowStart(state, nowMs) {
+    if (state.reconnectingSince !== null) return state.reconnectingSince;
+    if (state.lastConfirmedAt === null) return nowMs;
+
+    // Disconnecting clears the silence condition, so the reconnection window
+    // has to carry the degradation instead. Starting it at `nowMs` would give
+    // the board another full window of looking live; starting it a window
+    // earlier preserves the exact moment degradation was first provable, so
+    // the stale ladder keeps counting from there too.
+    const silenceBegan = state.lastConfirmedAt + SILENCE_DEGRADE_MS;
+    if (nowMs < silenceBegan) return nowMs;
+    return silenceBegan - RECONNECT_DEGRADE_MS;
 }
 
 /** The stream is permanently closed and will not be retried. */
