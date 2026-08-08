@@ -32,6 +32,13 @@ export const TIER_DEGRADED = "degraded";
 export const TIER_STALE = "stale";
 export const TIER_TERMINAL = "terminal";
 
+/**
+ * The absolute form produced when nothing has ever been confirmed. Exported
+ * because it is the only signal a consumer has that the board has never
+ * connected, as opposed to having gone stale (R4a).
+ */
+export const NEVER_SYNCED = "NEVER SYNCED";
+
 // --- state --------------------------------------------------------------
 
 /**
@@ -157,7 +164,7 @@ function sameCalendarDay(a, b) {
  */
 export function formatAbsolute(lastConfirmedAt, nowMs) {
     if (lastConfirmedAt === null || lastConfirmedAt === undefined) {
-        return "NEVER SYNCED";
+        return NEVER_SYNCED;
     }
     const then = new Date(lastConfirmedAt);
     const now = new Date(nowMs === undefined ? lastConfirmedAt : nowMs);
@@ -192,7 +199,7 @@ export function formatFreshness(tier, elapsedMs, options = {}) {
         return "LIVE";
     }
 
-    if (lastConfirmedAt === null) return "NEVER SYNCED";
+    if (lastConfirmedAt === null) return NEVER_SYNCED;
 
     const at = nowMs === null ? lastConfirmedAt + elapsedMs : nowMs;
     const then = new Date(lastConfirmedAt);

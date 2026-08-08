@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { useLiveUpdates } from "./useLiveUpdates.js";
-import { TIER_LIVE, TIER_DEGRADED } from "../utils/freshness.js";
+import {
+    TIER_LIVE,
+    TIER_DEGRADED,
+    TIER_TERMINAL,
+} from "../utils/freshness.js";
 
 // Node has no global EventSource, so every test injects this fake through the
 // composable's constructor seam and drives it by hand.
@@ -197,5 +201,30 @@ test("the display refresh interval runs once a minute", () => {
 test("all-scope subscriptions request the all-users stream", () => {
     const h = harness({ all: true });
     assert.strictEqual(h.latest().url, "/api/events?all=true");
+    h.live.stop();
+});
+
+// The terminal branch is what swaps the bar's action from "Retry now" to
+// "Reload", and it is the only tier a user cannot recover from in place. The
+// harness has always supported a permanent close; nothing exercised it.
+test("a permanently closed stream enters the terminal tier", () => {
+    const h = harness();
+
+    h.latest().open();
+    assert.strictEqual(h.live.tier.value, TIER_LIVE);
+
+    h.latest().fail({ permanent: true });
+
+    assert.strictEqual(h.live.tier.value, TIER_TERMINAL);
+    h.live.stop();
+});
+
+test("a non-permanent failure does not enter the terminal tier", () => {
+    const h = harness();
+
+    h.latest().open();
+    h.latest().fail();
+
+    assert.notStrictEqual(h.live.tier.value, TIER_TERMINAL);
     h.live.stop();
 });

@@ -58,14 +58,11 @@
 <script setup>
 import { computed, ref, watch, onUnmounted } from 'vue'
 import {
+  NEVER_SYNCED,
   TIER_DEGRADED,
   TIER_STALE,
   TIER_TERMINAL
 } from '../utils/freshness.js'
-
-// The absolute form the machine produces when nothing has ever been
-// confirmed; it is the only signal that this board has never connected (R4a).
-const NEVER_SYNCED = 'NEVER SYNCED'
 
 // A retry that has not confirmed itself within this long is treated as
 // failed. A failed retry leaves the tier untouched (R7a), so the tier alone
