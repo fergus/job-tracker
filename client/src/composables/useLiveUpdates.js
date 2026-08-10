@@ -8,6 +8,7 @@ import {
     markPermanentlyClosed,
     evaluateFreshness,
     TIER_PENDING,
+    TIER_STALE,
 } from "../utils/freshness.js";
 
 /** The display refresh cadence (KTD3): one interval, whole minutes only. */
@@ -68,6 +69,7 @@ export function useLiveUpdates(options = {}) {
     let source = null;
     let timer = null;
     let everOpened = false;
+    let reopenPending = false;
 
     // Recompute the displayed values, assigning only when the quantised
     // result actually changed (KTD3) so the UI does not churn every minute.
@@ -88,6 +90,7 @@ export function useLiveUpdates(options = {}) {
 
     function openStream() {
         closeStream();
+        reopenPending = false;
 
         const stream = eventSourceFactory(eventsUrl(all));
         source = stream;
@@ -105,11 +108,28 @@ export function useLiveUpdates(options = {}) {
         };
 
         stream.onerror = () => {
-            state =
-                stream.readyState === READY_STATE_CLOSED
-                    ? markPermanentlyClosed(state, now())
-                    : markDisconnected(state, now());
-            refresh();
+            // A stream we already replaced must not write shared state.
+            if (source !== stream) return;
+
+            state = markDisconnected(state, now());
+            const result = refresh();
+
+            if (stream.readyState !== READY_STATE_CLOSED) return;
+
+            // EventSource gives up permanently on anything that is not a
+            // 200 event-stream -- so a reverse proxy answering 502 while the
+            // app restarts closes it outright, exactly like an expired
+            // session does. Retrying ourselves is what keeps an ordinary
+            // outage on the tier ladder instead of jumping to "reload".
+            // Once the board is stale and reopens are still failing, the
+            // stream is not coming back on its own and reload is the honest
+            // remedy.
+            if (result.tier === TIER_STALE) {
+                state = markPermanentlyClosed(state, now());
+                refresh();
+                return;
+            }
+            reopenPending = true;
         };
 
         stream.addEventListener("change", (event) => {
@@ -131,6 +151,13 @@ export function useLiveUpdates(options = {}) {
 
     function tick() {
         const result = refresh();
+        // EventSource will not retry a permanently-closed stream, so the
+        // tick is what drives our own reopen. Its cadence doubles as the
+        // backoff -- no retry storm against a server that is still down.
+        if (reopenPending) {
+            openStream();
+            return;
+        }
         if (!result.silenceSignal) return;
         // R13a: the socket is open but dead. EventSource will not reconnect a
         // socket it has not seen fail, so force the cycle ourselves; the fresh

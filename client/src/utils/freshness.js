@@ -209,10 +209,13 @@ export function formatFreshness(tier, elapsedMs, options = {}) {
         return formatAbsolute(lastConfirmedAt, at);
     }
 
-    if (elapsedMs < JUST_NOW_MS) return "SYNCED JUST NOW";
+    // Whole minutes only (KD4), and never a minute that has not elapsed.
+    // Terminal is entered with no elapsed-time precondition (R5), so this is
+    // reachable well under a minute -- flooring at 1 would assert a minute
+    // that had not passed.
+    if (elapsedMs < MINUTE_MS) return "SYNCED JUST NOW";
 
-    // Whole minutes only (KD4). Anything past just-now is at least 1 min.
-    const minutes = Math.max(1, Math.floor(elapsedMs / MINUTE_MS));
+    const minutes = Math.floor(elapsedMs / MINUTE_MS);
     return `SYNCED ${minutes} MIN AGO`;
 }
 

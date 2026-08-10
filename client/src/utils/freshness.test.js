@@ -411,9 +411,20 @@ test("formatFreshness renders each tier from a tier and elapsed ms", () => {
     assert.strictEqual(formatFreshness(TIER_STALE, 6 * MIN), "NEVER SYNCED");
 });
 
-test("formatFreshness rounds any sub-minute non-just-now value up to 1 min", () => {
+// Terminal is entered with no elapsed-time precondition (R5), so a sub-minute
+// duration is reachable there. Flooring it at 1 asserted a minute that had not
+// passed -- the board said "SYNCED 1 MIN AGO" seconds after the stream died.
+test("formatFreshness never claims a minute that has not elapsed", () => {
     assert.strictEqual(
         formatFreshness(TIER_TERMINAL, 30000, { lastConfirmedAt: T0 }),
+        "SYNCED JUST NOW",
+    );
+    assert.strictEqual(
+        formatFreshness(TIER_TERMINAL, 59999, { lastConfirmedAt: T0 }),
+        "SYNCED JUST NOW",
+    );
+    assert.strictEqual(
+        formatFreshness(TIER_TERMINAL, 60000, { lastConfirmedAt: T0 }),
         "SYNCED 1 MIN AGO",
     );
 });

@@ -207,12 +207,48 @@ test("all-scope subscriptions request the all-users stream", () => {
 // The terminal branch is what swaps the bar's action from "Retry now" to
 // "Reload", and it is the only tier a user cannot recover from in place. The
 // harness has always supported a permanent close; nothing exercised it.
-test("a permanently closed stream enters the terminal tier", () => {
+// A reverse proxy answering 502 while the app restarts closes EventSource
+// permanently, exactly as an expired session does -- so treating "the browser
+// gave up" as terminal jumped an ordinary outage straight to "reload the page"
+// and skipped the whole tier ladder.
+test("a permanently closed stream degrades rather than going terminal", () => {
     const h = harness();
 
     h.latest().open();
     assert.strictEqual(h.live.tier.value, TIER_LIVE);
 
+    h.latest().fail({ permanent: true });
+
+    assert.notStrictEqual(h.live.tier.value, TIER_TERMINAL);
+    h.live.stop();
+});
+
+test("a permanently closed stream is reopened by the next tick", () => {
+    const h = harness();
+
+    h.latest().open();
+    const opened = h.instances.length;
+
+    h.latest().fail({ permanent: true });
+    h.advance(60000);
+    h.tick();
+
+    assert.strictEqual(h.instances.length, opened + 1);
+    h.live.stop();
+});
+
+test("a stale board still failing to reopen goes terminal", () => {
+    const h = harness();
+
+    h.latest().open();
+
+    // Fail continuously until the board is stale, reopening on each tick the
+    // way the real loop does.
+    for (let i = 0; i < 8; i++) {
+        h.latest().fail({ permanent: true });
+        h.advance(60000);
+        h.tick();
+    }
     h.latest().fail({ permanent: true });
 
     assert.strictEqual(h.live.tier.value, TIER_TERMINAL);
