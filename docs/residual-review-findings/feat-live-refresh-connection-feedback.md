@@ -60,16 +60,6 @@ same-family roster missed a defect a different family caught on first read.
   never happens, so no tier ever escalates and the never-connected bar never appears — the
   silent-failure shape this feature exists to remove.
 
-### P2 — A replaced stream's error handler still writes shared state
-
-- **File:** `client/src/composables/useLiveUpdates.js:107`
-- **Reviewer:** adversarial (confidence 50, manual)
-- `closeStream()` closes the old stream but leaves its handlers attached. A late `onerror` from
-  a replaced stream can still mark the state permanently closed, so a user-pressed retry can
-  paint the terminal reload bar immediately.
-- **Suggested:** guard each handler with a source-identity check and detach handlers in
-  `closeStream()`.
-
 ### P2 — Freshness orchestration sits in App.vue
 
 - **File:** `client/src/App.vue:386-513`
