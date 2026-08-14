@@ -181,6 +181,194 @@ describe("U1 schema migration", () => {
     });
 });
 
+describe("U3 backfill gating and apply", () => {
+    // Seeds one record per derivation rule so the apply can be checked end to end.
+    function seedFixture(dbPath) {
+        const seed = new Database(dbPath);
+        seed.exec(PRE_PLAN_SCHEMA);
+        const insert = seed.prepare(
+            `INSERT INTO applications
+             (company_name, role_title, status, created_at, updated_at,
+              interested_at, applied_at, interview_at, offer_at, closed_at, user_email)
+             VALUES (?, ?, ?, datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?)`,
+        );
+        insert.run("Real Rejection", "Engineer", "rejected", "2026-01-01", "2026-01-02", "2026-01-10", null, "2026-01-20", "dev@localhost");
+        insert.run("Never Applied", "Engineer", "rejected", "2026-01-01", null, null, null, "2026-01-20", "dev@localhost");
+        insert.run("Accepted", "Engineer", "accepted", "2026-01-01", "2026-01-02", null, "2026-01-15", "2026-01-16", "dev@localhost");
+        insert.run("Open", "Engineer", "applied", "2026-01-01", "2026-01-02", null, null, null, "dev@localhost");
+        seed.close();
+    }
+
+    function snapshot(dbPath) {
+        const db = new Database(dbPath, { readonly: true });
+        const rows = db
+            .prepare("SELECT * FROM applications ORDER BY id")
+            .all()
+            .map((r) => JSON.stringify(r));
+        db.close();
+        return rows;
+    }
+
+    test("leaves every row unchanged when the opt-in is unset", () => {
+        // Covers AE5.
+        const dbPath = makeDbPath("gate-unset");
+        seedFixture(dbPath);
+        bootStartup(dbPath);
+        const before = snapshot(dbPath);
+
+        bootStartup(dbPath);
+        assert.deepEqual(snapshot(dbPath), before);
+
+        const db = new Database(dbPath, { readonly: true });
+        const stages = db
+            .prepare("SELECT COUNT(*) c FROM applications WHERE stage IS NOT NULL")
+            .get().c;
+        assert.equal(stages, 0, "report mode must not write derived values");
+        db.close();
+    });
+
+    test("writes a report to disk in report mode", () => {
+        const dbPath = makeDbPath("gate-report");
+        seedFixture(dbPath);
+        bootStartup(dbPath);
+
+        const reportPath = path.join(
+            path.dirname(dbPath),
+            "schema-backfill-report.json",
+        );
+        assert.ok(fs.existsSync(reportPath), "expected a report file");
+        const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+        assert.equal(report.summary.total, 4);
+        assert.equal(report.summary.flagged, 1);
+    });
+
+    test("treats an unrecognised opt-in value as report mode", () => {
+        const dbPath = makeDbPath("gate-bogus");
+        seedFixture(dbPath);
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "yes-please" });
+
+        const db = new Database(dbPath, { readonly: true });
+        const stages = db
+            .prepare("SELECT COUNT(*) c FROM applications WHERE stage IS NOT NULL")
+            .get().c;
+        assert.equal(stages, 0);
+        db.close();
+    });
+
+    test("derives every record when the opt-in is set", () => {
+        // Covers AE2, AE3, AE4, AE11.
+        const dbPath = makeDbPath("gate-apply");
+        seedFixture(dbPath);
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+
+        const db = new Database(dbPath, { readonly: true });
+        const byCompany = Object.fromEntries(
+            db
+                .prepare("SELECT * FROM applications")
+                .all()
+                .map((r) => [r.company_name, r]),
+        );
+
+        assert.deepEqual(
+            {
+                stage: byCompany["Real Rejection"].stage,
+                state: byCompany["Real Rejection"].state,
+                close_reason: byCompany["Real Rejection"].close_reason,
+                record_type: byCompany["Real Rejection"].record_type,
+            },
+            {
+                stage: "interview",
+                state: "closed",
+                close_reason: "rejected",
+                record_type: "application",
+            },
+        );
+
+        assert.deepEqual(
+            {
+                stage: byCompany["Never Applied"].stage,
+                close_reason: byCompany["Never Applied"].close_reason,
+                record_type: byCompany["Never Applied"].record_type,
+            },
+            {
+                stage: "interested",
+                close_reason: "unresolved",
+                record_type: "lead",
+            },
+        );
+
+        assert.equal(byCompany["Accepted"].stage, "offer");
+        assert.equal(byCompany["Accepted"].close_reason, "accepted");
+        assert.equal(byCompany["Open"].state, "open");
+        assert.equal(byCompany["Open"].close_reason, null);
+        db.close();
+    });
+
+    test("applies once and is a no-op on the next startup", () => {
+        const dbPath = makeDbPath("gate-once");
+        seedFixture(dbPath);
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+        const after = snapshot(dbPath);
+
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+        assert.deepEqual(snapshot(dbPath), after);
+
+        const db = new Database(dbPath, { readonly: true });
+        const runs = db
+            .prepare("SELECT COUNT(*) c FROM _migrations WHERE name = ?")
+            .get("status_split_backfill").c;
+        assert.equal(runs, 1);
+        db.close();
+    });
+
+    test("leaves a record an earlier partial run already derived", () => {
+        const dbPath = makeDbPath("gate-resume");
+        seedFixture(dbPath);
+        bootStartup(dbPath);
+
+        // Simulate an interrupted apply: one record derived, migration unrecorded.
+        const pre = new Database(dbPath);
+        pre.prepare(
+            "UPDATE applications SET stage = 'offer', state = 'closed', close_reason = 'withdrawn', record_type = 'application' WHERE company_name = 'Real Rejection'",
+        ).run();
+        pre.close();
+
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+
+        const db = new Database(dbPath, { readonly: true });
+        const row = db
+            .prepare("SELECT * FROM applications WHERE company_name = 'Real Rejection'")
+            .get();
+        assert.equal(row.close_reason, "withdrawn", "resume must not overwrite");
+        const remaining = db
+            .prepare("SELECT COUNT(*) c FROM applications WHERE stage IS NULL")
+            .get().c;
+        assert.equal(remaining, 0, "the rest should still have been derived");
+        db.close();
+    });
+
+    test("skips a record whose status it does not understand", () => {
+        const dbPath = makeDbPath("gate-unknown");
+        seedFixture(dbPath);
+        const seed = new Database(dbPath);
+        seed.prepare(
+            `INSERT INTO applications (company_name, role_title, status, created_at, updated_at, user_email)
+             VALUES ('Odd One', 'Engineer', 'on_hold', datetime('now'), datetime('now'), 'dev@localhost')`,
+        ).run();
+        seed.close();
+
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+
+        const db = new Database(dbPath, { readonly: true });
+        const row = db
+            .prepare("SELECT * FROM applications WHERE company_name = 'Odd One'")
+            .get();
+        assert.equal(row.stage, null, "an unknown status must not be guessed at");
+        assert.equal(row.status, "on_hold", "and must be left alone");
+        db.close();
+    });
+});
+
 describe("U1 contact_links integrity", () => {
     let dbPath;
     let db;

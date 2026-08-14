@@ -480,6 +480,77 @@ if (!backfillRan) {
     })();
 }
 
+// One-shot migration: split the overloaded status column into stage / state /
+// close_reason and separate applications from leads.
+//
+// Report mode is the default. A deploy alone must not rewrite 174 records of
+// live personal data on the strength of inference rules nobody has checked
+// against the real dataset, so applying requires an explicit opt-in. Both modes
+// run the same derivation, so the report cannot drift from the apply.
+const STATUS_SPLIT_MIGRATION = "status_split_backfill";
+const statusSplitApplied = db
+    .prepare("SELECT 1 FROM _migrations WHERE name = ?")
+    .get(STATUS_SPLIT_MIGRATION);
+
+if (!statusSplitApplied) {
+    const { deriveRecord, buildReport } = require("./services/migration-backfill");
+    const applyRequested = process.env.SCHEMA_BACKFILL === "apply";
+
+    if (applyRequested) {
+        db.transaction(() => {
+            // A non-null stage marks a record an earlier partial run already
+            // handled, so an interrupted apply resumes rather than redoing work.
+            const rows = db
+                .prepare("SELECT * FROM applications WHERE stage IS NULL")
+                .all();
+            const update = db.prepare(
+                `UPDATE applications
+                 SET stage = ?, state = ?, close_reason = ?, record_type = ?
+                 WHERE id = ?`,
+            );
+
+            let written = 0;
+            let flagged = 0;
+            let skipped = 0;
+            for (const row of rows) {
+                const d = deriveRecord(row);
+                if (d.stage === null) {
+                    // Unknown status: reported, never guessed at.
+                    skipped++;
+                    continue;
+                }
+                update.run(d.stage, d.state, d.close_reason, d.record_type, row.id);
+                written++;
+                if (d.review) flagged++;
+            }
+
+            db.prepare(
+                "INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))",
+            ).run(STATUS_SPLIT_MIGRATION);
+
+            console.log(
+                `[status-split] Applied. written=${written} flagged=${flagged} unclassified=${skipped}`,
+            );
+            if (flagged > 0) {
+                console.log(
+                    `[status-split] ${flagged} record(s) carry close_reason='unresolved' and need review.`,
+                );
+            }
+        })();
+    } else if (dbPath !== ":memory:") {
+        const reportPath = path.join(
+            path.dirname(dbPath),
+            "schema-backfill-report.json",
+        );
+        const report = buildReport(db, { reportPath });
+        console.log(
+            `[status-split] Report mode (set SCHEMA_BACKFILL=apply to write). ` +
+                `total=${report.summary.total} flagged=${report.summary.flagged}`,
+        );
+        console.log(`[status-split] Report written to ${reportPath}`);
+    }
+}
+
 // API key prepared statements
 db.insertApiKey = db.prepare(
     `INSERT INTO api_keys (user_email, label, key_hash) VALUES (?, ?, ?)`,
