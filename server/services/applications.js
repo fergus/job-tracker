@@ -35,6 +35,63 @@ const STATUS_DATE_MAP = {
     rejected: "closed_at",
 };
 
+// --- The status split ------------------------------------------------------
+//
+// `status` used to encode three unrelated facts: how far a record got, whether
+// it is still open, and why it ended. It is now derived rather than
+// authoritative, and kept in step on every write so callers that have not
+// migrated keep working.
+
+const VALID_STAGES = [
+    "interested",
+    "applied",
+    "responded",
+    "interview",
+    "offer",
+];
+const VALID_STATES = ["open", "closed"];
+const VALID_RECORD_TYPES = ["application", "lead"];
+const VALID_CLOSE_REASONS = [
+    "accepted",
+    "rejected",
+    "withdrawn",
+    "role_closed",
+    "lapsed",
+    "not_pursued",
+    "unresolved",
+];
+
+// Derive the triple from a legacy status write. `currentStage` is preserved
+// when the write only closes the record: closing must not change how far the
+// record got.
+function tripleFromStatus(status, currentStage) {
+    if (status === "accepted") {
+        return {
+            stage: currentStage || "offer",
+            state: "closed",
+            close_reason: "accepted",
+        };
+    }
+    if (status === "rejected") {
+        return {
+            stage: currentStage || "interested",
+            state: "closed",
+            close_reason: "rejected",
+        };
+    }
+    return { stage: status, state: "open", close_reason: null };
+}
+
+// Derive the legacy status from the triple. Lossy in this direction by design:
+// the legacy column has exactly one failure state, so every non-acceptance
+// close collapses onto `rejected`.
+function statusFromTriple({ stage, state, close_reason }) {
+    if (state === "closed") {
+        return close_reason === "accepted" ? "accepted" : "rejected";
+    }
+    return stage || "interested";
+}
+
 const LIMITS = {
     company_name: 200,
     role_title: 200,
@@ -236,6 +293,14 @@ function createApplication(userEmail, data) {
     const appStatus =
         status && VALID_STATUSES.includes(status) ? status : "interested";
     const dateField = STATUS_DATE_MAP[appStatus];
+    const triple = tripleFromStatus(appStatus, null);
+    // A record created at or beyond `applied` is one that was applied to;
+    // anything earlier is a lead until it progresses.
+    const recordType =
+        triple.state === "closed" ||
+        VALID_STAGES.indexOf(triple.stage) >= VALID_STAGES.indexOf("applied")
+            ? "application"
+            : "lead";
 
     const result = db
         .prepare(
@@ -244,8 +309,9 @@ function createApplication(userEmail, data) {
       cv_filename, cv_path, cover_letter_filename, cover_letter_path, interview_notes, prep_work,
       salary_min, salary_max, job_location,
       created_at, updated_at,
-      interested_at, applied_at, responded_at, interview_at, offer_at, closed_at, user_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      interested_at, applied_at, responded_at, interview_at, offer_at, closed_at, user_email,
+      stage, state, close_reason, record_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
         )
         .run(
@@ -273,6 +339,10 @@ function createApplication(userEmail, data) {
             dateField === "offer_at" ? now : null,
             dateField === "closed_at" ? now : null,
             userEmail,
+            triple.stage,
+            triple.state,
+            triple.close_reason,
+            recordType,
         );
 
     const created = db
@@ -361,6 +431,100 @@ function updateApplication(userEmail, id, data) {
         }
     }
 
+    // The split fields. Any write to one of them re-derives the legacy status
+    // so callers that still read `status` stay consistent.
+    if (data.stage !== undefined && !VALID_STAGES.includes(data.stage)) {
+        throw new ServiceError(
+            400,
+            `stage must be one of: ${VALID_STAGES.join(", ")}`,
+        );
+    }
+    if (data.state !== undefined && !VALID_STATES.includes(data.state)) {
+        throw new ServiceError(
+            400,
+            `state must be one of: ${VALID_STATES.join(", ")}`,
+        );
+    }
+    if (
+        data.close_reason !== undefined &&
+        data.close_reason !== null &&
+        !VALID_CLOSE_REASONS.includes(data.close_reason)
+    ) {
+        throw new ServiceError(
+            400,
+            `close_reason must be one of: ${VALID_CLOSE_REASONS.join(", ")}`,
+        );
+    }
+    if (
+        data.record_type !== undefined &&
+        !VALID_RECORD_TYPES.includes(data.record_type)
+    ) {
+        throw new ServiceError(
+            400,
+            `record_type must be one of: ${VALID_RECORD_TYPES.join(", ")}`,
+        );
+    }
+
+    const touchesSplit =
+        data.stage !== undefined ||
+        data.state !== undefined ||
+        data.close_reason !== undefined;
+
+    if (touchesSplit) {
+        const nextStage = data.stage !== undefined ? data.stage : existing.stage;
+        const nextState = data.state !== undefined ? data.state : existing.state;
+
+        let nextCloseReason;
+        if (data.state === "open") {
+            // An explicit reopen discards the close reason rather than leaving
+            // a stale one attached to a record that is running again. Note this
+            // keys on the write, not on the resulting state: setting a close
+            // reason on an already-open record is an error, not a no-op.
+            nextCloseReason = null;
+        } else if (data.close_reason !== undefined) {
+            nextCloseReason = data.close_reason;
+        } else {
+            nextCloseReason = existing.close_reason;
+        }
+
+        if (nextState !== "closed" && nextCloseReason) {
+            throw new ServiceError(
+                400,
+                "close_reason may only be set on a closed record",
+            );
+        }
+        if (nextState === "closed" && !nextCloseReason) {
+            throw new ServiceError(
+                400,
+                "close_reason is required when closing a record",
+            );
+        }
+
+        const nextTriple = {
+            stage: nextStage,
+            state: nextState,
+            close_reason: nextCloseReason,
+        };
+        updates.push("stage = ?", "state = ?", "close_reason = ?", "status = ?");
+        values.push(
+            nextStage,
+            nextState,
+            nextCloseReason,
+            statusFromTriple(nextTriple),
+        );
+
+        const dateField = nextState === "closed" ? "closed_at" : null;
+        if (dateField && !existing.closed_at) {
+            updates.push("closed_at = ?");
+            values.push(new Date().toISOString());
+        }
+    }
+
+    if (data.record_type !== undefined) {
+        updates.push("record_type = ?");
+        values.push(data.record_type);
+    }
+
     if (updates.length === 0)
         throw new ServiceError(400, "No fields to update");
 
@@ -392,6 +556,20 @@ function updateStatus(userEmail, id, status) {
     if (dateField) {
         updates.push(`${dateField} = ?`);
         values.push(now);
+    }
+
+    // Keep the split fields in step with the legacy write. The existing stage
+    // is carried through a close so the record still reads as having reached
+    // where it actually got to.
+    const triple = tripleFromStatus(status, existing.stage);
+    updates.push("stage = ?", "state = ?", "close_reason = ?");
+    values.push(triple.stage, triple.state, triple.close_reason);
+    if (
+        triple.state === "closed" ||
+        VALID_STAGES.indexOf(triple.stage) >= VALID_STAGES.indexOf("applied")
+    ) {
+        updates.push("record_type = ?");
+        values.push("application");
     }
 
     values.push(id);
