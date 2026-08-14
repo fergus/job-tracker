@@ -218,7 +218,11 @@ function getApplication(userEmail, id, { isAdmin = false } = {}) {
         ? db.prepare("SELECT * FROM applications WHERE id = ?").get(id)
         : getOwnApp(id, userEmail);
     if (!row) throw new ServiceError(404, "Not found");
-    return attachNotes([row])[0];
+    const withNotes = attachNotes([row])[0];
+    // Required lazily: contacts requires db, and requiring it at module scope
+    // would create a cycle through the shared db module during startup.
+    const { contactsForApplication } = require("./contacts");
+    return { ...withNotes, contacts: contactsForApplication(row.id) };
 }
 
 function createApplication(userEmail, data) {
