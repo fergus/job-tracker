@@ -214,9 +214,97 @@ function unlinkContact(userEmail, contactId, applicationId) {
     return getContact(userEmail, contactId);
 }
 
+// Convert a pipeline row that is actually a person into a contact.
+//
+// This is the only destructive path here, and it is deliberately an operator
+// action rather than something the migration infers: the heuristics that spot
+// a person-row are weak enough that a false positive would silently delete a
+// real application. The original row is written to _row_backups first, so the
+// conversion can be undone.
+const CONVERT_OPERATION = "convert_application_to_contact";
+
+function convertApplicationToContact(userEmail, applicationId, data = {}) {
+    const application = getOwnApp(applicationId, userEmail);
+    if (!application) throw new ServiceError(404, "Application not found");
+
+    // The source row's field names do not map onto a person, so the operator
+    // supplies the contact fields; company_name is only a starting suggestion.
+    const name = (data.name && String(data.name).trim()) || application.company_name;
+    if (!name) throw new ServiceError(400, "name is required");
+
+    const lengthError = validateInputLengths({ ...data, name }, EDITABLE_FIELDS);
+    if (lengthError) throw new ServiceError(400, lengthError);
+
+    const notes = db
+        .prepare(
+            "SELECT stage, content, created_at FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
+        )
+        .all(applicationId);
+
+    // Carry the row's prose across so nothing is lost with the cascade.
+    const carried = [
+        data.notes,
+        application.prep_work,
+        application.interview_notes,
+        ...notes.map((n) => n.content),
+    ]
+        .filter((part) => part && String(part).trim())
+        .join("\n\n");
+
+    let contactId;
+    db.transaction(() => {
+        // Backup first: audit_log cannot serve this purpose because it cascades
+        // on applications delete and would vanish with the row it documents.
+        db.prepare(
+            "INSERT INTO _row_backups (operation, source_table, row_json) VALUES (?, ?, ?)",
+        ).run(
+            CONVERT_OPERATION,
+            "applications",
+            JSON.stringify({ application, stage_notes: notes }),
+        );
+
+        contactId = db
+            .prepare(
+                `INSERT INTO contacts (name, contact_role, employer, email, phone, notes, user_email)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .run(
+                name,
+                data.contact_role || application.role_title || null,
+                data.employer || null,
+                data.email || null,
+                data.phone || null,
+                carried || null,
+                userEmail,
+            ).lastInsertRowid;
+
+        // Logged before the delete: the row-scoped entries cascade away with it.
+        db.prepare(
+            `INSERT INTO audit_log (application_id, user_email, action, source, auth_method, details, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+            applicationId,
+            userEmail,
+            CONVERT_OPERATION,
+            "rest",
+            "oauth",
+            JSON.stringify({ contact_id: contactId, name }),
+            new Date().toISOString(),
+        );
+
+        db.prepare("DELETE FROM applications WHERE id = ? AND user_email = ?").run(
+            applicationId,
+            userEmail,
+        );
+    })();
+
+    return getContact(userEmail, contactId);
+}
+
 module.exports = {
     ServiceError,
     LIMITS,
+    convertApplicationToContact,
     listContacts,
     getContact,
     createContact,

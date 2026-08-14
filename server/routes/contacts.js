@@ -72,6 +72,23 @@ router.delete("/:id", (req, res) => {
     }
 });
 
+// Convert a pipeline row that is actually a person into a contact. Destructive
+// but reversible: the original row is backed up first.
+router.post("/convert/:applicationId", (req, res) => {
+    try {
+        if (denyAdminWrite(req, res)) return;
+        res.status(201).json(
+            svc.convertApplicationToContact(
+                req.userEmail,
+                req.params.applicationId,
+                req.body,
+            ),
+        );
+    } catch (e) {
+        handleError(res, e);
+    }
+});
+
 router.post("/:id/links", (req, res) => {
     try {
         res.status(201).json(

@@ -156,6 +156,148 @@ describe("U5 linking", () => {
     });
 });
 
+describe("U6 converting a pipeline row into a contact", () => {
+    const db = require("../db");
+
+    async function seedPersonRow(email = OWNER) {
+        // Record #148 in the real data: Mike Carter, a recruiter, filed as a
+        // job application with his mobile number in prep_work.
+        const res = await req
+            .post("/api/applications")
+            .set("X-Forwarded-Email", email)
+            .set("X-Forwarded-User", email)
+            .field("company_name", "Mike Carter")
+            .field("role_title", "Recruiter")
+            .field("prep_work", "Mobile 0412 345 678");
+        assert.equal(res.status, 201);
+        return res.body;
+    }
+
+    test("creates the contact and backs the original row up", async () => {
+        // Covers AE8.
+        const row = await seedPersonRow();
+        const res = await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Mike Carter",
+            contact_role: "Recruiter",
+            employer: "Change Recruitment",
+        });
+
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        assert.equal(res.body.name, "Mike Carter");
+        assert.equal(res.body.employer, "Change Recruitment");
+
+        const backup = db
+            .prepare(
+                "SELECT * FROM _row_backups WHERE operation = ? ORDER BY id DESC LIMIT 1",
+            )
+            .get("convert_application_to_contact");
+        assert.ok(backup, "expected a backup row");
+        const parsed = JSON.parse(backup.row_json);
+        assert.equal(parsed.application.id, row.id);
+        assert.equal(parsed.application.company_name, "Mike Carter");
+    });
+
+    test("the backup round-trips into an object carrying every original column", async () => {
+        const row = await seedPersonRow();
+        await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Recoverable",
+        });
+
+        const backup = db
+            .prepare(
+                "SELECT * FROM _row_backups WHERE operation = ? ORDER BY id DESC LIMIT 1",
+            )
+            .get("convert_application_to_contact");
+        const restored = JSON.parse(backup.row_json).application;
+
+        for (const col of [
+            "id",
+            "company_name",
+            "role_title",
+            "status",
+            "stage",
+            "state",
+            "record_type",
+            "created_at",
+            "updated_at",
+            "user_email",
+        ]) {
+            assert.ok(col in restored, `backup is missing ${col}`);
+        }
+    });
+
+    test("carries the row's note content onto the contact", async () => {
+        const row = await seedPersonRow();
+        await as(OWNER)(req.post(`/api/applications/${row.id}/notes`)).send({
+            stage: "interested",
+            content: "Spoke about the mutual bank roles",
+        });
+
+        const res = await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Mike Carter",
+        });
+        assert.equal(res.status, 201);
+        assert.match(res.body.notes, /mutual bank roles/);
+        assert.match(res.body.notes, /0412 345 678/);
+    });
+
+    test("removes the row from the pipeline", async () => {
+        const row = await seedPersonRow();
+        await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Gone From Pipeline",
+        });
+
+        const read = await as(OWNER)(req.get(`/api/applications/${row.id}`));
+        assert.equal(read.status, 404);
+    });
+
+    test("backs up the row before the cascade removes its attachments", async () => {
+        const row = await seedPersonRow();
+        await as(OWNER)(req.post(`/api/applications/${row.id}/notes`)).send({
+            stage: "interested",
+            content: "Note that must survive in the backup",
+        });
+
+        await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Cascade Test",
+        });
+
+        const backup = db
+            .prepare(
+                "SELECT * FROM _row_backups WHERE operation = ? ORDER BY id DESC LIMIT 1",
+            )
+            .get("convert_application_to_contact");
+        const parsed = JSON.parse(backup.row_json);
+        assert.equal(parsed.stage_notes.length, 1);
+        assert.match(parsed.stage_notes[0].content, /must survive/);
+    });
+
+    test("rejects converting another user's record", async () => {
+        const foreign = await seedPersonRow(OTHER);
+        const res = await as(OWNER)(
+            req.post(`/api/contacts/convert/${foreign.id}`),
+        ).send({ name: "Not Mine" });
+        assert.equal(res.status, 404);
+
+        const stillThere = await as(OTHER)(
+            req.get(`/api/applications/${foreign.id}`),
+        );
+        assert.equal(stillThere.status, 200, "the row must not have been deleted");
+    });
+
+    test("leaves the row in place when contact creation fails", async () => {
+        const row = await seedPersonRow();
+        const res = await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Too Long",
+            notes: "x".repeat(10001),
+        });
+        assert.equal(res.status, 400);
+
+        const stillThere = await as(OWNER)(req.get(`/api/applications/${row.id}`));
+        assert.equal(stillThere.status, 200, "a failed conversion must not delete");
+    });
+});
+
 describe("U5 ownership", () => {
     test("rejects linking a contact to another user's record", async () => {
         const foreign = await createApp(OTHER);
