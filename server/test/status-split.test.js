@@ -154,6 +154,91 @@ describe("U4 new-shape writes derive the legacy status", () => {
     });
 });
 
+describe("U7 filtering by the split fields", () => {
+    // A dedicated user so these counts are not disturbed by other suites.
+    const FILTER_USER = "filters@example.com";
+
+    function asFilterUser(r) {
+        return r
+            .set("X-Forwarded-Email", FILTER_USER)
+            .set("X-Forwarded-User", FILTER_USER);
+    }
+
+    async function seed() {
+        const mk = async (company, status) => {
+            const res = await asFilterUser(req.post("/api/applications"))
+                .field("company_name", company)
+                .field("role_title", "Engineer")
+                .field("status", status);
+            assert.equal(res.status, 201);
+            return res.body;
+        };
+
+        const open = await mk("Open Co", "applied");
+        const rejected = await mk("Rejected Co", "applied");
+        await asFilterUser(req.patch(`/api/applications/${rejected.id}/status`)).send({
+            status: "rejected",
+        });
+        const lapsed = await mk("Lapsed Co", "applied");
+        await asFilterUser(req.put(`/api/applications/${lapsed.id}`)).send({
+            state: "closed",
+            close_reason: "lapsed",
+        });
+        const lead = await mk("Lead Co", "interested");
+        await asFilterUser(req.put(`/api/applications/${lead.id}`)).send({
+            record_type: "lead",
+        });
+        return { open, rejected, lapsed, lead };
+    }
+
+    test("filtering by open state excludes every closed record", async () => {
+        await seed();
+        const res = await asFilterUser(req.get("/api/applications?state=open"));
+        assert.equal(res.status, 200);
+        assert.ok(res.body.length > 0);
+        assert.ok(res.body.every((a) => a.state === "open"));
+        assert.ok(!res.body.some((a) => a.company_name === "Rejected Co"));
+    });
+
+    test("filtering by close reason returns only records carrying it", async () => {
+        const res = await asFilterUser(
+            req.get("/api/applications?close_reason=lapsed"),
+        );
+        assert.equal(res.status, 200);
+        assert.ok(res.body.length > 0);
+        assert.ok(res.body.every((a) => a.close_reason === "lapsed"));
+    });
+
+    test("filtering by record type excludes leads", async () => {
+        const res = await asFilterUser(
+            req.get("/api/applications?record_type=application"),
+        );
+        assert.equal(res.status, 200);
+        assert.ok(res.body.every((a) => a.record_type === "application"));
+        assert.ok(!res.body.some((a) => a.company_name === "Lead Co"));
+    });
+
+    test("combines a state filter with a company-name filter", async () => {
+        const res = await asFilterUser(
+            req.get("/api/applications?state=closed&company_name=Lapsed"),
+        );
+        assert.equal(res.status, 200);
+        assert.equal(res.body.length, 1);
+        assert.equal(res.body[0].company_name, "Lapsed Co");
+    });
+
+    test("rejects an unknown filter value rather than returning everything", async () => {
+        for (const query of [
+            "state=paused",
+            "close_reason=ghosted",
+            "record_type=relationship",
+        ]) {
+            const res = await asFilterUser(req.get(`/api/applications?${query}`));
+            assert.equal(res.status, 400, `expected 400 for ${query}`);
+        }
+    });
+});
+
 describe("U4 validation", () => {
     test("rejects a close reason on an open record", async () => {
         const created = await createApp();

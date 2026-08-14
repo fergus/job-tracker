@@ -140,6 +140,9 @@ function listApplications(
     userEmail,
     {
         status,
+        state,
+        close_reason,
+        record_type,
         all,
         updated_since,
         company_name,
@@ -161,6 +164,42 @@ function listApplications(
     if (status && VALID_STATUSES.includes(status)) {
         conditions.push("a.status = ?");
         params.push(status);
+    }
+
+    // The split filters. An unknown value is rejected rather than ignored:
+    // silently returning everything is how a caller ends up trusting a count
+    // that answers a different question than the one it asked.
+    if (state !== undefined && state !== null && state !== "") {
+        if (!VALID_STATES.includes(state)) {
+            throw new ServiceError(
+                400,
+                `Invalid state: expected one of ${VALID_STATES.join(", ")}`,
+            );
+        }
+        conditions.push("a.state = ?");
+        params.push(state);
+    }
+
+    if (close_reason !== undefined && close_reason !== null && close_reason !== "") {
+        if (!VALID_CLOSE_REASONS.includes(close_reason)) {
+            throw new ServiceError(
+                400,
+                `Invalid close_reason: expected one of ${VALID_CLOSE_REASONS.join(", ")}`,
+            );
+        }
+        conditions.push("a.close_reason = ?");
+        params.push(close_reason);
+    }
+
+    if (record_type !== undefined && record_type !== null && record_type !== "") {
+        if (!VALID_RECORD_TYPES.includes(record_type)) {
+            throw new ServiceError(
+                400,
+                `Invalid record_type: expected one of ${VALID_RECORD_TYPES.join(", ")}`,
+            );
+        }
+        conditions.push("a.record_type = ?");
+        params.push(record_type);
     }
 
     if (updated_since) {
@@ -756,6 +795,12 @@ function getAttachment(
 module.exports = {
     ServiceError,
     VALID_STATUSES,
+    VALID_STAGES,
+    VALID_STATES,
+    VALID_RECORD_TYPES,
+    VALID_CLOSE_REASONS,
+    statusFromTriple,
+    tripleFromStatus,
     getOwnApp,
     attachNotes,
     listApplications,
