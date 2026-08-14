@@ -165,6 +165,77 @@ if (!extractedJdCheck.some((c) => c.name === "extracted_jd")) {
     db.exec("ALTER TABLE applications ADD COLUMN extracted_jd TEXT");
 }
 
+// Migrate: split the overloaded status column into three independent facts,
+// and separate applications from leads. All nullable with no defaults — a null
+// distinguishes "not yet backfilled" from "backfilled", which the one-shot
+// backfill below relies on to stay resumable.
+const splitCheck = db.prepare("PRAGMA table_info(applications)").all();
+for (const col of ["stage", "state", "close_reason", "record_type"]) {
+    if (!splitCheck.some((c) => c.name === col)) {
+        db.exec(`ALTER TABLE applications ADD COLUMN ${col} TEXT`);
+    }
+}
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_applications_user_email_state ON applications(user_email, state)",
+);
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_applications_user_email_record_type ON applications(user_email, record_type)",
+);
+
+// Contacts table (people in the search: recruiters, referrers, hiring managers)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    contact_role TEXT,
+    employer TEXT,
+    email TEXT,
+    phone TEXT,
+    notes TEXT,
+    user_email TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_contacts_user_email ON contacts(user_email)",
+);
+
+// Join table: a contact can be linked to any number of records, each link
+// carrying the contact's relation to that record.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contact_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    relation TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (contact_id, application_id)
+  )
+`);
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_contact_links_application_id ON contact_links(application_id)",
+);
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_contact_links_contact_id ON contact_links(contact_id)",
+);
+
+// Row backups — the original row JSON of any row an operation removes, so a
+// destructive conversion can be undone. audit_log cannot serve this purpose:
+// it cascades on applications delete, so it vanishes with the row it documents.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS _row_backups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation TEXT NOT NULL,
+    source_table TEXT NOT NULL,
+    row_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // Audit log table (activity timeline for all mutations)
 db.exec(`
   CREATE TABLE IF NOT EXISTS audit_log (
