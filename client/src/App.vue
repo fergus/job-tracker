@@ -143,7 +143,7 @@
         <ApplicationPanel
             v-if="showPanel"
             :panelApp="panelApp"
-            :totalApplications="applications.length"
+            :totalApplications="pipelineCount"
             @close="closePanel"
             @saved="handlePanelSaved"
             @panel-app-updated="panelApp = $event"
