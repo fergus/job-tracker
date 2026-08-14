@@ -120,6 +120,7 @@
                     :showClosed="showClosed"
                     :statusVersion="statusVersion"
                     @status-change="handleStatusChange"
+                    @close-record="handleCloseRecord"
                     @select="openPanel"
                     @toggle-show-closed="toggleShowClosed"
                     @drag-active="dragActive = $event"
@@ -174,8 +175,9 @@ import {
     fetchApplications,
     fetchApplication,
     updateStatus,
+    updateApplication,
 } from "./api";
-import { TERMINAL_STAGES } from "./utils/timeline.js";
+import { isTerminal } from "./utils/timeline.js";
 import { useToast } from "./composables/useToast";
 import { storageGetBool, storageSet } from "./utils/storage.js";
 import { getErrorMessage } from "./utils/error.js";
@@ -234,18 +236,22 @@ const showClosed = ref(storageGetBool(SHOW_CLOSED_KEY, true));
 
 const displayApplications = computed(() => {
     if (showClosed.value) return applications.value;
-    return applications.value.filter(
-        (a) => !TERMINAL_STAGES.includes(a.status),
-    );
+    return applications.value.filter((a) => !isTerminal(a));
 });
 
 const closedCount = computed(() => {
     let count = 0;
     for (const a of applications.value) {
-        if (TERMINAL_STAGES.includes(a.status)) count++;
+        if (isTerminal(a)) count++;
     }
     return count;
 });
+
+// Leads are roles identified but never applied to. They are still records, but
+// counting them as pipeline is what made every conversion rate wrong.
+const pipelineCount = computed(
+    () => applications.value.filter((a) => a.record_type !== "lead").length,
+);
 
 function toggleShowClosed() {
     if (dragActive.value) return;
@@ -264,7 +270,7 @@ watch(showClosed, (visible) => {
     if (
         !visible &&
         panelApp.value &&
-        TERMINAL_STAGES.includes(panelApp.value.status)
+        isTerminal(panelApp.value)
     ) {
         showPanel.value = false;
     }
@@ -336,6 +342,29 @@ async function refreshApplication(id) {
             );
         }
     }
+}
+
+// Close a record without claiming why. The drag gesture knows the record is
+// over; it does not know whether that was a rejection.
+async function handleCloseRecord(id, closeReason = "unresolved") {
+    try {
+        await updateApplication(id, {
+            state: "closed",
+            close_reason: closeReason,
+        });
+    } catch (err) {
+        toast.error(
+            "Failed to close record — " +
+                (err.response?.data?.error || err.message),
+        );
+        await loadApplications();
+        statusVersion.value++;
+        return;
+    }
+    logoTrigger.value++;
+    await refreshApplication(id);
+    statusVersion.value++;
+    toast.success("Closed — set a reason in the panel");
 }
 
 async function handleStatusChange(id, status) {

@@ -7,20 +7,64 @@ export const STAGE_ORDER = [
 ];
 export const TERMINAL_STAGES = ["accepted", "rejected"];
 
-export function isTerminal(status) {
-    return TERMINAL_STAGES.includes(status);
+export const CLOSE_REASONS = [
+    "accepted",
+    "rejected",
+    "withdrawn",
+    "role_closed",
+    "lapsed",
+    "not_pursued",
+    "unresolved",
+];
+
+export const CLOSE_REASON_LABELS = {
+    accepted: "Offer accepted",
+    rejected: "Rejected",
+    withdrawn: "I withdrew",
+    role_closed: "Role closed",
+    lapsed: "No response",
+    not_pursued: "Never applied",
+    unresolved: "Reason unknown",
+};
+
+// `state` is authoritative where present. The status fallback keeps a record
+// rendering correctly mid-migration, before the backfill has been applied.
+export function isTerminal(statusOrApp) {
+    if (statusOrApp && typeof statusOrApp === "object") {
+        if (statusOrApp.state) return statusOrApp.state === "closed";
+        return TERMINAL_STAGES.includes(statusOrApp.status);
+    }
+    return TERMINAL_STAGES.includes(statusOrApp);
 }
 
-export function isMuted(status) {
-    return status === "rejected";
+// Only a genuine rejection is quieted. A record closed because the role was
+// filled or because it lapsed is not a failure and should not read as one.
+export function isMuted(statusOrApp) {
+    return isRejected(statusOrApp);
 }
 
-export function isRejected(status) {
-    return status === "rejected";
+export function isRejected(statusOrApp) {
+    if (statusOrApp && typeof statusOrApp === "object") {
+        if (statusOrApp.close_reason) {
+            return statusOrApp.close_reason === "rejected";
+        }
+        return statusOrApp.status === "rejected";
+    }
+    return statusOrApp === "rejected";
 }
 
-export function isAccepted(status) {
-    return status === "accepted";
+export function isAccepted(statusOrApp) {
+    if (statusOrApp && typeof statusOrApp === "object") {
+        if (statusOrApp.close_reason) {
+            return statusOrApp.close_reason === "accepted";
+        }
+        return statusOrApp.status === "accepted";
+    }
+    return statusOrApp === "accepted";
+}
+
+export function isLead(app) {
+    return app?.record_type === "lead";
 }
 
 const STAGE_DATE_MAP = {

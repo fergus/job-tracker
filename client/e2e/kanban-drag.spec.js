@@ -11,7 +11,7 @@ async function dragWithDelay(page, sourceLocator, targetLocator, delay = 150) {
   await page.mouse.up()
 }
 
-test('dragging offer card to closed column changes status to rejected on desktop', async ({ page, request }) => {
+test('dragging offer card to closed column closes it without claiming a rejection', async ({ page, request }) => {
   await request.post('/api/applications', {
     data: { company_name: 'OfferCorp', role_title: 'Engineer', status: 'offer' },
   })
@@ -26,15 +26,18 @@ test('dragging offer card to closed column changes status to rejected on desktop
   const closedDropZone = page.getByTestId('closed-drop-zone')
   await dragWithDelay(page, offerCard, closedDropZone)
 
-  // Wait for the status-change API call to complete
+  // Wait for the close API call to complete
   await page.waitForTimeout(500)
 
-  // Verify via API that the status was changed to rejected
+  // The drag says "this is over", not "they turned me down". The record closes
+  // with no reason claimed, and its stage is left where it actually got to.
   const response = await request.get('/api/applications')
   const apps = await response.json()
   const offerApp = apps.find(a => a.company_name === 'OfferCorp')
   expect(offerApp).toBeDefined()
-  expect(offerApp.status).toBe('rejected')
+  expect(offerApp.state).toBe('closed')
+  expect(offerApp.close_reason).toBe('unresolved')
+  expect(offerApp.stage).toBe('offer')
 })
 
 test('dragging rejected card from closed to active column changes status', async ({ page, request }) => {

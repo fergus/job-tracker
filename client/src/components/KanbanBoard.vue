@@ -223,7 +223,7 @@ import { reactive, watch, ref, computed, nextTick } from 'vue'
 // vuedraggable is being replaced for another reason.
 import draggable from 'vuedraggable'
 import KanbanCard from './KanbanCard.vue'
-import { TERMINAL_STAGES, isMuted } from '../utils/timeline.js'
+import { isMuted, isTerminal } from '../utils/timeline.js'
 
 const props = defineProps({
   applications: Array,
@@ -236,7 +236,7 @@ const props = defineProps({
 // column — including the hidden Closed column — to be mounted in the DOM for drag-and-drop
 // to work correctly across the board. showClosed therefore toggles visibility rather
 // than filtering the data upstream.
-const emit = defineEmits(['status-change', 'select', 'toggle-show-closed', 'drag-active', 'set-view'])
+const emit = defineEmits(['status-change', 'close-record', 'select', 'toggle-show-closed', 'drag-active', 'set-view'])
 
 const activeStages = [
   { value: 'interested', label: 'Interested' },
@@ -339,11 +339,16 @@ function onAcceptedAdded(evt) {
     const app = evt.added.element
     if (inFlightIds.value.has(app.id)) return
     if (app.status === 'accepted') return
-    // Drag from active column defaults to rejected per plan;
-    // drag from rejected within Closed changes to accepted
-    const newStatus = TERMINAL_STAGES.includes(app.status) ? 'accepted' : 'rejected'
     inFlightIds.value.add(app.id)
-    emit('status-change', app.id, newStatus)
+    // Dragging within Closed from a rejection promotes it to accepted.
+    // Dragging in from an active column closes the record without claiming a
+    // reason: the drag says "this is over", not "they turned me down". That
+    // conflation is what manufactured most of the false rejections.
+    if (isTerminal(app)) {
+      emit('status-change', app.id, 'accepted')
+    } else {
+      emit('close-record', app.id, 'unresolved')
+    }
   }
 }
 
@@ -351,9 +356,9 @@ function onRejectedAdded(evt) {
   if (evt.added) {
     const app = evt.added.element
     if (inFlightIds.value.has(app.id)) return
-    if (app.status !== 'rejected') {
+    if (!isTerminal(app)) {
       inFlightIds.value.add(app.id)
-      emit('status-change', app.id, 'rejected')
+      emit('close-record', app.id, 'unresolved')
     }
   }
 }
