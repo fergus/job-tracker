@@ -222,7 +222,13 @@ function listApplications(
                 `Invalid record_type: expected one of ${VALID_RECORD_TYPES.join(", ")}`,
             );
         }
-        conditions.push("COALESCE(a.record_type, 'application') = ?");
+        // Deriving the fallback rather than assuming 'application' matters:
+        // pre-backfill every row is null, so assuming would return the whole
+        // table for record_type=application -- the inflated count this change
+        // exists to fix -- and nothing at all for lead.
+        conditions.push(
+            `COALESCE(a.record_type, CASE WHEN a.status IN ('applied','responded','interview','offer','accepted') THEN 'application' ELSE 'lead' END) = ?`,
+        );
         params.push(record_type);
     }
 
@@ -655,10 +661,16 @@ function updateStatus(userEmail, id, status) {
         values.push(now);
     }
 
-    // Keep the split fields in step with the legacy write. The existing stage
-    // is carried through a close so the record still reads as having reached
-    // where it actually got to.
-    const triple = tripleFromStatus(status, existing.stage);
+    // Keep the split fields in step with the legacy write. A row the backfill
+    // has not reached carries its facts only in the legacy status and the stage
+    // dates, so derive from those first -- reading the raw null stage would
+    // collapse an `offer` row to `interested` and leave record_type null, which
+    // is exactly the half-written shape the apply selector skips forever.
+    const derived = deriveRecord(existing);
+    const currentStage = existing.stage ?? derived.stage;
+    const currentRecordType = existing.record_type ?? derived.record_type;
+
+    const triple = tripleFromStatus(status, currentStage);
     updates.push("stage = ?", "state = ?", "close_reason = ?");
     values.push(triple.stage, triple.state, triple.close_reason);
     if (triple.state === "open" && existing.closed_at) {
@@ -670,6 +682,11 @@ function updateStatus(userEmail, id, status) {
     if (evidencesApplication(triple.stage, status)) {
         updates.push("record_type = ?");
         values.push("application");
+    } else if (existing.record_type == null && currentRecordType) {
+        // Carry the derived type onto a legacy row rather than leaving it
+        // partially written.
+        updates.push("record_type = ?");
+        values.push(currentRecordType);
     }
 
     values.push(id);

@@ -65,6 +65,7 @@
               item-key="id"
               :delay="100"
               :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
+              data-testid="accepted-drop-zone"
               @change="onAcceptedAdded"
               @start="dragActive = true"
               @end="dragActive = false"
@@ -340,15 +341,11 @@ function onAcceptedAdded(evt) {
     if (inFlightIds.value.has(app.id)) return
     if (app.status === 'accepted') return
     inFlightIds.value.add(app.id)
-    // Dragging within Closed from a rejection promotes it to accepted.
-    // Dragging in from an active column closes the record without claiming a
-    // reason: the drag says "this is over", not "they turned me down". That
-    // conflation is what manufactured most of the false rejections.
-    if (isTerminal(app)) {
-      emit('status-change', app.id, 'accepted')
-    } else {
-      emit('close-record', app.id, 'unresolved')
-    }
+    // The drop target names the outcome. Dropping on Accepted means accepted,
+    // whether the card came from an active column or from Rejected -- closing
+    // it as 'unresolved' instead re-derived status='rejected', so the card
+    // reappeared under Rejected and acceptance was unrepresentable from the board.
+    emit('close-record', app.id, 'accepted')
   }
 }
 

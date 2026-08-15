@@ -539,3 +539,118 @@ describe("MCP surfaces contact errors as tool errors", () => {
         assert.throws(() => toolError(new Error("boom")), /boom/);
     });
 });
+
+describe("the legacy PATCH /status path preserves legacy rows too", () => {
+    // The panel's status pills and the kanban's status-change events both use
+    // PATCH /status, so this is the common route -- and it was the one left
+    // reading the raw nullable columns after the PUT path was fixed.
+    const PILL_USER = "pills@example.com";
+    const db = require("../db");
+
+    function asPillUser(r) {
+        return r.set("X-Forwarded-Email", PILL_USER).set("X-Forwarded-User", PILL_USER);
+    }
+
+    function seedLegacyRow(company, status, extra = {}) {
+        return db
+            .prepare(
+                `INSERT INTO applications
+                 (company_name, role_title, status, created_at, updated_at,
+                  interested_at, applied_at, interview_at, offer_at, closed_at, user_email)
+                 VALUES (?, 'Engineer', ?, datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?)`,
+            )
+            .run(
+                company,
+                status,
+                extra.interested_at ?? "2026-01-01",
+                extra.applied_at ?? null,
+                extra.interview_at ?? null,
+                extra.offer_at ?? null,
+                extra.closed_at ?? null,
+                PILL_USER,
+            ).lastInsertRowid;
+    }
+
+    function splitOf(id) {
+        return db
+            .prepare(
+                "SELECT stage, state, close_reason, record_type, status FROM applications WHERE id = ?",
+            )
+            .get(id);
+    }
+
+    test("closing a legacy offer row through the pills keeps the stage", async () => {
+        const id = seedLegacyRow("Pill Offer", "offer", {
+            applied_at: "2026-01-02",
+            offer_at: "2026-01-20",
+        });
+
+        const res = await asPillUser(req.patch(`/api/applications/${id}/status`)).send({
+            status: "rejected",
+        });
+        assert.equal(res.status, 200);
+
+        const row = splitOf(id);
+        assert.equal(row.stage, "offer", "the offer stage must not collapse to interested");
+        assert.equal(row.state, "closed");
+        assert.equal(row.close_reason, "rejected");
+        assert.equal(row.record_type, "application");
+    });
+
+    test("closing a legacy row through the pills does not strand it from the backfill", async () => {
+        const id = seedLegacyRow("Pill Stranded", "interview", {
+            applied_at: "2026-01-02",
+            interview_at: "2026-01-10",
+        });
+
+        await asPillUser(req.patch(`/api/applications/${id}/status`)).send({
+            status: "rejected",
+        });
+
+        const row = splitOf(id);
+        const halfWritten =
+            row.stage !== null &&
+            (row.state === null || row.close_reason === null || row.record_type === null);
+        assert.equal(
+            halfWritten,
+            false,
+            "a half-written row is skipped by the apply selector forever",
+        );
+    });
+
+    test("closing a legacy never-applied row through the pills stays a lead", async () => {
+        const id = seedLegacyRow("Pill Lead", "interested");
+
+        await asPillUser(req.patch(`/api/applications/${id}/status`)).send({
+            status: "rejected",
+        });
+
+        const row = splitOf(id);
+        assert.equal(row.record_type, "lead");
+        assert.equal(row.stage, "interested");
+    });
+
+    test("the record_type filter derives from the legacy status before the backfill runs", async () => {
+        // Assuming 'application' for a null column would return the leads too --
+        // exactly the inflated count this change exists to fix.
+        seedLegacyRow("Filter Applied", "applied", { applied_at: "2026-01-02" });
+        seedLegacyRow("Filter Lead", "interested");
+
+        const apps = await asPillUser(
+            req.get("/api/applications?record_type=application"),
+        );
+        assert.equal(apps.status, 200);
+        assert.ok(apps.body.some((a) => a.company_name === "Filter Applied"));
+        assert.ok(
+            !apps.body.some((a) => a.company_name === "Filter Lead"),
+            "a never-applied legacy row must not count as an application",
+        );
+
+        const leads = await asPillUser(req.get("/api/applications?record_type=lead"));
+        assert.equal(leads.status, 200);
+        assert.ok(
+            leads.body.some((a) => a.company_name === "Filter Lead"),
+            "filtering for leads must find un-backfilled leads, not nothing",
+        );
+    });
+});

@@ -90,3 +90,35 @@ test('dragging an accepted card into Rejected records a rejection, not a no-op',
   expect(app.state).toBe('closed')
   expect(app.close_reason).toBe('rejected')
 })
+
+test('dragging an open card into Accepted records an acceptance, not a rejection', async ({ page, request }) => {
+  await request.post('/api/applications', {
+    data: { company_name: 'AcceptMeCorp', role_title: 'Engineer', status: 'offer' },
+  })
+
+  await page.goto('/')
+  await expect(page.getByText('AcceptMeCorp').first()).toBeVisible()
+
+  const openCard = page.getByText('AcceptMeCorp').first()
+  const acceptedDropZone = page.getByTestId('accepted-drop-zone')
+  await dragWithDelay(page, openCard, acceptedDropZone)
+
+  await page.waitForTimeout(500)
+
+  // The drop target names the outcome. Closing as 'unresolved' re-derived
+  // status='rejected', so the card reappeared under Rejected and acceptance
+  // was unrepresentable from the board.
+  const response = await request.get('/api/applications')
+  const apps = await response.json()
+  const app = apps.find(a => a.company_name === 'AcceptMeCorp')
+  expect(app).toBeDefined()
+  expect(app.state).toBe('closed')
+  expect(app.close_reason).toBe('accepted')
+  expect(app.status).toBe('accepted')
+  expect(app.stage).toBe('offer')
+
+  // The suite shares one in-memory DB with no per-test reset, so leave the
+  // Closed column as we found it -- an extra closed card shifts the layout
+  // that the show-older toggle test depends on.
+  await request.delete(`/api/applications/${app.id}`)
+})
