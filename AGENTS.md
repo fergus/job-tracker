@@ -180,7 +180,7 @@ SQLite with WAL mode and foreign keys enabled.
 - `applications` — job details, dates, salary, location, CV/cover letter paths, `user_email`, plus the status split: `stage` (how far it got), `state` (`open`/`closed`), `close_reason`, and `record_type` (`application`/`lead`)
 - `contacts` — people in the search (recruiters, referrers, hiring managers), scoped by `user_email`
 - `contact_links` — joins a contact to a record with a `relation`; cascade-deletes from both sides
-- `_row_backups` — original row JSON for any row a destructive operation removes
+- `_row_backups` — original row JSON (plus its notes, attachments and contact links) for any row a destructive operation removes. There is **no automated restore path**: the backup makes a conversion recoverable by hand, and keeps the orphaned-file sweep from deleting the row's uploads. Treat "reversible" as "the data is still there", not "there is an undo button".
 - `stage_notes` — per-application notes with stage and markdown content
 - `attachments` — generic file attachments (cascade-delete with application)
 - `api_keys` — hashed keys per user, with label and last-used tracking
