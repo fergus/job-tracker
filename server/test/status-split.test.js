@@ -409,3 +409,133 @@ describe("U4 validation", () => {
         assert.equal(res.status, 400);
     });
 });
+
+describe("legacy rows keep their facts when the split fields are written", () => {
+    // Until SCHEMA_BACKFILL=apply runs, every existing row has NULL split
+    // columns and carries its facts only in the legacy status. Writing the
+    // split fields from those NULLs would destroy them.
+    const LEGACY_USER = "legacy@example.com";
+    const db = require("../db");
+
+    function asLegacyUser(r) {
+        return r
+            .set("X-Forwarded-Email", LEGACY_USER)
+            .set("X-Forwarded-User", LEGACY_USER);
+    }
+
+    function seedLegacyRow(company, status, extra = {}) {
+        const info = db
+            .prepare(
+                `INSERT INTO applications
+                 (company_name, role_title, status, created_at, updated_at,
+                  interested_at, applied_at, interview_at, offer_at, closed_at, user_email)
+                 VALUES (?, 'Engineer', ?, datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?)`,
+            )
+            .run(
+                company,
+                status,
+                extra.interested_at ?? "2026-01-01",
+                extra.applied_at ?? null,
+                extra.interview_at ?? null,
+                extra.offer_at ?? null,
+                extra.closed_at ?? null,
+                LEGACY_USER,
+            );
+        return info.lastInsertRowid;
+    }
+
+    test("closing a legacy offer row keeps the stage it reached", async () => {
+        const id = seedLegacyRow("Legacy Offer", "offer", {
+            applied_at: "2026-01-02",
+            offer_at: "2026-01-20",
+        });
+
+        const res = await asLegacyUser(req.put(`/api/applications/${id}`)).send({
+            state: "closed",
+            close_reason: "withdrawn",
+        });
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.equal(
+            res.body.stage,
+            "offer",
+            "the record reached offer; closing must not erase that",
+        );
+        assert.equal(res.body.state, "closed");
+        assert.equal(res.body.close_reason, "withdrawn");
+    });
+
+    test("closing a legacy row fills record_type rather than leaving it half-written", async () => {
+        const id = seedLegacyRow("Legacy Typed", "interview", {
+            applied_at: "2026-01-02",
+            interview_at: "2026-01-10",
+        });
+
+        const res = await asLegacyUser(req.put(`/api/applications/${id}`)).send({
+            state: "closed",
+            close_reason: "role_closed",
+        });
+        assert.equal(res.status, 200);
+        assert.equal(
+            res.body.record_type,
+            "application",
+            "a half-written row would be skipped by the backfill selector forever",
+        );
+    });
+
+    test("closing a legacy never-applied row stays a lead", async () => {
+        const id = seedLegacyRow("Legacy Lead", "interested");
+
+        const res = await asLegacyUser(req.put(`/api/applications/${id}`)).send({
+            state: "closed",
+            close_reason: "not_pursued",
+        });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.record_type, "lead");
+        assert.equal(res.body.stage, "interested");
+    });
+
+    test("reopening through the legacy status path clears closed_at", async () => {
+        const id = seedLegacyRow("Legacy Reopen", "rejected", {
+            applied_at: "2026-01-02",
+            closed_at: "2026-01-20T00:00:00.000Z",
+        });
+
+        const reopened = await asLegacyUser(
+            req.patch(`/api/applications/${id}/status`),
+        ).send({ status: "interview" });
+        assert.equal(reopened.status, 200);
+        assert.equal(
+            reopened.body.closed_at,
+            null,
+            "a stale closure date makes a later re-close report the wrong day",
+        );
+
+        const reclosed = await asLegacyUser(req.put(`/api/applications/${id}`)).send({
+            state: "closed",
+            close_reason: "lapsed",
+        });
+        assert.ok(reclosed.body.closed_at);
+        assert.notEqual(reclosed.body.closed_at, "2026-01-20T00:00:00.000Z");
+    });
+});
+
+describe("MCP surfaces contact errors as tool errors", () => {
+    const { toolError } = require("../mcp");
+    const contactsSvc = require("../services/contacts");
+    const appsSvc = require("../services/applications");
+
+    test("a contacts ServiceError becomes an isError result, not a thrown error", () => {
+        const result = toolError(new contactsSvc.ServiceError(404, "Not found"));
+        assert.equal(result.isError, true);
+        assert.match(result.content[0].text, /404/);
+    });
+
+    test("an applications ServiceError still becomes an isError result", () => {
+        const result = toolError(new appsSvc.ServiceError(400, "Invalid state"));
+        assert.equal(result.isError, true);
+    });
+
+    test("an unexpected error still propagates", () => {
+        assert.throws(() => toolError(new Error("boom")), /boom/);
+    });
+});

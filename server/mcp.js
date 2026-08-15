@@ -24,7 +24,10 @@ const { emitChange } = require("./lib/events");
 
 // Convert a ServiceError into MCP tool content so the LLM sees the message.
 function toolError(err) {
-    if (err instanceof svc.ServiceError) {
+    // The contacts service defines its own ServiceError, so checking only the
+    // applications class would rethrow an ordinary 404 or 409 from a contact
+    // tool as an unhandled JSON-RPC error instead of an isError result.
+    if (err instanceof svc.ServiceError || err instanceof contactsSvc.ServiceError) {
         return {
             content: [
                 { type: "text", text: `Error ${err.status}: ${err.message}` },
@@ -1326,4 +1329,4 @@ function startMcpServer(port) {
     return httpServer;
 }
 
-module.exports = { startMcpServer };
+module.exports = { startMcpServer, toolError };

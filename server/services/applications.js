@@ -7,6 +7,7 @@ const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
 const { isValidUrl } = require("../lib/validation");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 const { emitChange } = require("../lib/events");
+const { deriveRecord } = require("./migration-backfill");
 
 class ServiceError extends Error {
     constructor(status, message) {
@@ -535,8 +536,21 @@ function updateApplication(userEmail, id, data) {
         data.close_reason !== undefined;
 
     if (touchesSplit) {
-        const nextStage = data.stage !== undefined ? data.stage : existing.stage;
-        const nextState = data.state !== undefined ? data.state : existing.state;
+        // A row the backfill has not reached carries its facts only in the
+        // legacy status and the stage dates, so derive from those with the
+        // same rules the backfill uses -- an edit before the apply then agrees
+        // with what the apply would have written. Reading the null columns
+        // directly would write stage = NULL and collapse status to 'rejected',
+        // destroying how far the record actually got, and would leave the row
+        // half-written so the apply selector skips it forever.
+        const derived = deriveRecord(existing);
+        const currentStage = existing.stage ?? derived.stage;
+        const currentState = existing.state ?? derived.state;
+        const currentCloseReason = existing.close_reason ?? derived.close_reason;
+        const currentRecordType = existing.record_type ?? derived.record_type;
+
+        const nextStage = data.stage !== undefined ? data.stage : currentStage;
+        const nextState = data.state !== undefined ? data.state : currentState;
 
         let nextCloseReason;
         if (data.state === "open") {
@@ -548,7 +562,7 @@ function updateApplication(userEmail, id, data) {
         } else if (data.close_reason !== undefined) {
             nextCloseReason = data.close_reason;
         } else {
-            nextCloseReason = existing.close_reason;
+            nextCloseReason = currentCloseReason;
         }
 
         if (nextState !== "closed" && nextCloseReason) {
@@ -590,12 +604,16 @@ function updateApplication(userEmail, id, data) {
         // Advancing the stage through the new shape is the same evidence a
         // legacy status write carries, so promote record_type the same way --
         // unless the caller set it explicitly below.
-        if (
-            data.record_type === undefined &&
-            evidencesApplication(nextStage, statusFromTriple(nextTriple))
-        ) {
-            updates.push("record_type = ?");
-            values.push("application");
+        if (data.record_type === undefined) {
+            if (evidencesApplication(nextStage, statusFromTriple(nextTriple))) {
+                updates.push("record_type = ?");
+                values.push("application");
+            } else if (existing.record_type == null && currentRecordType) {
+                // Carry the derived type onto a legacy row, so writing the
+                // split fields does not leave it partially derived.
+                updates.push("record_type = ?");
+                values.push(currentRecordType);
+            }
         }
     }
 
@@ -643,6 +661,12 @@ function updateStatus(userEmail, id, status) {
     const triple = tripleFromStatus(status, existing.stage);
     updates.push("stage = ?", "state = ?", "close_reason = ?");
     values.push(triple.stage, triple.state, triple.close_reason);
+    if (triple.state === "open" && existing.closed_at) {
+        // Reopening through the legacy path must clear the closure date too,
+        // or a later close keeps reporting when the record first ended.
+        updates.push("closed_at = ?");
+        values.push(null);
+    }
     if (evidencesApplication(triple.stage, status)) {
         updates.push("record_type = ?");
         values.push("application");
