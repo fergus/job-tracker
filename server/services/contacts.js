@@ -241,6 +241,17 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
         )
         .all(applicationId);
 
+    // Everything that cascades off the application row has to go into the
+    // backup, or the conversion is not actually reversible. Attachments matter
+    // most: their rows cascade away, and the orphaned-file sweep then unlinks
+    // the files themselves on the next restart.
+    const attachments = db
+        .prepare("SELECT * FROM attachments WHERE application_id = ?")
+        .all(applicationId);
+    const links = db
+        .prepare("SELECT * FROM contact_links WHERE application_id = ?")
+        .all(applicationId);
+
     // Carry the row's prose across so nothing is lost with the cascade.
     const carried = [
         data.notes,
@@ -260,7 +271,12 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
         ).run(
             CONVERT_OPERATION,
             "applications",
-            JSON.stringify({ application, stage_notes: notes }),
+            JSON.stringify({
+                application,
+                stage_notes: notes,
+                attachments,
+                contact_links: links,
+            }),
         );
 
         contactId = db
@@ -278,17 +294,25 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
                 userEmail,
             ).lastInsertRowid;
 
-        // Logged before the delete: the row-scoped entries cascade away with it.
+        // application_id is deliberately NULL. audit_log.application_id is
+        // ON DELETE CASCADE, so an entry carrying the id would be destroyed by
+        // the very delete it exists to document -- writing it before the delete
+        // does not help, because the cascade fires inside this transaction.
+        // The original id lives in details instead.
         db.prepare(
             `INSERT INTO audit_log (application_id, user_email, action, source, auth_method, details, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
         ).run(
-            applicationId,
+            null,
             userEmail,
             CONVERT_OPERATION,
             "rest",
             "oauth",
-            JSON.stringify({ contact_id: contactId, name }),
+            JSON.stringify({
+                application_id: Number(applicationId),
+                contact_id: contactId,
+                name,
+            }),
             new Date().toISOString(),
         );
 

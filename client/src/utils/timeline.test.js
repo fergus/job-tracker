@@ -4,6 +4,10 @@ import {
     STAGE_ORDER,
     TERMINAL_STAGES,
     isTerminal,
+    isMuted,
+    isRejected,
+    isAccepted,
+    isLead,
     stageColor,
     computeSegments,
     durationDays,
@@ -158,4 +162,54 @@ test("computeSegments adds terminal segment for accepted apps", () => {
     assert.strictEqual(last.start, "2026-02-01T00:00:00Z");
     assert.strictEqual(last.end, "2026-02-01T00:00:00Z");
     assert.strictEqual(last.isTrailing, false);
+});
+
+// --- Record-aware predicates (the status split) ---
+//
+// These take a record, not a status string. The string overload is retained
+// only for the places where a bare stage is all that is available.
+
+test("isTerminal reads state when the record carries it", () => {
+    assert.equal(isTerminal({ state: "closed", status: "applied" }), true);
+    assert.equal(isTerminal({ state: "open", status: "rejected" }), false);
+});
+
+test("isTerminal falls back to status before the backfill has run", () => {
+    assert.equal(isTerminal({ status: "rejected" }), true);
+    assert.equal(isTerminal({ status: "applied" }), false);
+});
+
+test("only a genuine rejection is quieted", () => {
+    assert.equal(isMuted({ state: "closed", close_reason: "rejected" }), true);
+    for (const reason of ["withdrawn", "role_closed", "lapsed", "not_pursued", "unresolved"]) {
+        assert.equal(
+            isMuted({ state: "closed", close_reason: reason }),
+            false,
+            `${reason} is not a failure and must not read as one`,
+        );
+    }
+});
+
+test("a record closed for an unnamed reason is not styled as a rejection", () => {
+    // The status compatibility column collapses every non-acceptance close
+    // onto 'rejected', so reading it would grey out the whole Closed column.
+    const record = { state: "closed", close_reason: "unresolved", status: "rejected" };
+    assert.equal(isMuted(record), false);
+});
+
+test("isAccepted reads close_reason when present, status otherwise", () => {
+    assert.equal(isAccepted({ state: "closed", close_reason: "accepted" }), true);
+    assert.equal(isAccepted({ state: "closed", close_reason: "withdrawn" }), false);
+    assert.equal(isAccepted({ status: "accepted" }), true);
+});
+
+test("isLead identifies a role that was never applied to", () => {
+    assert.equal(isLead({ record_type: "lead" }), true);
+    assert.equal(isLead({ record_type: "application" }), false);
+    assert.equal(isLead({}), false);
+});
+
+test("the string overload still works for a bare stage", () => {
+    assert.equal(isRejected("rejected"), true);
+    assert.equal(isTerminal("accepted"), true);
 });

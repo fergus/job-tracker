@@ -347,6 +347,131 @@ describe("U3 backfill gating and apply", () => {
         db.close();
     });
 
+    test("does not overwrite a record the operator closed during the report window", () => {
+        // The app stays writable between report mode and apply. A record closed
+        // through the new shape has state and close_reason but no stage; keying
+        // resume on stage alone would let the backfill infer a rejection over
+        // the reason the operator actually chose.
+        const dbPath = makeDbPath("gate-live-close");
+        seedFixture(dbPath);
+        bootStartup(dbPath);
+
+        const live = new Database(dbPath);
+        live.prepare(
+            `UPDATE applications
+             SET state = 'closed', close_reason = 'withdrawn', status = 'rejected'
+             WHERE company_name = 'Open'`,
+        ).run();
+        live.close();
+
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+
+        const db = new Database(dbPath, { readonly: true });
+        const row = db
+            .prepare("SELECT * FROM applications WHERE company_name = 'Open'")
+            .get();
+        assert.equal(
+            row.close_reason,
+            "withdrawn",
+            "the operator's reason must survive the backfill",
+        );
+        db.close();
+    });
+
+    test("does not strand a record that received a stage before the apply", () => {
+        const dbPath = makeDbPath("gate-live-stage");
+        seedFixture(dbPath);
+        bootStartup(dbPath);
+
+        const live = new Database(dbPath);
+        live.prepare(
+            "UPDATE applications SET stage = 'interested' WHERE company_name = 'Never Applied'",
+        ).run();
+        live.close();
+
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+
+        const db = new Database(dbPath, { readonly: true });
+        const row = db
+            .prepare("SELECT * FROM applications WHERE company_name = 'Never Applied'")
+            .get();
+        // The row is excluded from the backfill by design, but it must not be
+        // silently left half-derived without anyone noticing.
+        assert.equal(row.stage, "interested");
+        const stranded = db
+            .prepare(
+                "SELECT COUNT(*) c FROM applications WHERE stage IS NOT NULL AND state IS NULL",
+            )
+            .get().c;
+        assert.equal(
+            stranded,
+            1,
+            "a partially-written row stays visible as partially written",
+        );
+        db.close();
+    });
+
+    test("does not mark the migration complete while records remain unclassified", () => {
+        const dbPath = makeDbPath("gate-incomplete");
+        seedFixture(dbPath);
+        const seed = new Database(dbPath);
+        seed.prepare(
+            `INSERT INTO applications (company_name, role_title, status, created_at, updated_at, user_email)
+             VALUES ('Odd Status', 'Engineer', 'on_hold', datetime('now'), datetime('now'), 'dev@localhost')`,
+        ).run();
+        seed.close();
+
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+
+        const db = new Database(dbPath, { readonly: true });
+        const recorded = db
+            .prepare("SELECT COUNT(*) c FROM _migrations WHERE name = ?")
+            .get("status_split_backfill").c;
+        assert.equal(
+            recorded,
+            0,
+            "recording it would gate the block off and strand the skipped row forever",
+        );
+        // The classifiable rows were still written.
+        const written = db
+            .prepare("SELECT COUNT(*) c FROM applications WHERE stage IS NOT NULL")
+            .get().c;
+        assert.equal(written, 4);
+        db.close();
+    });
+
+    test("finishes the migration once the odd statuses are fixed", () => {
+        const dbPath = makeDbPath("gate-retry");
+        seedFixture(dbPath);
+        const seed = new Database(dbPath);
+        seed.prepare(
+            `INSERT INTO applications (company_name, role_title, status, created_at, updated_at, user_email)
+             VALUES ('Odd Status', 'Engineer', 'on_hold', datetime('now'), datetime('now'), 'dev@localhost')`,
+        ).run();
+        seed.close();
+
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+
+        const fix = new Database(dbPath);
+        fix.prepare(
+            "UPDATE applications SET status = 'interested' WHERE company_name = 'Odd Status'",
+        ).run();
+        fix.close();
+
+        bootStartup(dbPath, { SCHEMA_BACKFILL: "apply" });
+
+        const db = new Database(dbPath, { readonly: true });
+        const remaining = db
+            .prepare("SELECT COUNT(*) c FROM applications WHERE stage IS NULL")
+            .get().c;
+        assert.equal(remaining, 0);
+        const recorded = db
+            .prepare("SELECT COUNT(*) c FROM _migrations WHERE name = ?")
+            .get("status_split_backfill").c;
+        assert.equal(recorded, 1);
+        db.close();
+    });
+
     test("skips a record whose status it does not understand", () => {
         const dbPath = makeDbPath("gate-unknown");
         seedFixture(dbPath);

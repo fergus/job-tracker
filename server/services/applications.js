@@ -82,6 +82,16 @@ function tripleFromStatus(status, currentStage) {
     return { stage: status, state: "open", close_reason: null };
 }
 
+// A record is an application once something evidences it was actually applied
+// to: a stage at or beyond `applied`, or an acceptance. Closing is NOT such
+// evidence -- a lead you close is still a lead, and treating a close as proof
+// of an application is the exact conflation this split exists to undo.
+function evidencesApplication(stage, status) {
+    if (status === "accepted") return true;
+    if (!stage) return false;
+    return VALID_STAGES.indexOf(stage) >= VALID_STAGES.indexOf("applied");
+}
+
 // Derive the legacy status from the triple. Lossy in this direction by design:
 // the legacy column has exactly one failure state, so every non-acceptance
 // close collapses onto `rejected`.
@@ -161,7 +171,13 @@ function listApplications(
         params.push(userEmail);
     }
 
-    if (status && VALID_STATUSES.includes(status)) {
+    if (status !== undefined && status !== null && status !== "") {
+        if (!VALID_STATUSES.includes(status)) {
+            throw new ServiceError(
+                400,
+                `Invalid status: expected one of ${VALID_STATUSES.join(", ")}`,
+            );
+        }
         conditions.push("a.status = ?");
         params.push(status);
     }
@@ -176,7 +192,12 @@ function listApplications(
                 `Invalid state: expected one of ${VALID_STATES.join(", ")}`,
             );
         }
-        conditions.push("a.state = ?");
+        // Fall back to the legacy status for rows the backfill has not reached.
+        // Filtering on the bare column would return nothing at all before the
+        // apply runs -- which is the default deployed state.
+        conditions.push(
+            `COALESCE(a.state, CASE WHEN a.status IN ('accepted','rejected') THEN 'closed' ELSE 'open' END) = ?`,
+        );
         params.push(state);
     }
 
@@ -187,7 +208,9 @@ function listApplications(
                 `Invalid close_reason: expected one of ${VALID_CLOSE_REASONS.join(", ")}`,
             );
         }
-        conditions.push("a.close_reason = ?");
+        conditions.push(
+            `COALESCE(a.close_reason, CASE a.status WHEN 'accepted' THEN 'accepted' WHEN 'rejected' THEN 'rejected' END) = ?`,
+        );
         params.push(close_reason);
     }
 
@@ -198,7 +221,7 @@ function listApplications(
                 `Invalid record_type: expected one of ${VALID_RECORD_TYPES.join(", ")}`,
             );
         }
-        conditions.push("a.record_type = ?");
+        conditions.push("COALESCE(a.record_type, 'application') = ?");
         params.push(record_type);
     }
 
@@ -339,11 +362,9 @@ function createApplication(userEmail, data) {
     const triple = tripleFromStatus(appStatus, null);
     // A record created at or beyond `applied` is one that was applied to;
     // anything earlier is a lead until it progresses.
-    const recordType =
-        triple.state === "closed" ||
-        VALID_STAGES.indexOf(triple.stage) >= VALID_STAGES.indexOf("applied")
-            ? "application"
-            : "lead";
+    const recordType = evidencesApplication(triple.stage, appStatus)
+        ? "application"
+        : "lead";
 
     const result = db
         .prepare(
@@ -556,10 +577,25 @@ function updateApplication(userEmail, id, data) {
             statusFromTriple(nextTriple),
         );
 
-        const dateField = nextState === "closed" ? "closed_at" : null;
-        if (dateField && !existing.closed_at) {
+        if (nextState === "closed" && !existing.closed_at) {
             updates.push("closed_at = ?");
             values.push(new Date().toISOString());
+        } else if (data.state === "open") {
+            // Clear it on reopen, so a later re-close records when the record
+            // actually ended rather than when it first did.
+            updates.push("closed_at = ?");
+            values.push(null);
+        }
+
+        // Advancing the stage through the new shape is the same evidence a
+        // legacy status write carries, so promote record_type the same way --
+        // unless the caller set it explicitly below.
+        if (
+            data.record_type === undefined &&
+            evidencesApplication(nextStage, statusFromTriple(nextTriple))
+        ) {
+            updates.push("record_type = ?");
+            values.push("application");
         }
     }
 
@@ -607,10 +643,7 @@ function updateStatus(userEmail, id, status) {
     const triple = tripleFromStatus(status, existing.stage);
     updates.push("stage = ?", "state = ?", "close_reason = ?");
     values.push(triple.stage, triple.state, triple.close_reason);
-    if (
-        triple.state === "closed" ||
-        VALID_STAGES.indexOf(triple.stage) >= VALID_STAGES.indexOf("applied")
-    ) {
+    if (evidencesApplication(triple.stage, status)) {
         updates.push("record_type = ?");
         values.push("application");
     }

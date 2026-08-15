@@ -498,10 +498,19 @@ if (!statusSplitApplied) {
 
     if (applyRequested) {
         db.transaction(() => {
-            // A non-null stage marks a record an earlier partial run already
-            // handled, so an interrupted apply resumes rather than redoing work.
+            // Only rows nothing has touched. Keying resume on `stage` alone was
+            // wrong in both directions: the app stays writable during the
+            // report-then-apply window, so a record closed through the new
+            // shape has state and close_reason but no stage -- the backfill
+            // would have overwritten the operator's reason with an inferred
+            // rejection -- while a record given only a stage would be skipped
+            // forever with state and record_type left null.
             const rows = db
-                .prepare("SELECT * FROM applications WHERE stage IS NULL")
+                .prepare(
+                    `SELECT * FROM applications
+                     WHERE stage IS NULL AND state IS NULL
+                       AND close_reason IS NULL AND record_type IS NULL`,
+                )
                 .all();
             const update = db.prepare(
                 `UPDATE applications
@@ -524,9 +533,17 @@ if (!statusSplitApplied) {
                 if (d.review) flagged++;
             }
 
-            db.prepare(
-                "INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))",
-            ).run(STATUS_SPLIT_MIGRATION);
+            // Only record the migration as done when every row was classified.
+            // Recording it while rows were skipped would gate the whole block
+            // off and strand those rows at null forever, since nothing revisits
+            // them. Leaving it unrecorded means the operator fixes the odd
+            // statuses and re-runs; rows already written are excluded by the
+            // selector above, so the retry does no double work.
+            if (skipped === 0) {
+                db.prepare(
+                    "INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))",
+                ).run(STATUS_SPLIT_MIGRATION);
+            }
 
             console.log(
                 `[status-split] Applied. written=${written} flagged=${flagged} unclassified=${skipped}`,
@@ -534,6 +551,12 @@ if (!statusSplitApplied) {
             if (flagged > 0) {
                 console.log(
                     `[status-split] ${flagged} record(s) carry close_reason='unresolved' and need review.`,
+                );
+            }
+            if (skipped > 0) {
+                console.warn(
+                    `[status-split] NOT marked complete: ${skipped} record(s) have a status the rules do not understand. ` +
+                        `Fix those statuses and restart with SCHEMA_BACKFILL=apply to finish.`,
                 );
             }
         })();
@@ -598,6 +621,27 @@ function runOrphanedFileSweep() {
         .all();
     for (const att of attachments) {
         referenced.add(att.stored_filename);
+    }
+
+    // Files belonging to rows a destructive operation backed up are still
+    // referenced -- by the backup. Sweeping them would make an operation that
+    // promises reversibility silently irreversible on the next restart.
+    const backups = db.prepare("SELECT row_json FROM _row_backups").all();
+    for (const backup of backups) {
+        let parsed;
+        try {
+            parsed = JSON.parse(backup.row_json);
+        } catch {
+            continue;
+        }
+        for (const att of parsed.attachments || []) {
+            if (att.stored_filename) referenced.add(att.stored_filename);
+        }
+        const app = parsed.application;
+        if (app) {
+            if (app.cv_path) referenced.add(app.cv_path);
+            if (app.cover_letter_path) referenced.add(app.cover_letter_path);
+        }
     }
 
     const files = fs.readdirSync(uploadsDir);

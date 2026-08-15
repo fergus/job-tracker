@@ -117,7 +117,7 @@
             <span
               :class="[
                 'text-sm font-condensed font-semibold leading-tight block truncate',
-                isRejected(app.status) ? 'text-ink-3' : 'text-ink'
+                isRejected(app) ? 'text-ink-3' : 'text-ink'
               ]"
             >
               {{ app.company_name }}
@@ -125,7 +125,7 @@
             <span
               :class="[
                 'text-xs leading-tight block truncate',
-                isRejected(app.status) ? 'text-ink-3 opacity-60' : 'text-ink-3'
+                isRejected(app) ? 'text-ink-3 opacity-60' : 'text-ink-3'
               ]"
             >
               {{ app.role_title }}
@@ -289,7 +289,7 @@ const groupedApps = computed(() => {
 })
 
 const summary = computed(() => {
-  const active = props.applications?.filter(a => !isTerminal(a.status)).length || 0
+  const active = props.applications?.filter(a => !isTerminal(a)).length || 0
   let stalled = 0
   let totalCurrent = 0
   let countCurrent = 0
@@ -298,8 +298,8 @@ const summary = computed(() => {
     const last = segs[segs.length - 1]
     if (last) {
       const dur = durationDays(last.start, last.end)
-      if (dur > 30 && !isTerminal(app.status)) stalled++
-      if (!isTerminal(app.status)) {
+      if (dur > 30 && !isTerminal(app)) stalled++
+      if (!isTerminal(app)) {
         totalCurrent += dur
         countCurrent++
       }

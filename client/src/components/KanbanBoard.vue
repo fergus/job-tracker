@@ -70,7 +70,7 @@
               @end="dragActive = false"
             >
               <template #item="{ element }">
-                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
+                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
               </template>
             </draggable>
           </div>
@@ -95,7 +95,7 @@
               @end="dragActive = false"
             >
               <template #item="{ element }">
-                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
+                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
               </template>
             </draggable>
           </div>
@@ -115,7 +115,7 @@
               :key="app.id"
               :application="app"
               :showUser="showUser"
-              :quiet="isMuted(app.status)"
+              :quiet="isMuted(app)"
               @select="$emit('select', app)"
             />
           </div>
@@ -201,7 +201,7 @@
                 @end="dragActive = false"
               >
                 <template #item="{ element }">
-                  <KanbanCard :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
+                  <KanbanCard :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
                 </template>
               </draggable>
             </div>
@@ -223,7 +223,7 @@ import { reactive, watch, ref, computed, nextTick } from 'vue'
 // vuedraggable is being replaced for another reason.
 import draggable from 'vuedraggable'
 import KanbanCard from './KanbanCard.vue'
-import { isMuted, isTerminal } from '../utils/timeline.js'
+import { isMuted, isTerminal, isAccepted } from '../utils/timeline.js'
 
 const props = defineProps({
   applications: Array,
@@ -356,7 +356,12 @@ function onRejectedAdded(evt) {
   if (evt.added) {
     const app = evt.added.element
     if (inFlightIds.value.has(app.id)) return
-    if (!isTerminal(app)) {
+    if (isAccepted(app)) {
+      // Moving an accepted record into Rejected is an explicit correction,
+      // so it is the one drag that may name a rejection.
+      inFlightIds.value.add(app.id)
+      emit('close-record', app.id, 'rejected')
+    } else if (!isTerminal(app)) {
       inFlightIds.value.add(app.id)
       emit('close-record', app.id, 'unresolved')
     }

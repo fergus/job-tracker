@@ -65,3 +65,28 @@ test('dragging rejected card from closed to active column changes status', async
   expect(app).toBeDefined()
   expect(app.status).toBe('interested')
 })
+
+test('dragging an accepted card into Rejected records a rejection, not a no-op', async ({ page, request }) => {
+  await request.post('/api/applications', {
+    data: { company_name: 'AcceptedCorp', role_title: 'Engineer', status: 'accepted' },
+  })
+
+  await page.goto('/')
+  await expect(page.getByText('AcceptedCorp').first()).toBeVisible()
+
+  const acceptedCard = page.getByText('AcceptedCorp').first()
+  // closed-drop-zone is the Rejected sub-list inside the Closed column.
+  const rejectedDropZone = page.getByTestId('closed-drop-zone')
+  await dragWithDelay(page, acceptedCard, rejectedDropZone)
+
+  await page.waitForTimeout(500)
+
+  // Correcting an acceptance to a rejection is an explicit judgement, so this
+  // is the one drag allowed to name a rejection. It must not silently do nothing.
+  const response = await request.get('/api/applications')
+  const apps = await response.json()
+  const app = apps.find(a => a.company_name === 'AcceptedCorp')
+  expect(app).toBeDefined()
+  expect(app.state).toBe('closed')
+  expect(app.close_reason).toBe('rejected')
+})

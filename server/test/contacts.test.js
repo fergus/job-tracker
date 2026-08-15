@@ -251,7 +251,7 @@ describe("U6 converting a pipeline row into a contact", () => {
         assert.equal(read.status, 404);
     });
 
-    test("backs up the row before the cascade removes its attachments", async () => {
+    test("backs up the notes that the cascade removes", async () => {
         const row = await seedPersonRow();
         await as(OWNER)(req.post(`/api/applications/${row.id}/notes`)).send({
             stage: "interested",
@@ -270,6 +270,83 @@ describe("U6 converting a pipeline row into a contact", () => {
         const parsed = JSON.parse(backup.row_json);
         assert.equal(parsed.stage_notes.length, 1);
         assert.match(parsed.stage_notes[0].content, /must survive/);
+    });
+
+    test("backs up the attachment rows that the cascade removes", async () => {
+        // Attachments cascade off the application, and the orphaned-file sweep
+        // then unlinks the files themselves on the next restart -- so a backup
+        // that omits them makes the conversion irreversible in practice.
+        const row = await seedPersonRow();
+        db.prepare(
+            `INSERT INTO attachments (application_id, original_filename, stored_filename, file_size, mime_type)
+             VALUES (?, ?, ?, ?, ?)`,
+        ).run(row.id, "cv.pdf", "stored-cv-abc123.pdf", 1024, "application/pdf");
+
+        await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Attachment Test",
+        });
+
+        const backup = db
+            .prepare(
+                "SELECT * FROM _row_backups WHERE operation = ? ORDER BY id DESC LIMIT 1",
+            )
+            .get("convert_application_to_contact");
+        const parsed = JSON.parse(backup.row_json);
+        assert.equal(parsed.attachments.length, 1);
+        assert.equal(parsed.attachments[0].original_filename, "cv.pdf");
+        assert.equal(
+            parsed.attachments[0].stored_filename,
+            "stored-cv-abc123.pdf",
+            "the stored filename is what makes the file recoverable",
+        );
+
+        const orphaned = db
+            .prepare("SELECT COUNT(*) c FROM attachments WHERE application_id = ?")
+            .get(row.id).c;
+        assert.equal(orphaned, 0, "the rows themselves are gone, as expected");
+    });
+
+    test("backs up the contact links that the cascade removes", async () => {
+        const row = await seedPersonRow();
+        const other = await createContact(OWNER, { name: "Bystander" });
+        await as(OWNER)(req.post(`/api/contacts/${other.body.id}/links`)).send({
+            application_id: row.id,
+        });
+
+        await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Link Backup Test",
+        });
+
+        const backup = db
+            .prepare(
+                "SELECT * FROM _row_backups WHERE operation = ? ORDER BY id DESC LIMIT 1",
+            )
+            .get("convert_application_to_contact");
+        const parsed = JSON.parse(backup.row_json);
+        assert.equal(parsed.contact_links.length, 1);
+        assert.equal(parsed.contact_links[0].contact_id, other.body.id);
+    });
+
+    test("the conversion audit entry survives the delete it documents", async () => {
+        // audit_log.application_id is ON DELETE CASCADE, so an entry carrying
+        // the id would be destroyed inside this very transaction. The id lives
+        // in details instead.
+        const row = await seedPersonRow();
+        await as(OWNER)(req.post(`/api/contacts/convert/${row.id}`)).send({
+            name: "Audited Person",
+        });
+
+        const entry = db
+            .prepare(
+                "SELECT * FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT 1",
+            )
+            .get("convert_application_to_contact");
+        assert.ok(entry, "the conversion must leave an audit trail");
+        assert.equal(entry.application_id, null);
+
+        const details = JSON.parse(entry.details);
+        assert.equal(details.application_id, row.id);
+        assert.equal(details.name, "Audited Person");
     });
 
     test("rejects converting another user's record", async () => {

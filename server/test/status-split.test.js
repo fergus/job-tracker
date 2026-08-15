@@ -154,6 +154,136 @@ describe("U4 new-shape writes derive the legacy status", () => {
     });
 });
 
+describe("record_type is evidence-based, never a side effect of closing", () => {
+    test("closing a lead through the legacy status path leaves it a lead", async () => {
+        const created = await createApp({ status: "interested" });
+        await patch(created.id, { record_type: "lead" });
+
+        const closed = await setStatus(created.id, "rejected");
+        assert.equal(
+            closed.record_type,
+            "lead",
+            "a lead you close is still a lead",
+        );
+    });
+
+    test("closing a lead through the new shape leaves it a lead", async () => {
+        const created = await createApp({ status: "interested" });
+        await patch(created.id, { record_type: "lead" });
+
+        const res = await patch(created.id, {
+            state: "closed",
+            close_reason: "not_pursued",
+        });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.record_type, "lead");
+    });
+
+    test("advancing the stage through the new shape promotes a lead to an application", async () => {
+        const created = await createApp({ status: "interested" });
+        await patch(created.id, { record_type: "lead" });
+
+        const res = await patch(created.id, { stage: "applied" });
+        assert.equal(res.status, 200);
+        assert.equal(
+            res.body.record_type,
+            "application",
+            "reaching applied is evidence of an application",
+        );
+    });
+
+    test("an explicit record_type in the same write wins over the derived one", async () => {
+        const created = await createApp({ status: "interested" });
+        const res = await patch(created.id, {
+            stage: "applied",
+            record_type: "lead",
+        });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.record_type, "lead");
+    });
+
+    test("accepting a record makes it an application", async () => {
+        const created = await createApp({ status: "interested" });
+        await patch(created.id, { record_type: "lead" });
+        const accepted = await setStatus(created.id, "accepted");
+        assert.equal(accepted.record_type, "application");
+    });
+});
+
+describe("closed_at tracks the closure that actually applies", () => {
+    test("reopening clears closed_at so a re-close records the second date", async () => {
+        const created = await createApp({ status: "applied" });
+
+        const first = await patch(created.id, {
+            state: "closed",
+            close_reason: "lapsed",
+        });
+        assert.ok(first.body.closed_at);
+
+        const reopened = await patch(created.id, { state: "open" });
+        assert.equal(reopened.body.closed_at, null);
+
+        const second = await patch(created.id, {
+            state: "closed",
+            close_reason: "withdrawn",
+        });
+        assert.ok(second.body.closed_at);
+        assert.notEqual(
+            second.body.closed_at,
+            first.body.closed_at,
+            "the second closure must not report the first closure's date",
+        );
+    });
+});
+
+describe("filters see records the backfill has not reached", () => {
+    // The deployed default is report mode, which writes nothing -- so every
+    // row has NULL state/record_type until the operator opts in. Filtering on
+    // the bare column would return an empty list on a live instance.
+    const RAW_USER = "unbackfilled@example.com";
+    const db = require("../db");
+
+    function asRawUser(r) {
+        return r.set("X-Forwarded-Email", RAW_USER).set("X-Forwarded-User", RAW_USER);
+    }
+
+    function seedLegacyRow(company, status) {
+        db.prepare(
+            `INSERT INTO applications
+             (company_name, role_title, status, created_at, updated_at, applied_at, user_email)
+             VALUES (?, 'Engineer', ?, datetime('now'), datetime('now'), datetime('now'), ?)`,
+        ).run(company, status, RAW_USER);
+    }
+
+    test("an open-state filter finds a legacy row with no state written", async () => {
+        seedLegacyRow("Legacy Open", "applied");
+        const res = await asRawUser(req.get("/api/applications?state=open"));
+        assert.equal(res.status, 200);
+        assert.ok(res.body.some((a) => a.company_name === "Legacy Open"));
+    });
+
+    test("a closed-state filter finds a legacy rejected row with no state written", async () => {
+        seedLegacyRow("Legacy Closed", "rejected");
+        const res = await asRawUser(req.get("/api/applications?state=closed"));
+        assert.equal(res.status, 200);
+        assert.ok(res.body.some((a) => a.company_name === "Legacy Closed"));
+    });
+
+    test("a record_type filter treats an un-backfilled row as an application", async () => {
+        seedLegacyRow("Legacy Typeless", "applied");
+        const res = await asRawUser(
+            req.get("/api/applications?record_type=application"),
+        );
+        assert.equal(res.status, 200);
+        assert.ok(res.body.some((a) => a.company_name === "Legacy Typeless"));
+    });
+
+    test("an unknown legacy status value is rejected rather than ignored", async () => {
+        const res = await asRawUser(req.get("/api/applications?status=withdrawn"));
+        assert.equal(res.status, 400);
+    });
+});
+
 describe("U7 filtering by the split fields", () => {
     // A dedicated user so these counts are not disturbed by other suites.
     const FILTER_USER = "filters@example.com";
