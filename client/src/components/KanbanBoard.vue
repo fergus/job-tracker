@@ -197,7 +197,7 @@
                 item-key="id"
                 :delay="100"
                 class="space-y-2 min-h-[60px] bg-sunken rounded-lg p-2"
-                @change="(evt) => onActiveChange(evt, stage.value)"
+                @change="(evt) => onMobileClosedChange(evt, stage.value)"
                 @start="dragActive = true"
                 @end="dragActive = false"
               >
@@ -331,6 +331,26 @@ function onActiveChange(evt, status) {
     if (app.status !== status) {
       inFlightIds.value.add(app.id)
       emit('status-change', app.id, status)
+    }
+  }
+}
+
+// The mobile Closed group renders accepted and rejected as ordinary stage
+// lists, so it was still wired to the legacy status-change path -- meaning a
+// mobile drop into Rejected recorded a real rejection, the exact one-gesture
+// path this change exists to remove. It mirrors the desktop handlers instead.
+function onMobileClosedChange(evt, stage) {
+  if (evt.added) {
+    const app = evt.added.element
+    if (inFlightIds.value.has(app.id)) return
+    inFlightIds.value.add(app.id)
+    if (stage === 'accepted') {
+      emit('close-record', app.id, 'accepted')
+    } else if (isAccepted(app)) {
+      // Correcting an acceptance to a rejection is explicit, so it may name one.
+      emit('close-record', app.id, 'rejected')
+    } else {
+      emit('close-record', app.id, 'unresolved')
     }
   }
 }

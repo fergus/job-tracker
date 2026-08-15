@@ -626,6 +626,24 @@ function updateApplication(userEmail, id, data) {
     if (data.record_type !== undefined) {
         updates.push("record_type = ?");
         values.push(data.record_type);
+
+        // Hydrate the rest of the split fields on a legacy row. The apply
+        // selector claims only rows where all four columns are null, so
+        // writing record_type alone -- an operator correcting a type during
+        // the report window -- would leave the row half-written and strand it
+        // from the backfill permanently. status is deliberately untouched:
+        // a record-type correction is not a status change.
+        if (!touchesSplit && existing.stage == null) {
+            const hydrated = deriveRecord(existing);
+            if (hydrated.stage !== null) {
+                updates.push("stage = ?", "state = ?", "close_reason = ?");
+                values.push(
+                    hydrated.stage,
+                    hydrated.state,
+                    hydrated.close_reason,
+                );
+            }
+        }
     }
 
     if (updates.length === 0)

@@ -654,3 +654,118 @@ describe("the legacy PATCH /status path preserves legacy rows too", () => {
         );
     });
 });
+
+describe("no write path leaves a legacy row half-backfilled", () => {
+    // The apply selector claims only rows where all four split columns are
+    // null. Any write that sets some-but-not-all strands the row permanently,
+    // so every path that touches them must hydrate the rest.
+    const HYDRATE_USER = "hydrate@example.com";
+    const db = require("../db");
+
+    function asHydrateUser(r) {
+        return r
+            .set("X-Forwarded-Email", HYDRATE_USER)
+            .set("X-Forwarded-User", HYDRATE_USER);
+    }
+
+    function seedLegacyRow(company, status, extra = {}) {
+        return db
+            .prepare(
+                `INSERT INTO applications
+                 (company_name, role_title, status, created_at, updated_at,
+                  interested_at, applied_at, interview_at, offer_at, user_email)
+                 VALUES (?, 'Engineer', ?, datetime('now'), datetime('now'), ?, ?, ?, ?, ?)`,
+            )
+            .run(
+                company,
+                status,
+                extra.interested_at ?? "2026-01-01",
+                extra.applied_at ?? null,
+                extra.interview_at ?? null,
+                extra.offer_at ?? null,
+                HYDRATE_USER,
+            ).lastInsertRowid;
+    }
+
+    function assertNotStranded(id) {
+        const row = db
+            .prepare(
+                "SELECT stage, state, close_reason, record_type FROM applications WHERE id = ?",
+            )
+            .get(id);
+        const anySet =
+            row.stage !== null || row.state !== null || row.record_type !== null;
+        const allNull =
+            row.stage === null &&
+            row.state === null &&
+            row.close_reason === null &&
+            row.record_type === null;
+        // Either untouched (the backfill will claim it) or fully written.
+        assert.ok(
+            allNull || (anySet && row.stage !== null && row.state !== null),
+            `row ${id} is half-written and would be skipped by the apply: ${JSON.stringify(row)}`,
+        );
+        return row;
+    }
+
+    test("a record_type-only correction hydrates the other split fields", async () => {
+        const id = seedLegacyRow("Type Only", "interview", {
+            applied_at: "2026-01-02",
+            interview_at: "2026-01-10",
+        });
+
+        const res = await asHydrateUser(req.put(`/api/applications/${id}`)).send({
+            record_type: "lead",
+        });
+        assert.equal(res.status, 200);
+
+        const row = assertNotStranded(id);
+        assert.equal(row.record_type, "lead", "the explicit correction wins");
+        assert.equal(row.stage, "interview", "and the rest is hydrated");
+        assert.equal(row.state, "open");
+    });
+
+    test("a record_type-only correction does not rewrite the legacy status", async () => {
+        const id = seedLegacyRow("Type Only Status", "offer", {
+            applied_at: "2026-01-02",
+            offer_at: "2026-01-20",
+        });
+
+        const res = await asHydrateUser(req.put(`/api/applications/${id}`)).send({
+            record_type: "lead",
+        });
+        assert.equal(res.status, 200);
+        assert.equal(
+            res.body.status,
+            "offer",
+            "changing the record type is not a status change",
+        );
+    });
+
+    test("every legacy write path leaves the row claimable or complete", async () => {
+        const viaType = seedLegacyRow("Path Type", "applied", {
+            applied_at: "2026-01-02",
+        });
+        const viaStatus = seedLegacyRow("Path Status", "offer", {
+            applied_at: "2026-01-02",
+            offer_at: "2026-01-20",
+        });
+        const viaSplit = seedLegacyRow("Path Split", "interview", {
+            applied_at: "2026-01-02",
+            interview_at: "2026-01-10",
+        });
+
+        await asHydrateUser(req.put(`/api/applications/${viaType}`)).send({
+            record_type: "lead",
+        });
+        await asHydrateUser(req.patch(`/api/applications/${viaStatus}/status`)).send({
+            status: "rejected",
+        });
+        await asHydrateUser(req.put(`/api/applications/${viaSplit}`)).send({
+            state: "closed",
+            close_reason: "lapsed",
+        });
+
+        for (const id of [viaType, viaStatus, viaSplit]) assertNotStranded(id);
+    });
+});
