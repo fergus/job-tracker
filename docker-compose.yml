@@ -44,6 +44,9 @@ services:
       - SERVER_API_KEY_SECRET=${SERVER_API_KEY_SECRET}
       # Required for get_upload_url MCP tool — the public-facing base URL of the app
       - PUBLIC_URL=${PUBLIC_URL}
+      # One-shot status-split backfill. Unset (the default) reports what it
+      # would derive and writes nothing; set to "apply" to perform the write.
+      - SCHEMA_BACKFILL=${SCHEMA_BACKFILL:-}
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
