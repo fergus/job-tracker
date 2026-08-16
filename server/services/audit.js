@@ -9,6 +9,8 @@ const READ_ONLY_TOOLS = new Set([
     "get_attachment_text",
     "get_user_profile",
     "get_application_context",
+    "list_contacts",
+    "get_contact",
 ]);
 
 function logAuditEvent({

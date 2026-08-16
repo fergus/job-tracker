@@ -769,3 +769,65 @@ describe("no write path leaves a legacy row half-backfilled", () => {
         for (const id of [viaType, viaStatus, viaSplit]) assertNotStranded(id);
     });
 });
+
+describe("an explicit record_type is the operator's statement, not a derivation", () => {
+    // Regression: reopening a record parked at a stage past `applied` silently
+    // flipped an operator-set `lead` back to `application`, breaking the
+    // documented way of keeping non-role records out of pipeline counts.
+    test("reopening does not overturn an explicit lead", async () => {
+        const created = await createApp({ status: "responded" });
+        await patch(created.id, {
+            state: "closed",
+            close_reason: "not_pursued",
+            record_type: "lead",
+        });
+
+        const reopened = await patch(created.id, { state: "open" });
+        assert.equal(reopened.status, 200);
+        assert.equal(
+            reopened.body.record_type,
+            "lead",
+            "an unrelated write must not overturn an explicit record_type",
+        );
+    });
+
+    test("closing does not overturn an explicit lead either", async () => {
+        const created = await createApp({ status: "interested" });
+        await patch(created.id, { record_type: "lead" });
+
+        const closed = await patch(created.id, {
+            state: "closed",
+            close_reason: "not_pursued",
+        });
+        assert.equal(closed.body.record_type, "lead");
+    });
+
+    test("advancing the stage past applied still promotes a lead", async () => {
+        // The round-four finding this promotion exists for: a lead that becomes
+        // a real application must stop counting as a lead.
+        const created = await createApp({ status: "interested" });
+        await patch(created.id, { record_type: "lead" });
+
+        const advanced = await patch(created.id, { stage: "applied" });
+        assert.equal(advanced.body.record_type, "application");
+    });
+
+    test("a null record_type is still derived on a split write", async () => {
+        const db = require("../db");
+        const id = db
+            .prepare(
+                `INSERT INTO applications
+                 (company_name, role_title, status, created_at, updated_at, applied_at, user_email)
+                 VALUES ('Legacy Derive','Engineer','interview',datetime('now'),datetime('now'),'2026-01-02','derive@example.com')`,
+            )
+            .run().lastInsertRowid;
+
+        const res = await req
+            .put(`/api/applications/${id}`)
+            .set("X-Forwarded-Email", "derive@example.com")
+            .set("X-Forwarded-User", "derive@example.com")
+            .send({ state: "closed", close_reason: "lapsed" });
+        assert.equal(res.status, 200);
+        assert.equal(res.body.record_type, "application");
+    });
+});

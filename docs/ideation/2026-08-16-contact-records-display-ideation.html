@@ -1,0 +1,247 @@
+<!-- ideation artifact: displaying contact records -->
+<title>Contact Records Display</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --surface: #ffffff; --ink: #16150f; --ink-2: #45423a;
+    --ink-3: #78746a; --line: #e2ded6; --accent: #9a3412; --accent-soft: #fdf1e7;
+    --ok: #14532d; --ok-soft: #e8f3ec; --warn: #854d0e; --warn-soft: #fdf6e3;
+    --cut: #7a1f1f; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12110f; --surface: #1a1917; --ink: #f2efe9; --ink-2: #c4bfb5;
+      --ink-3: #8b867c; --line: #2f2d29; --accent: #f97316; --accent-soft: #2a1a10;
+      --ok: #86efac; --ok-soft: #14241a; --warn: #fcd34d; --warn-soft: #241d0e;
+      --cut: #fca5a5;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12110f; --surface: #1a1917; --ink: #f2efe9; --ink-2: #c4bfb5;
+    --ink-3: #8b867c; --line: #2f2d29; --accent: #f97316; --accent-soft: #2a1a10;
+    --ok: #86efac; --ok-soft: #14241a; --warn: #fcd34d; --warn-soft: #241d0e;
+    --cut: #fca5a5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); margin: 0;
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 3rem 1.25rem 6rem;
+  }
+  .wrap { max-width: 62rem; margin: 0 auto; }
+  header { border-bottom: 3px solid var(--ink); padding-bottom: 1.25rem; margin-bottom: 2.5rem; }
+  h1 {
+    font-size: clamp(1.9rem, 5vw, 3rem); line-height: 1.05; margin: 0 0 .5rem;
+    letter-spacing: -.03em; font-weight: 800;
+  }
+  .kicker {
+    font: 600 .72rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: .9rem;
+  }
+  .meta { font: .82rem/1.5 var(--mono); color: var(--ink-3); }
+  .meta b { color: var(--ink-2); font-weight: 600; }
+  h2 {
+    font-size: 1.4rem; letter-spacing: -.015em; margin: 3rem 0 1rem;
+    padding-bottom: .4rem; border-bottom: 1px solid var(--line);
+  }
+  h3 { font-size: 1.05rem; margin: 1.75rem 0 .5rem; }
+  p { margin: 0 0 .85rem; color: var(--ink-2); }
+  .lede { font-size: 1.06rem; color: var(--ink); }
+  ul, ol { color: var(--ink-2); padding-left: 1.15rem; }
+  li { margin-bottom: .4rem; }
+  code {
+    font: .86em var(--mono); background: var(--accent-soft); color: var(--accent);
+    padding: .1em .35em; border-radius: 3px; word-break: break-word;
+  }
+  .axes { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .axis {
+    border-left: 3px solid var(--line); padding: .45rem .75rem;
+    font-size: .9rem; color: var(--ink-2);
+  }
+  .axis b { display: block; color: var(--ink); font-size: .78rem;
+    font-family: var(--mono); text-transform: uppercase; letter-spacing: .07em; }
+  .idea {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 6px; padding: 1.4rem 1.5rem; margin-bottom: 1.1rem;
+  }
+  .idea.top { border-color: var(--accent); border-width: 2px; }
+  .idea-head { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; margin-bottom: .3rem; }
+  .rank {
+    font: 800 1.5rem/1 var(--mono); color: var(--accent); flex: none;
+  }
+  .idea h3 { margin: 0; flex: 1 1 14rem; font-size: 1.16rem; letter-spacing: -.01em; }
+  .tags { display: flex; gap: .35rem; flex-wrap: wrap; margin: .55rem 0 .9rem; }
+  .tag {
+    font: 600 .68rem/1 var(--mono); text-transform: uppercase; letter-spacing: .08em;
+    padding: .32em .6em; border-radius: 3px; border: 1px solid var(--line); color: var(--ink-3);
+  }
+  .tag.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .field { margin-bottom: .7rem; font-size: .93rem; }
+  .field > b {
+    display: block; font: 600 .68rem/1 var(--mono); text-transform: uppercase;
+    letter-spacing: .09em; color: var(--ink-3); margin-bottom: .2rem;
+  }
+  .quote {
+    border-left: 2px solid var(--accent); padding: .1rem 0 .1rem .8rem;
+    font-family: var(--mono); font-size: .82rem; color: var(--ink-2); margin: .3rem 0;
+  }
+  .fork {
+    background: var(--warn-soft); border: 1px solid var(--line);
+    border-left: 4px solid var(--warn); border-radius: 6px; padding: 1.1rem 1.3rem; margin: 1.5rem 0;
+  }
+  .fork h3 { margin-top: 0; color: var(--ink); }
+  table { width: 100%; border-collapse: collapse; font-size: .89rem; margin-top: .5rem; }
+  th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 .7rem/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }
+  td.name { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  td.why { color: var(--ink-3); }
+  .scroll { overflow-x: auto; }
+  footer { margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line);
+    font: .82rem/1.6 var(--mono); color: var(--ink-3); }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">Ideation &middot; job-tracker</div>
+  <h1>Displaying contact records</h1>
+  <div class="meta">
+    <b>2026-08-16</b> &middot; 46 raw &rarr; 19 distinct &rarr; <b>7 survivors</b> &middot; 5 frames, 5 axes<br>
+    Grounding: repo + external prior art &middot; Critique: fresh-context verifier + arbitration
+  </div>
+</header>
+
+<p class="lede">The contacts entity shipped hours ago with a complete API and no way to see it. The strongest ideas here are not new features — they are things the codebase already computes, fetches, or stores and then discards. Four of the seven survivors are template work against data already on the wire.</p>
+
+<h2>Grounding context</h2>
+<p><b>The state of things.</b> <code>contacts</code> and <code>contact_links</code> exist with full REST and MCP surfaces. <code>fetchContacts</code>, <code>fetchContact</code>, <code>updateContact</code> and <code>deleteContact</code> are written and exported in <code>client/src/api.js</code> and have <b>zero call sites</b> in any component. The only contact UI in the product is a name-and-relation list inside <code>ApplicationPanel</code> plus one free-text "add a person" field.</p>
+<p><b>Scale sets the rules.</b> Roughly 10&ndash;30 contacts against 191 application records (76 applications, 115 leads). Every pattern that pays off at hundreds of contacts — search overlays, segmentation, grouping, enrichment — is an anti-pattern at this size. The verifier cut three ideas on exactly this basis.</p>
+<p><b>The dominant failure mode is abandonment.</b> External research is consistent: personal CRMs are abandoned within about two weeks because upkeep becomes a chore with no personal payoff. Monica is criticised specifically for interaction cost per field. Every survivor here was tested against "does this demand maintenance?" — the ones that demand it were cut or reshaped.</p>
+<p><b>The strongest external pattern is backlinks.</b> Obsidian, Tana and Capacities render a person page as a computed view of links that already exist. Attio, Pipedrive and HubSpot do structurally the same thing with relationship tabs. That shape maps exactly onto <code>linksForContact</code>, which already returns the company, role title, stage reached and open/closed state of every record a person touched.</p>
+
+<h2>Topic axes</h2>
+<div class="axes">
+  <div class="axis"><b>1 &middot; Where contacts live</b>The surface: a view, a route, a panel — or no new surface at all.</div>
+  <div class="axis"><b>2 &middot; What a record shows</b>The content of one person: fields, linked roles, derived signals.</div>
+  <div class="axis"><b>3 &middot; Getting people in</b>Capture and conversion without a data-entry chore.</div>
+  <div class="axis"><b>4 &middot; Contacts as navigation</b>A person as a lens on the pipeline.</div>
+  <div class="axis"><b>5 &middot; Relationship state</b>Staleness, last contact, who introduced what.</div>
+</div>
+
+<div class="fork">
+  <h3>The fork this set is really about</h3>
+  <p>Six of the nineteen candidates were competing answers to one unasked question: <b>does displaying contacts require a contacts surface at all?</b></p>
+  <p>Ideas 2 and 3 below are the two live answers. Idea 2 builds the person page the request implies. Idea 3 argues the highest-value contact display belongs on the board you already read every day, and that a person page may never be needed. They are not incompatible, but choosing which ships first is a real strategy decision — the verifier rated idea 3 "possibly the highest-leverage idea in the set" precisely because it reframes the question instead of answering it.</p>
+</div>
+
+<h2>Ranked ideas</h2>
+
+<div class="idea top">
+  <div class="idea-head"><span class="rank">1</span><h3>Render the contact fields you already fetch and throw away</h3></div>
+  <div class="tags"><span class="tag">Axis 2 &middot; what a record shows</span><span class="tag ok">Confidence High</span><span class="tag ok">Complexity S</span><span class="tag">basis: direct</span></div>
+  <div class="field"><b>Summary</b>The People list in the application panel shows a name and a relation. The query behind it returns considerably more, and the template silently drops it. Show the email and phone as tap-to-mail and tap-to-call actions, and the employer inline.</div>
+  <div class="field"><b>Basis — verified twice, by the generating frame and independently</b>
+    <div class="quote">server/services/contacts.js:72&ndash;83 &mdash; SELECT c.id, c.name, c.contact_role, c.employer, c.email, c.phone, cl.id AS link_id, cl.relation</div>
+    <div class="quote">client/src/components/ApplicationPanel.vue:411&ndash;416 &mdash; renders {{ c.name }} and c.relation, falling back to c.contact_role. Nothing else.</div>
+  </div>
+  <div class="field"><b>Why it matters</b>The contacts entity exists because a recruiter's mobile number was buried in a <code>prep_work</code> free-text field, and that was treated as a data-modelling failure worth a schema migration to fix. The number now sits in the correct column, is correctly fetched on every panel open, and is still invisible to you. This is a few lines of template for the single highest-frequency thing anyone wants from a recruiter record: to contact them.</div>
+  <div class="field"><b>Known tradeoff</b>The verifier argued this "folds into" idea 2 and is a triviality about bytes over the wire. I overruled that: the point is not bandwidth, it is that the motivating datum of the entire feature is fetched and hidden. It also ships in minutes rather than hours, which makes it a different decision from idea 2, not a subset of it.</div>
+</div>
+
+<div class="idea top">
+  <div class="idea-head"><span class="rank">2</span><h3>The person page is the existing join, rendered</h3></div>
+  <div class="tags"><span class="tag">Axis 1 &middot; where contacts live</span><span class="tag ok">Confidence High</span><span class="tag warn">Complexity M</span><span class="tag">basis: direct</span></div>
+  <div class="field"><b>Summary</b>A contact's detail view is a formatted render of a response the server already assembles: identity header, then every application that person touched with company, role, stage reached and whether it is still open. Include a one-line attribution sentence ("introduced you to 4 roles at 3 companies, 2 still open") and order the roster by contribution rather than alphabetically.</div>
+  <div class="field"><b>Basis</b>
+    <div class="quote">server/services/contacts.js:58&ndash;69 &mdash; linksForContact returns cl.relation, cl.created_at, a.company_name, a.role_title, a.stage, a.state per link</div>
+    <div class="quote">server/services/contacts.js:88,91 &mdash; ORDER BY name ASC in both branches: the only ordering the system has carries no information</div>
+    <p style="margin:.4rem 0 0">All five ideation frames converged on this independently, from pain, from automation, from leverage, from analogy and from assumption-breaking. Separate contexts, same conclusion.</p>
+  </div>
+  <div class="field"><b>Why it matters</b>The expensive part is done. This is the backlink pattern that Obsidian and Tana use and that Attio and Pipedrive sell — a person page as a computed view of links that already exist — which means it costs zero ongoing data entry and therefore dodges the abandonment failure mode entirely.</div>
+  <div class="field"><b>Known tradeoffs</b>The attribution line must render as prose, not a stat tile: <code>AGENTS.md</code> explicitly bans hero metrics. The "no other tool computes introductions" claim from external research could not be verified from inside the repo and is motivation, not evidence. Contribution-sorting depends on the attribution count existing first.</div>
+</div>
+
+<div class="idea top">
+  <div class="idea-head"><span class="rank">3</span><h3>Put people on the board you already read, not in a page you must visit</h3></div>
+  <div class="tags"><span class="tag">Axis 4 &middot; contacts as navigation</span><span class="tag warn">Confidence Medium-High</span><span class="tag warn">Complexity M</span><span class="tag">basis: direct + external</span></div>
+  <div class="field"><b>Summary</b>Two intensities of one move. Lighter: every card that has a person attached carries a small permanent credit line — <code>via Mike Carter</code> — clickable through to them, the way a museum label carries provenance. Heavier: clicking a name dims the kanban to that person's records in place, keeping column and card positions intact, so the footprint lights up without a context switch.</div>
+  <div class="field"><b>Basis</b>
+    <div class="quote">The reverse direction (record &rarr; people) renders at ApplicationPanel.vue:410&ndash;411. The forward direction (person &rarr; records) is computed by linksForContact and rendered nowhere.</div>
+    <p style="margin:.4rem 0 0"><b>external:</b> archival provenance practice (origin as a property of the material, not metadata about a person); John Snow's Broad Street map as overlay rather than separate page.</p>
+  </div>
+  <div class="field"><b>Why it matters</b>115 of your 191 records are leads, and many arrived through a person. With provenance on the card, the board itself answers "is my pipeline coming from people or from job boards" during ordinary use — the payoff appears where you already are, which is the strongest available defence against a contacts feature going stale from disuse.</div>
+  <div class="field"><b>Known tradeoffs</b>The dimming variant must precompute a Set of linked application ids. A per-card lookup would re-create the double-scan bug documented in <code>docs/solutions/performance-issues/closedcount-double-array-scan-2026-04-30.md</code>. This idea may also make idea 2 unnecessary for a first release, which is the fork worth deciding before building either.</div>
+</div>
+
+<div class="idea">
+  <div class="idea-head"><span class="rank">4</span><h3>Make the add-person field resolve before it creates</h3></div>
+  <div class="tags"><span class="tag">Axis 3 &middot; getting people in</span><span class="tag ok">Confidence High</span><span class="tag ok">Complexity S</span><span class="tag">basis: direct</span></div>
+  <div class="field"><b>Summary</b>The only capture affordance is a bare text field that creates and links unconditionally. Turn it into a combobox that searches existing contacts as you type, shows employer and role to disambiguate, links on select, and creates only on an explicit "new person".</div>
+  <div class="field"><b>Basis</b>
+    <div class="quote">client/src/components/ApplicationPanel.vue:892&ndash;898 &mdash; onAddContact calls createContact({ name }) then linkContact, with no lookup step</div>
+    <p style="margin:.4rem 0 0"><code>fetchContacts</code> already exists and is exported with zero call sites — the data source for the lookup is built and unused.</p>
+  </div>
+  <div class="field"><b>Why it matters</b>This is a live correctness defect, not a refinement. The moment the same recruiter appears on a second application, you get a second Mike Carter, and his attribution splits in two. Every derived signal in ideas 2 and 3 is corrupted by duplicates, so this either lands first or those features quietly lie.</div>
+  <div class="field"><b>Known tradeoff</b>Emerged from flipping the scale constraint to 10,000 contacts — a size at which blind-create is obviously unthinkable. The bug is equally real at 30; the flip is just what made it visible.</div>
+</div>
+
+<div class="idea">
+  <div class="idea-head"><span class="rank">5</span><h3>One click to convert the ten people still filed as job applications</h3></div>
+  <div class="tags"><span class="tag">Axis 3 &middot; getting people in</span><span class="tag ok">Confidence High</span><span class="tag ok">Complexity S</span><span class="tag">basis: direct</span></div>
+  <div class="field"><b>Summary</b>Surface the flagged rows where they already sit, each with the detector's reason shown verbatim and a single Convert action calling the endpoint that already exists and is backed by <code>_row_backups</code>.</div>
+  <div class="field"><b>Basis</b>
+    <div class="quote">#141 Reo Group (Darren Farmeary), #148 Change Recruitment (Mike Carter), #149 FutureYou (Corin Roberts), #150 Slalom (Alice Silver), #151 Robert Half (Karen Flanagan), +5 more &mdash; reason: prep_work contains a phone number; no job_posting_url</div>
+    <p style="margin:.4rem 0 0"><code>POST /api/contacts/convert/:applicationId</code> exists, is transactional and reversible, and nothing in the UI calls it.</p>
+  </div>
+  <div class="field"><b>Why it matters</b>Ten real people are sitting in your pipeline as fake applications right now, and the only way to fix it today is a curl command. It also means whichever surface you build launches populated instead of empty — and an empty contacts view is the classic first step toward abandonment.</div>
+  <div class="field"><b>Known tradeoff — scope trimmed after critique</b>The originating frames proposed a <em>standing</em> inbox with a live detector. The verifier called that disproportionate at this scale, and I agree: continuous machinery to catch perhaps one mis-filed row a month is unearned. This is a one-time cleanup with a button. If the mistake recurs often, revisit.</div>
+</div>
+
+<div class="idea">
+  <div class="idea-head"><span class="rank">6</span><h3>Close the relation vocabulary so colour can mean something</h3></div>
+  <div class="tags"><span class="tag">Axis 2 &middot; what a record shows</span><span class="tag warn">Confidence Medium</span><span class="tag ok">Complexity S</span><span class="tag warn">migration decision</span></div>
+  <div class="field"><b>Summary</b>Turn <code>contact_links.relation</code> from free text into a small enum — recruiter, referrer, hiring manager, interviewer, other — each with a colour token in both themes.</div>
+  <div class="field"><b>Basis</b><code>contact_links.relation</code> is free text set at link time. <code>AGENTS.md</code> states that colour carries meaning and that stage colours are a system, not decoration. Free text cannot be coloured meaningfully, so the design system currently has nothing to grip on the one attribute that describes a relationship.</div>
+  <div class="field"><b>Why it matters</b>"recruiter", "Recruiter" and "agency recruiter" are three categories today, and a single operator will absolutely produce that drift across thirty contacts. Every aggregate view in ideas 2 and 3 degrades with it.</div>
+  <div class="field"><b>Known tradeoff — timing is the whole argument</b>This is a breaking change to shipped data. There are only about ten links today, so the migration is nearly free right now and gets more expensive and more contentious every week. That is why it appears above larger ideas despite being smaller.</div>
+</div>
+
+<div class="idea">
+  <div class="idea-head"><span class="rank">7</span><h3>Show "last linked 34 days ago" — and compute nothing else</h3></div>
+  <div class="tags"><span class="tag">Axis 5 &middot; relationship state</span><span class="tag warn">Confidence Medium</span><span class="tag ok">Complexity S</span><span class="tag">basis: reasoned</span></div>
+  <div class="field"><b>Summary</b>Display each contact's most recent link date as a plain, sortable fact. No amber/red thresholds, no scored staleness, no warmth model. The operator classifies; the tool reports.</div>
+  <div class="field"><b>Why it matters — this is the resolution of the sharpest disagreement in the set</b>
+    <p style="margin:0 0 .5rem">Three frames independently proposed reusing the kanban's 14-day amber / 30-day danger thresholds for people. A fourth refuted that from outbreak epidemiology: applications have a uniform expected cadence and humans do not, so a global threshold "will scream about the friend you see twice a year while staying silent on the recruiter who has gone dark." It proposed computing each person's own median interval instead.</p>
+    <p style="margin:0">The verifier then refuted <em>that</em>: most of your contacts will have one to three links, where a median gap is undefined or a single noisy sample. It would manufacture statistical rigour over data too sparse to support it. Both proposals were cut in favour of the plain fact — which is cheaper than either, invents no metric, and respects the no-hero-metrics rule.</p>
+  </div>
+  <div class="field"><b>Known tradeoff</b>Genuinely less useful than a good staleness signal would be. It is here because no defensible staleness signal exists at this data density, and shipping a bad one is worse than shipping none.</div>
+</div>
+
+<h2>Rejection summary</h2>
+<p>Twelve of nineteen candidates were cut. The verifier ran on fresh context with no generation history and read the repo directly; its meeting-test judgment overrode the generating agents' self-attestation.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Idea</th><th>Verdict</th><th>Reason</th></tr></thead>
+  <tbody>
+    <tr><td class="name">Reach index (h-index over stages)</td><td>refuted</td><td class="why">At 10&ndash;30 contacts with 1&ndash;5 links each, an h-index collapses to "max stage reached". Imported because it sounds rigorous, not because the data shape needs it.</td></tr>
+    <tr><td class="name">Contacts &times; stage strip board</td><td>refuted</td><td class="why">Analogy is decorative. Production strip boards are dense because every actor touches many scenes; here most cells are empty — a contact touches one or two stages, not all of them.</td></tr>
+    <tr><td class="name">Unified search over people and roles</td><td>refuted</td><td class="why">Solves a volume problem that does not exist. Building search before building the thing being searched.</td></tr>
+    <tr><td class="name">Persistent people rail</td><td>cut</td><td class="why">Bakes in a ceiling ("never many contacts") the grounding never establishes, and a rail of chips is itself an admin-dashboard trope.</td></tr>
+    <tr><td class="name">Derive employer and role from links</td><td>cut</td><td class="why">Breaks when a recruiter changes agency, and on contacts added before any link exists. Trades a robust model for a superficially smaller one.</td></tr>
+    <tr><td class="name">Quiet-people digest via the agent</td><td>refuted as scoped</td><td class="why">Depends on the unshipped follow-up-date plan, which covers applications only. "Reuse" overstates the sharing — it is two unbuilt things stacked.</td></tr>
+    <tr><td class="name">Reuse 14/30-day thresholds for people</td><td>refuted</td><td class="why">Category error: application cadence is uniform, human cadence is not. Superseded by idea 7.</td></tr>
+    <tr><td class="name">Per-person median serial interval</td><td>cut</td><td class="why">Correct critique, over-engineered remedy. Needs a sample size the data does not have. Superseded by idea 7.</td></tr>
+    <tr><td class="name">Shepard's treatment flags</td><td>weak</td><td class="why">Right instinct — a closed vocabulary rather than a warmth score — but four buckets over contacts with 1&ndash;2 links each bucket arbitrarily. Revisit only with precise per-bucket definitions.</td></tr>
+    <tr><td class="name">Back-of-book index rendering</td><td>weak</td><td class="why">On-brand and cheap, but an index format pays off when scanning many dense entries. At 30 names it reads as a plain list. Keep as a styling option for idea 2, not a separate direction.</td></tr>
+    <tr><td class="name">Link log as a dated timeline</td><td>thin</td><td class="why">The query is already ordered chronologically, but most contacts will have one to three entries — not enough points to form a spine. Folded into idea 2.</td></tr>
+    <tr><td class="name">One shape, two renderers (MCP + Vue)</td><td>folded</td><td class="why">Sound but it is an engineering discipline note, not a candidate — an implementation constraint on whichever surface ships.</td></tr>
+  </tbody>
+</table>
+</div>
+<p style="margin-top:1rem"><b>Axis coverage:</b> all five axes carry at least one survivor. Axis 5 is the thinnest, and deliberately so — the honest answer there was to compute less, not more.</p>
+
+<footer>
+  46 raw candidates across 5 frames &rarr; 19 distinct &rarr; 7 survivors<br>
+  Frames: pain &amp; friction &middot; inversion &amp; automation &middot; leverage &amp; compounding &middot; cross-domain analogy &middot; assumption-breaking &amp; constraint-flipping<br>
+  Codebase grounding was the orchestrator's own read, not an independent agent's — treat repo claims as verified where a file:line quote is shown, and as one reader's view otherwise.
+</footer>
+</div>

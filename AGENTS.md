@@ -214,6 +214,7 @@ Auth middleware (`server/middleware/auth.js`) supports two methods:
 - Admin can pass `?all=true` on list endpoints to view all users' data.
 - `PATCH /api/applications/:id/status` auto-sets the corresponding `*_at` date field.
 - **`status` is derived, not authoritative.** It used to encode three unrelated facts at once, and is kept only so callers that have not migrated keep working. `services/applications.js` writes both shapes on every write: a `status` write derives `stage`/`state`/`close_reason`, and a write to any of those re-derives `status`. The legacy column is lossy in one direction by design — it has a single failure state, so `withdrawn`, `role_closed`, `lapsed` and `not_pursued` all read back as `rejected`. Filter on `state` and `record_type`, never on `status`.
+- **`record_type` is stored, not derived.** An explicitly set `record_type` is the operator's statement about what a record is, and no later write overturns it. It is derived only when null, and auto-promoted from `lead` to `application` only when that same write advances the stage past `applied`. A record parked at a stage beyond `applied` therefore keeps its `lead` type across close and reopen.
 - The status split backfill runs on startup in report mode and writes nothing. Set `SCHEMA_BACKFILL=apply` to apply it once. See `docs/plans/2026-08-12-002-refactor-pipeline-schema-split-plan.md`.
 - `PATCH /api/applications/:id/dates` allows manual editing of stage date fields (pass `null` to clear).
 - Create application accepts `multipart/form-data` (allows CV + cover letter upload). Update accepts `application/json`.
@@ -271,7 +272,7 @@ A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`).
 
 **Paths:** The transport is mounted at `/` on the MCP port — *not* `/mcp`. Locally that means `http://localhost:3001/`. The public `https://<domain>/mcp` URL below is produced by an external reverse proxy that maps the `/mcp` path to this port; that proxy is not part of this repo's `docker-compose.yml`, which only publishes port 3001 as `${MCP_LISTEN_PORT:-3563}`. MCP does not pass through oauth2-proxy — it authenticates via Bearer API key on its own.
 
-**Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`, `list_contacts`, `get_contact`, `create_contact`, `link_contact`
+**Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`, `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `link_contact`, `unlink_contact`, `convert_application_to_contact`
 
 **`upload_attachment`** — for small files (<~30KB): parameters `application_id`, `filename`, `file_content` (base64-encoded string). Accepts file bytes directly; works over remote HTTP transport.
 

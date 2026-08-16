@@ -611,14 +611,34 @@ function updateApplication(userEmail, id, data) {
         // legacy status write carries, so promote record_type the same way --
         // unless the caller set it explicitly below.
         if (data.record_type === undefined) {
-            if (evidencesApplication(nextStage, statusFromTriple(nextTriple))) {
+            // An explicitly stored record_type is the operator's statement about
+            // what this record IS, and no unrelated write may overturn it. The
+            // earlier rule promoted on stage evidence alone, so merely reopening
+            // a record parked at `responded` silently flipped an operator's
+            // `lead` back to `application` -- which broke the documented way of
+            // keeping non-roles out of pipeline counts.
+            const stageAdvancedThisWrite =
+                data.stage !== undefined &&
+                evidencesApplication(nextStage, statusFromTriple(nextTriple)) &&
+                !evidencesApplication(currentStage, existing.status);
+
+            if (existing.record_type == null) {
+                // Never set: derive it, so a legacy row is not left half-written.
+                const derivedType = evidencesApplication(
+                    nextStage,
+                    statusFromTriple(nextTriple),
+                )
+                    ? "application"
+                    : currentRecordType;
+                if (derivedType) {
+                    updates.push("record_type = ?");
+                    values.push(derivedType);
+                }
+            } else if (stageAdvancedThisWrite && existing.record_type === "lead") {
+                // The stage genuinely moved past `applied` in this write, so the
+                // record demonstrably became an application.
                 updates.push("record_type = ?");
                 values.push("application");
-            } else if (existing.record_type == null && currentRecordType) {
-                // Carry the derived type onto a legacy row, so writing the
-                // split fields does not leave it partially derived.
-                updates.push("record_type = ?");
-                values.push(currentRecordType);
             }
         }
     }

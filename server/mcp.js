@@ -1232,6 +1232,166 @@ function createMcpServer() {
         },
     );
 
+    server.tool(
+        "update_contact",
+        "Update a contact. Patch semantics: omitted fields are left unchanged, and an explicit null clears a field. Use this to enrich a contact created earlier -- notes, employer, email and phone are all correctable after creation.",
+        {
+            id: z.number().int().positive().describe("Contact ID"),
+            name: z.string().min(1).max(200).optional().describe("Person's name"),
+            contact_role: z
+                .string()
+                .max(200)
+                .nullable()
+                .optional()
+                .describe("Their role, e.g. recruiter or hiring manager"),
+            employer: z
+                .string()
+                .max(200)
+                .nullable()
+                .optional()
+                .describe("Who they work for"),
+            email: z.string().max(320).nullable().optional().describe("Email address"),
+            phone: z.string().max(50).nullable().optional().describe("Phone number"),
+            notes: z
+                .string()
+                .max(10000)
+                .nullable()
+                .optional()
+                .describe("Free-text notes. Replaces the existing notes wholesale."),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            const { id, ...data } = args;
+            try {
+                const result = contactsSvc.updateContact(userEmail, id, data);
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "delete_contact",
+        "Delete a contact. Its links to records are removed with it; the records themselves are untouched. There is no undo -- prefer update_contact when the contact is merely wrong rather than unwanted.",
+        { id: z.number().int().positive().describe("Contact ID") },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.deleteContact(userEmail, args.id);
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "unlink_contact",
+        "Detach a contact from a record. The inverse of link_contact. To correct a link's relation, unlink then link again with the right value.",
+        {
+            contact_id: z.number().int().positive().describe("Contact ID"),
+            application_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Application or lead ID"),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.unlinkContact(
+                    userEmail,
+                    args.contact_id,
+                    args.application_id,
+                );
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "convert_application_to_contact",
+        "Convert a record that is actually a person into a contact, then remove the record. The original row, its notes, attachments and links are written to a backup table first, so the conversion is recoverable by hand. Use this for rows filed as applications that are really recruiters or referrers.",
+        {
+            application_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("The record to convert"),
+            name: z
+                .string()
+                .max(200)
+                .optional()
+                .describe("Person's name. Defaults to the record's company_name."),
+            contact_role: z
+                .string()
+                .max(200)
+                .optional()
+                .describe("Their role. Defaults to the record's role_title."),
+            employer: z.string().max(200).optional().describe("Who they work for"),
+            email: z.string().max(320).optional().describe("Email address"),
+            phone: z.string().max(50).optional().describe("Phone number"),
+            notes: z
+                .string()
+                .max(10000)
+                .optional()
+                .describe("Extra notes. The record's own prose is carried across automatically."),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            const { application_id, ...data } = args;
+            try {
+                const result = contactsSvc.convertApplicationToContact(
+                    userEmail,
+                    application_id,
+                    data,
+                );
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
     return server;
 }
 

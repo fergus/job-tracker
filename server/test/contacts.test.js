@@ -405,3 +405,59 @@ describe("U5 ownership", () => {
         assert.equal(write.status, 403);
     });
 });
+
+describe("MCP exposes the contact capabilities the API already has", () => {
+    // The service and REST layers had update, delete, unlink and convert from
+    // the start; only MCP was missing them, which stranded an agent-driven
+    // migration mid-flight with 35 uncorrectable contacts.
+    const { toolError } = require("../mcp");
+    const svc = require("../services/contacts");
+    const { READ_ONLY_TOOLS } = require("../services/audit");
+
+    test("every contact capability is reachable from the service layer", () => {
+        for (const fn of [
+            "updateContact",
+            "deleteContact",
+            "unlinkContact",
+            "convertApplicationToContact",
+        ]) {
+            assert.equal(
+                typeof svc[fn],
+                "function",
+                `${fn} must be exported for the MCP tool to call`,
+            );
+        }
+    });
+
+    test("contact read tools are not audit-logged as mutations", () => {
+        assert.ok(READ_ONLY_TOOLS.has("list_contacts"));
+        assert.ok(READ_ONLY_TOOLS.has("get_contact"));
+    });
+
+    test("contact service errors reach agents as tool errors, not crashes", () => {
+        const result = toolError(new svc.ServiceError(404, "Not found"));
+        assert.equal(result.isError, true);
+        assert.match(result.content[0].text, /404/);
+    });
+
+    test("update accepts patch semantics with explicit null clearing a field", async () => {
+        const created = await createContact(OWNER, {
+            name: "Patchable",
+            employer: "Old Agency",
+            phone: "0400 000 000",
+        });
+        assert.equal(created.status, 201);
+
+        const patched = await as(OWNER)(
+            req.put(`/api/contacts/${created.body.id}`),
+        ).send({ employer: null });
+        assert.equal(patched.status, 200);
+        assert.equal(patched.body.employer, null, "explicit null clears");
+        assert.equal(
+            patched.body.phone,
+            "0400 000 000",
+            "omitted fields are left unchanged",
+        );
+        assert.equal(patched.body.name, "Patchable");
+    });
+});
