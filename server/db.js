@@ -165,6 +165,77 @@ if (!extractedJdCheck.some((c) => c.name === "extracted_jd")) {
     db.exec("ALTER TABLE applications ADD COLUMN extracted_jd TEXT");
 }
 
+// Migrate: split the overloaded status column into three independent facts,
+// and separate applications from leads. All nullable with no defaults — a null
+// distinguishes "not yet backfilled" from "backfilled", which the one-shot
+// backfill below relies on to stay resumable.
+const splitCheck = db.prepare("PRAGMA table_info(applications)").all();
+for (const col of ["stage", "state", "close_reason", "record_type"]) {
+    if (!splitCheck.some((c) => c.name === col)) {
+        db.exec(`ALTER TABLE applications ADD COLUMN ${col} TEXT`);
+    }
+}
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_applications_user_email_state ON applications(user_email, state)",
+);
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_applications_user_email_record_type ON applications(user_email, record_type)",
+);
+
+// Contacts table (people in the search: recruiters, referrers, hiring managers)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    contact_role TEXT,
+    employer TEXT,
+    email TEXT,
+    phone TEXT,
+    notes TEXT,
+    user_email TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_contacts_user_email ON contacts(user_email)",
+);
+
+// Join table: a contact can be linked to any number of records, each link
+// carrying the contact's relation to that record.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contact_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    relation TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (contact_id, application_id)
+  )
+`);
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_contact_links_application_id ON contact_links(application_id)",
+);
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_contact_links_contact_id ON contact_links(contact_id)",
+);
+
+// Row backups — the original row JSON of any row an operation removes, so a
+// destructive conversion can be undone. audit_log cannot serve this purpose:
+// it cascades on applications delete, so it vanishes with the row it documents.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS _row_backups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation TEXT NOT NULL,
+    source_table TEXT NOT NULL,
+    row_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // Audit log table (activity timeline for all mutations)
 db.exec(`
   CREATE TABLE IF NOT EXISTS audit_log (
@@ -409,6 +480,100 @@ if (!backfillRan) {
     })();
 }
 
+// One-shot migration: split the overloaded status column into stage / state /
+// close_reason and separate applications from leads.
+//
+// Report mode is the default. A deploy alone must not rewrite 174 records of
+// live personal data on the strength of inference rules nobody has checked
+// against the real dataset, so applying requires an explicit opt-in. Both modes
+// run the same derivation, so the report cannot drift from the apply.
+const STATUS_SPLIT_MIGRATION = "status_split_backfill";
+const statusSplitApplied = db
+    .prepare("SELECT 1 FROM _migrations WHERE name = ?")
+    .get(STATUS_SPLIT_MIGRATION);
+
+if (!statusSplitApplied) {
+    const { deriveRecord, buildReport } = require("./services/migration-backfill");
+    const applyRequested = process.env.SCHEMA_BACKFILL === "apply";
+
+    if (applyRequested) {
+        db.transaction(() => {
+            // Only rows nothing has touched. Keying resume on `stage` alone was
+            // wrong in both directions: the app stays writable during the
+            // report-then-apply window, so a record closed through the new
+            // shape has state and close_reason but no stage -- the backfill
+            // would have overwritten the operator's reason with an inferred
+            // rejection -- while a record given only a stage would be skipped
+            // forever with state and record_type left null.
+            const rows = db
+                .prepare(
+                    `SELECT * FROM applications
+                     WHERE stage IS NULL AND state IS NULL
+                       AND close_reason IS NULL AND record_type IS NULL`,
+                )
+                .all();
+            const update = db.prepare(
+                `UPDATE applications
+                 SET stage = ?, state = ?, close_reason = ?, record_type = ?
+                 WHERE id = ?`,
+            );
+
+            let written = 0;
+            let flagged = 0;
+            let skipped = 0;
+            for (const row of rows) {
+                const d = deriveRecord(row);
+                if (d.stage === null) {
+                    // Unknown status: reported, never guessed at.
+                    skipped++;
+                    continue;
+                }
+                update.run(d.stage, d.state, d.close_reason, d.record_type, row.id);
+                written++;
+                if (d.review) flagged++;
+            }
+
+            // Only record the migration as done when every row was classified.
+            // Recording it while rows were skipped would gate the whole block
+            // off and strand those rows at null forever, since nothing revisits
+            // them. Leaving it unrecorded means the operator fixes the odd
+            // statuses and re-runs; rows already written are excluded by the
+            // selector above, so the retry does no double work.
+            if (skipped === 0) {
+                db.prepare(
+                    "INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))",
+                ).run(STATUS_SPLIT_MIGRATION);
+            }
+
+            console.log(
+                `[status-split] Applied. written=${written} flagged=${flagged} unclassified=${skipped}`,
+            );
+            if (flagged > 0) {
+                console.log(
+                    `[status-split] ${flagged} record(s) carry close_reason='unresolved' and need review.`,
+                );
+            }
+            if (skipped > 0) {
+                console.warn(
+                    `[status-split] NOT marked complete: ${skipped} record(s) have a status the rules do not understand. ` +
+                        `Fix those statuses and restart with SCHEMA_BACKFILL=apply to finish.`,
+                );
+            }
+        })();
+    } else if (dbPath !== ":memory:") {
+        const reportPath = path.join(
+            path.dirname(dbPath),
+            "schema-backfill-report.json",
+        );
+        const report = buildReport(db, { reportPath });
+        console.log(
+            `[status-split] Report mode (set SCHEMA_BACKFILL=apply to write). ` +
+                `total=${report.summary.total} flagged=${report.summary.flagged}`,
+        );
+        console.log(`[status-split] Report written to ${reportPath}`);
+    }
+}
+
 // API key prepared statements
 db.insertApiKey = db.prepare(
     `INSERT INTO api_keys (user_email, label, key_hash) VALUES (?, ?, ?)`,
@@ -456,6 +621,27 @@ function runOrphanedFileSweep() {
         .all();
     for (const att of attachments) {
         referenced.add(att.stored_filename);
+    }
+
+    // Files belonging to rows a destructive operation backed up are still
+    // referenced -- by the backup. Sweeping them would make an operation that
+    // promises reversibility silently irreversible on the next restart.
+    const backups = db.prepare("SELECT row_json FROM _row_backups").all();
+    for (const backup of backups) {
+        let parsed;
+        try {
+            parsed = JSON.parse(backup.row_json);
+        } catch {
+            continue;
+        }
+        for (const att of parsed.attachments || []) {
+            if (att.stored_filename) referenced.add(att.stored_filename);
+        }
+        const app = parsed.application;
+        if (app) {
+            if (app.cv_path) referenced.add(app.cv_path);
+            if (app.cover_letter_path) referenced.add(app.cover_letter_path);
+        }
     }
 
     const files = fs.readdirSync(uploadsDir);

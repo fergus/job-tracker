@@ -177,7 +177,10 @@ SQLite with WAL mode and foreign keys enabled.
 ### Tables
 
 - `users` — `email`, `first_seen_at`, `last_seen_at`
-- `applications` — job details, status, dates, salary, location, CV/cover letter paths, `user_email`
+- `applications` — job details, dates, salary, location, CV/cover letter paths, `user_email`, plus the status split: `stage` (how far it got), `state` (`open`/`closed`), `close_reason`, and `record_type` (`application`/`lead`)
+- `contacts` — people in the search (recruiters, referrers, hiring managers), scoped by `user_email`
+- `contact_links` — joins a contact to a record with a `relation`; cascade-deletes from both sides
+- `_row_backups` — original row JSON (plus its notes, attachments and contact links) for any row a destructive operation removes. There is **no automated restore path**: the backup makes a conversion recoverable by hand, and keeps the orphaned-file sweep from deleting the row's uploads. Treat "reversible" as "the data is still there", not "there is an undo button".
 - `stage_notes` — per-application notes with stage and markdown content
 - `attachments` — generic file attachments (cascade-delete with application)
 - `api_keys` — hashed keys per user, with label and last-used tracking
@@ -210,6 +213,8 @@ Auth middleware (`server/middleware/auth.js`) supports two methods:
 - All JSON bodies are scoped to the authenticated user via `req.userEmail`.
 - Admin can pass `?all=true` on list endpoints to view all users' data.
 - `PATCH /api/applications/:id/status` auto-sets the corresponding `*_at` date field.
+- **`status` is derived, not authoritative.** It used to encode three unrelated facts at once, and is kept only so callers that have not migrated keep working. `services/applications.js` writes both shapes on every write: a `status` write derives `stage`/`state`/`close_reason`, and a write to any of those re-derives `status`. The legacy column is lossy in one direction by design — it has a single failure state, so `withdrawn`, `role_closed`, `lapsed` and `not_pursued` all read back as `rejected`. Filter on `state` and `record_type`, never on `status`.
+- The status split backfill runs on startup in report mode and writes nothing. Set `SCHEMA_BACKFILL=apply` to apply it once. See `docs/plans/2026-08-12-002-refactor-pipeline-schema-split-plan.md`.
 - `PATCH /api/applications/:id/dates` allows manual editing of stage date fields (pass `null` to clear).
 - Create application accepts `multipart/form-data` (allows CV + cover letter upload). Update accepts `application/json`.
 - API key auth uses `application/json` for create/update (not multipart).
@@ -266,7 +271,7 @@ A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`).
 
 **Paths:** The transport is mounted at `/` on the MCP port — *not* `/mcp`. Locally that means `http://localhost:3001/`. The public `https://<domain>/mcp` URL below is produced by an external reverse proxy that maps the `/mcp` path to this port; that proxy is not part of this repo's `docker-compose.yml`, which only publishes port 3001 as `${MCP_LISTEN_PORT:-3563}`. MCP does not pass through oauth2-proxy — it authenticates via Bearer API key on its own.
 
-**Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`
+**Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`, `list_contacts`, `get_contact`, `create_contact`, `link_contact`
 
 **`upload_attachment`** — for small files (<~30KB): parameters `application_id`, `filename`, `file_content` (base64-encoded string). Accepts file bytes directly; works over remote HTTP transport.
 

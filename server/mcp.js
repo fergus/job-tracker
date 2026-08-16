@@ -12,6 +12,7 @@ const {
 const { z } = require("zod");
 const db = require("./db");
 const svc = require("./services/applications");
+const contactsSvc = require("./services/contacts");
 const { resolveApiKey } = require("./lib/apiKeySecret");
 const { uploadsDir } = require("./lib/files");
 const { extractStructuredJD } = require("./services/extraction");
@@ -23,7 +24,10 @@ const { emitChange } = require("./lib/events");
 
 // Convert a ServiceError into MCP tool content so the LLM sees the message.
 function toolError(err) {
-    if (err instanceof svc.ServiceError) {
+    // The contacts service defines its own ServiceError, so checking only the
+    // applications class would rethrow an ordinary 404 or 409 from a contact
+    // tool as an unhandled JSON-RPC error instead of an isError result.
+    if (err instanceof svc.ServiceError || err instanceof contactsSvc.ServiceError) {
         return {
             content: [
                 { type: "text", text: `Error ${err.status}: ${err.message}` },
@@ -101,7 +105,7 @@ function createMcpServer() {
 
     server.tool(
         "list_applications",
-        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work.",
+        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead). The legacy `status` field is derived from those and kept only for compatibility -- filter on state and record_type instead, since status collapses every non-acceptance close onto 'rejected'.",
         {
             status: z
                 .enum([
@@ -124,6 +128,32 @@ function createMcpServer() {
                 .optional()
                 .describe(
                     "Return only records updated after this ISO 8601 datetime (useful for incremental refresh)",
+                ),
+            state: z
+                .enum(["open", "closed"])
+                .optional()
+                .describe(
+                    "Filter by whether the record is still open. Prefer this over status for 'what is live'.",
+                ),
+            close_reason: z
+                .enum([
+                    "accepted",
+                    "rejected",
+                    "withdrawn",
+                    "role_closed",
+                    "lapsed",
+                    "not_pursued",
+                    "unresolved",
+                ])
+                .optional()
+                .describe(
+                    "Filter closed records by why they ended. 'unresolved' means the reason is not known.",
+                ),
+            record_type: z
+                .enum(["application", "lead"])
+                .optional()
+                .describe(
+                    "Filter by record kind. A lead is a role identified but never applied to; filter to 'application' for true pipeline counts.",
                 ),
             fields: z
                 .array(z.string())
@@ -166,6 +196,9 @@ function createMcpServer() {
 
                 const result = svc.listApplications(userEmail, {
                     status: args.status,
+                    state: args.state,
+                    close_reason: args.close_reason,
+                    record_type: args.record_type,
                     company_name: args.company_name,
                     updated_since: args.updated_since,
                     limit,
@@ -203,7 +236,7 @@ function createMcpServer() {
 
     server.tool(
         "get_application",
-        "Get a job application by ID, returning the full record including job_description, extracted_jd, interview_notes, prep_work, notes, and attachment metadata. The intended pattern is: call list_applications (with sparse fields) to locate a record, then call get_application to fetch full detail.",
+        "Get a job application by ID, returning the full record including job_description, extracted_jd, interview_notes, prep_work, notes, linked contacts, and attachment metadata. The intended pattern is: call list_applications (with sparse fields) to locate a record, then call get_application to fetch full detail.",
         {
             id: z.number().int().positive().describe("Application ID"),
         },
@@ -371,6 +404,34 @@ function createMcpServer() {
                 .optional()
                 .nullable()
                 .describe("Maximum salary"),
+            stage: z
+                .enum(["interested", "applied", "responded", "interview", "offer"])
+                .optional()
+                .describe("How far the record got. Closing does not change it."),
+            state: z
+                .enum(["open", "closed"])
+                .optional()
+                .describe(
+                    "Whether the record is still open. Closing requires close_reason; reopening clears it.",
+                ),
+            close_reason: z
+                .enum([
+                    "accepted",
+                    "rejected",
+                    "withdrawn",
+                    "role_closed",
+                    "lapsed",
+                    "not_pursued",
+                    "unresolved",
+                ])
+                .optional()
+                .describe(
+                    "Why the record ended. Only valid on a closed record. Use 'not_pursued' for a role identified but never applied to, not 'rejected'.",
+                ),
+            record_type: z
+                .enum(["application", "lead"])
+                .optional()
+                .describe("Whether this is a real application or an unpursued lead"),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -1041,6 +1102,136 @@ function createMcpServer() {
         },
     );
 
+    // --- Contacts ---------------------------------------------------------
+    //
+    // People are first-class records rather than pipeline rows. Before this
+    // existed, a recruiter got filed as a job application, which inflated the
+    // pipeline and left the referral network unrepresentable.
+
+    server.tool(
+        "list_contacts",
+        "List contacts (recruiters, referrers, hiring managers) with the records each is linked to. Use this to answer questions about people rather than roles.",
+        {},
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.listContacts(userEmail);
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "get_contact",
+        "Get one contact by ID, including every record they are linked to and the relation each link carries.",
+        { id: z.number().int().positive().describe("Contact ID") },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.getContact(userEmail, args.id);
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "create_contact",
+        "Create a contact. A contact can exist with no links, so record a person met before any specific role rather than leaving them in a note body.",
+        {
+            name: z.string().min(1).max(200).describe("Person's name"),
+            contact_role: z
+                .string()
+                .max(200)
+                .optional()
+                .describe("Their role, e.g. recruiter or hiring manager"),
+            employer: z.string().max(200).optional().describe("Who they work for"),
+            email: z.string().max(320).optional().describe("Email address"),
+            phone: z.string().max(50).optional().describe("Phone number"),
+            notes: z.string().max(10000).optional().describe("Free-text notes"),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.createContact(userEmail, args);
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "link_contact",
+        "Attach a contact to an application or lead, recording their relation to it. Both must belong to you.",
+        {
+            contact_id: z.number().int().positive().describe("Contact ID"),
+            application_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Application or lead ID"),
+            relation: z
+                .string()
+                .max(100)
+                .optional()
+                .describe("How they relate to this record, e.g. recruiter or referrer"),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.linkContact(
+                    userEmail,
+                    args.contact_id,
+                    args.application_id,
+                    args.relation,
+                );
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
     return server;
 }
 
@@ -1138,4 +1329,4 @@ function startMcpServer(port) {
     return httpServer;
 }
 
-module.exports = { startMcpServer };
+module.exports = { startMcpServer, toolError };

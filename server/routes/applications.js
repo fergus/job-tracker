@@ -55,6 +55,10 @@ router.get("/", (req, res) => {
         res.json(
             svc.listApplications(req.userEmail, {
                 status: req.query.status,
+                state: req.query.state,
+                close_reason: req.query.close_reason,
+                record_type: req.query.record_type,
+                company_name: req.query.company_name,
                 all: req.query.all,
                 updated_since: req.query.updated_since,
                 isAdmin: req.isAdmin,

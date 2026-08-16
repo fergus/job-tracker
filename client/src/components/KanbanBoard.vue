@@ -65,12 +65,13 @@
               item-key="id"
               :delay="100"
               :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
+              data-testid="accepted-drop-zone"
               @change="onAcceptedAdded"
               @start="dragActive = true"
               @end="dragActive = false"
             >
               <template #item="{ element }">
-                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
+                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
               </template>
             </draggable>
           </div>
@@ -95,7 +96,7 @@
               @end="dragActive = false"
             >
               <template #item="{ element }">
-                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
+                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
               </template>
             </draggable>
           </div>
@@ -115,7 +116,7 @@
               :key="app.id"
               :application="app"
               :showUser="showUser"
-              :quiet="isMuted(app.status)"
+              :quiet="isMuted(app)"
               @select="$emit('select', app)"
             />
           </div>
@@ -196,12 +197,12 @@
                 item-key="id"
                 :delay="100"
                 class="space-y-2 min-h-[60px] bg-sunken rounded-lg p-2"
-                @change="(evt) => onActiveChange(evt, stage.value)"
+                @change="(evt) => onMobileClosedChange(evt, stage.value)"
                 @start="dragActive = true"
                 @end="dragActive = false"
               >
                 <template #item="{ element }">
-                  <KanbanCard :application="element" :showUser="showUser" :quiet="isMuted(element.status)" @select="$emit('select', element)" />
+                  <KanbanCard :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
                 </template>
               </draggable>
             </div>
@@ -223,7 +224,7 @@ import { reactive, watch, ref, computed, nextTick } from 'vue'
 // vuedraggable is being replaced for another reason.
 import draggable from 'vuedraggable'
 import KanbanCard from './KanbanCard.vue'
-import { TERMINAL_STAGES, isMuted } from '../utils/timeline.js'
+import { isMuted, isTerminal, isAccepted } from '../utils/timeline.js'
 
 const props = defineProps({
   applications: Array,
@@ -236,7 +237,7 @@ const props = defineProps({
 // column — including the hidden Closed column — to be mounted in the DOM for drag-and-drop
 // to work correctly across the board. showClosed therefore toggles visibility rather
 // than filtering the data upstream.
-const emit = defineEmits(['status-change', 'select', 'toggle-show-closed', 'drag-active', 'set-view'])
+const emit = defineEmits(['status-change', 'close-record', 'select', 'toggle-show-closed', 'drag-active', 'set-view'])
 
 const activeStages = [
   { value: 'interested', label: 'Interested' },
@@ -334,16 +335,37 @@ function onActiveChange(evt, status) {
   }
 }
 
+// The mobile Closed group renders accepted and rejected as ordinary stage
+// lists, so it was still wired to the legacy status-change path -- meaning a
+// mobile drop into Rejected recorded a real rejection, the exact one-gesture
+// path this change exists to remove. It mirrors the desktop handlers instead.
+function onMobileClosedChange(evt, stage) {
+  if (evt.added) {
+    const app = evt.added.element
+    if (inFlightIds.value.has(app.id)) return
+    inFlightIds.value.add(app.id)
+    if (stage === 'accepted') {
+      emit('close-record', app.id, 'accepted')
+    } else if (isAccepted(app)) {
+      // Correcting an acceptance to a rejection is explicit, so it may name one.
+      emit('close-record', app.id, 'rejected')
+    } else {
+      emit('close-record', app.id, 'unresolved')
+    }
+  }
+}
+
 function onAcceptedAdded(evt) {
   if (evt.added) {
     const app = evt.added.element
     if (inFlightIds.value.has(app.id)) return
     if (app.status === 'accepted') return
-    // Drag from active column defaults to rejected per plan;
-    // drag from rejected within Closed changes to accepted
-    const newStatus = TERMINAL_STAGES.includes(app.status) ? 'accepted' : 'rejected'
     inFlightIds.value.add(app.id)
-    emit('status-change', app.id, newStatus)
+    // The drop target names the outcome. Dropping on Accepted means accepted,
+    // whether the card came from an active column or from Rejected -- closing
+    // it as 'unresolved' instead re-derived status='rejected', so the card
+    // reappeared under Rejected and acceptance was unrepresentable from the board.
+    emit('close-record', app.id, 'accepted')
   }
 }
 
@@ -351,9 +373,14 @@ function onRejectedAdded(evt) {
   if (evt.added) {
     const app = evt.added.element
     if (inFlightIds.value.has(app.id)) return
-    if (app.status !== 'rejected') {
+    if (isAccepted(app)) {
+      // Moving an accepted record into Rejected is an explicit correction,
+      // so it is the one drag that may name a rejection.
       inFlightIds.value.add(app.id)
-      emit('status-change', app.id, 'rejected')
+      emit('close-record', app.id, 'rejected')
+    } else if (!isTerminal(app)) {
+      inFlightIds.value.add(app.id)
+      emit('close-record', app.id, 'unresolved')
     }
   }
 }

@@ -371,6 +371,76 @@
           <!-- Edit/view-only sections -->
           <template v-if="isEdit">
 
+            <!-- Outcome: how the record ended, and whether it is a real application -->
+            <div class="mt-6 pt-5 border-t border-line">
+              <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">Outcome</span>
+              <div class="mt-3 grid grid-cols-2 gap-4">
+                <div>
+                  <label for="record-type-select" class="text-xs text-ink-3 uppercase tracking-wide">Record type</label>
+                  <select
+                    id="record-type-select"
+                    :value="panelApp.record_type || 'application'"
+                    @change="onRecordTypeChange($event.target.value)"
+                    class="mt-1 w-full text-sm border border-line rounded px-2 py-1.5 bg-raised text-ink focus:ring-2 focus:ring-accent outline-hidden"
+                  >
+                    <option value="application">Application</option>
+                    <option value="lead">Lead (never applied)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="close-reason-select" class="text-xs text-ink-3 uppercase tracking-wide">Close reason</label>
+                  <select
+                    id="close-reason-select"
+                    :value="panelApp.close_reason || ''"
+                    :disabled="panelApp.state !== 'closed'"
+                    @change="onCloseReasonChange($event.target.value)"
+                    class="mt-1 w-full text-sm border border-line rounded px-2 py-1.5 bg-raised text-ink focus:ring-2 focus:ring-accent outline-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="" disabled>Not closed</option>
+                    <option v-for="r in closeReasonOptions" :key="r" :value="r">{{ closeReasonLabels[r] }}</option>
+                  </select>
+                  <p v-if="panelApp.state !== 'closed'" class="mt-1 text-xs text-ink-3">Only set once the record is closed.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Linked contacts -->
+            <div class="mt-6 pt-5 border-t border-line">
+              <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">People</span>
+              <ul v-if="panelApp.contacts && panelApp.contacts.length" class="mt-3 space-y-2">
+                <li v-for="c in panelApp.contacts" :key="c.link_id" class="flex items-center justify-between gap-2">
+                  <span class="text-sm text-ink">
+                    {{ c.name }}
+                    <span v-if="c.relation" class="text-ink-3">&middot; {{ c.relation }}</span>
+                    <span v-else-if="c.contact_role" class="text-ink-3">&middot; {{ c.contact_role }}</span>
+                  </span>
+                  <button
+                    @click="onUnlinkContact(c.id)"
+                    class="p-1 rounded text-ink-3 hover:text-danger shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                    :title="`Unlink ${c.name}`"
+                    :aria-label="`Unlink ${c.name}`"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </li>
+              </ul>
+              <p v-else class="mt-3 text-sm text-ink-3">No one linked yet.</p>
+              <form class="mt-3 flex items-center gap-2" @submit.prevent="onAddContact">
+                <input
+                  v-model="newContactName"
+                  type="text"
+                  placeholder="Add a person by name"
+                  class="flex-1 text-sm border border-line rounded px-2 py-1.5 bg-raised text-ink focus:ring-2 focus:ring-accent outline-hidden"
+                  aria-label="Add a person by name"
+                />
+                <button
+                  type="submit"
+                  :disabled="!newContactName.trim()"
+                  class="text-sm px-3 py-1.5 rounded border border-line text-ink hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                >Add</button>
+              </form>
+            </div>
+
             <!-- Dates grid -->
             <details :open="datesOpen" @toggle="datesOpen = $event.target.open" class="group mt-6 pt-5 border-t border-line">
               <summary class="flex items-center justify-between cursor-pointer list-none select-none">
@@ -756,8 +826,9 @@ import {
   updateDates, createNote, updateNote, deleteNote,
   fetchAttachments, uploadAttachments, getAttachmentUrl, deleteAttachment,
   extractJd, fetchJd, generateDocument, fetchAuditLog,
+  createContact, linkContact, unlinkContact,
 } from '../api'
-import { computeSegments, stageColor, durationDays } from '../utils/timeline'
+import { computeSegments, stageColor, durationDays, CLOSE_REASONS, CLOSE_REASON_LABELS } from '../utils/timeline'
 import { useToast } from '../composables/useToast'
 import { renderMarkdown } from '../utils/markdown.js'
 import { storageGetBool, storageSet } from '../utils/storage.js'
@@ -790,6 +861,57 @@ const auditLogOpen = ref(false)
 
 const props = defineProps({ panelApp: Object, totalApplications: { type: Number, default: 0 } })
 const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
+
+// --- Outcome and people ---
+
+const closeReasonLabels = CLOSE_REASON_LABELS
+// `accepted` is not offered here: acceptance is reached by moving the record to
+// the accepted stage, not by relabelling why it closed.
+const closeReasonOptions = CLOSE_REASONS.filter((r) => r !== 'accepted')
+const newContactName = ref('')
+
+async function persistOutcome(patch, failureMessage) {
+  try {
+    const updated = await updateApplication(props.panelApp.id, patch)
+    emit('panel-app-updated', updated)
+    emit('saved')
+  } catch (err) {
+    toast.error(failureMessage + ' — ' + getErrorMessage(err))
+  }
+}
+
+function onRecordTypeChange(value) {
+  persistOutcome({ record_type: value }, 'Failed to update record type')
+}
+
+function onCloseReasonChange(value) {
+  if (!value) return
+  persistOutcome({ state: 'closed', close_reason: value }, 'Failed to set close reason')
+}
+
+async function onAddContact() {
+  const name = newContactName.value.trim()
+  if (!name) return
+  try {
+    const contact = await createContact({ name })
+    const updated = await linkContact(contact.id, props.panelApp.id)
+    newContactName.value = ''
+    emit('saved')
+    toast.success(`Linked ${contact.name}`)
+    return updated
+  } catch (err) {
+    toast.error('Failed to add contact — ' + getErrorMessage(err))
+  }
+}
+
+async function onUnlinkContact(contactId) {
+  try {
+    await unlinkContact(contactId, props.panelApp.id)
+    emit('saved')
+  } catch (err) {
+    toast.error('Failed to unlink contact — ' + getErrorMessage(err))
+  }
+}
 
 const isEdit = computed(() => !!(props.panelApp?.id))
 

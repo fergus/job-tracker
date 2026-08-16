@@ -154,3 +154,35 @@ export function generateDocument(appId, task) {
 export function fetchAuditLog(appId) {
     return api.get(`/applications/${appId}/audit-log`).then((r) => r.data);
 }
+
+// --- Contacts ---
+
+export function fetchContacts(all = false) {
+  return api.get('/contacts', { params: all ? { all: 'true' } : {} }).then((r) => r.data)
+}
+
+export function fetchContact(id) {
+  return api.get(`/contacts/${id}`).then((r) => r.data)
+}
+
+export function createContact(data) {
+  return api.post('/contacts', data).then((r) => r.data)
+}
+
+export function updateContact(id, data) {
+  return api.put(`/contacts/${id}`, data).then((r) => r.data)
+}
+
+export function deleteContact(id) {
+  return api.delete(`/contacts/${id}`).then((r) => r.data)
+}
+
+export function linkContact(contactId, applicationId, relation) {
+  return api
+    .post(`/contacts/${contactId}/links`, { application_id: applicationId, relation })
+    .then((r) => r.data)
+}
+
+export function unlinkContact(contactId, applicationId) {
+  return api.delete(`/contacts/${contactId}/links/${applicationId}`).then((r) => r.data)
+}
