@@ -223,6 +223,38 @@ db.exec(
     "CREATE INDEX IF NOT EXISTS idx_contact_links_contact_id ON contact_links(contact_id)",
 );
 
+// Contact interaction log. A relationship is a sequence of interactions --
+// messaged on this date, replied on that one, meeting held -- and that history
+// is the substance of a recruiter contact. `occurred_at` is when it happened,
+// which is not the same as when it was typed: a call logged three days later
+// belongs on the day of the call.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contact_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_contact_notes_contact ON contact_notes(contact_id, occurred_at DESC)",
+);
+
+// Migrate: next-touch tracking on contacts. Nullable with no defaults -- a
+// contact with no commitment is the normal steady state, not a gap.
+const contactCols = db.prepare("PRAGMA table_info(contacts)").all();
+for (const col of ["last_contacted_at", "next_action_at", "next_action"]) {
+    if (!contactCols.some((c) => c.name === col)) {
+        db.exec(`ALTER TABLE contacts ADD COLUMN ${col} TEXT`);
+    }
+}
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_contacts_next_action ON contacts(user_email, next_action_at)",
+);
+
 // Row backups — the original row JSON of any row an operation removes, so a
 // destructive conversion can be undone. audit_log cannot serve this purpose:
 // it cascades on applications delete, so it vanishes with the row it documents.

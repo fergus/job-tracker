@@ -6,6 +6,12 @@
 // with nowhere to live.
 
 const db = require("../db");
+const {
+    followUpState,
+    daysUntil,
+    toCalendarDate,
+    todayInInstanceZone,
+} = require("../lib/followup");
 
 class ServiceError extends Error {
     constructor(status, message) {
@@ -22,6 +28,8 @@ const LIMITS = {
     phone: 50,
     notes: 10000,
     relation: 100,
+    next_action: 500,
+    content: 10000,
 };
 
 const EDITABLE_FIELDS = [
@@ -31,7 +39,45 @@ const EDITABLE_FIELDS = [
     "email",
     "phone",
     "notes",
+    "last_contacted_at",
+    "next_action_at",
+    "next_action",
 ];
+
+// Day granularity, matching every other date in the schema.
+const DATE_FIELDS = ["last_contacted_at", "next_action_at"];
+
+function validateDateFields(data) {
+    for (const field of DATE_FIELDS) {
+        const value = data[field];
+        if (value === undefined || value === null || value === "") continue;
+        if (!toCalendarDate(value)) {
+            return `${field} must be a calendar date (YYYY-MM-DD)`;
+        }
+    }
+    return null;
+}
+
+// The interactions logged against a contact, most recent first.
+function notesForContact(contactId) {
+    return db
+        .prepare(
+            `SELECT id, content, occurred_at, created_at
+             FROM contact_notes WHERE contact_id = ?
+             ORDER BY occurred_at DESC, id DESC`,
+        )
+        .all(contactId);
+}
+
+// Decorate a contact with its derived follow-up state so the API, MCP and any
+// UI all read the same classification rather than each recomputing it.
+function withFollowUp(contact) {
+    return {
+        ...contact,
+        follow_up_state: followUpState(contact.next_action_at),
+        follow_up_days: daysUntil(contact.next_action_at),
+    };
+}
 
 function validateInputLengths(body, fields) {
     for (const field of fields) {
@@ -82,16 +128,56 @@ function contactsForApplication(applicationId) {
         .all(applicationId);
 }
 
-function listContacts(userEmail, { all, isAdmin = false } = {}) {
+function listContacts(
+    userEmail,
+    { all, isAdmin = false, next_action_before, has_next_action, query } = {},
+) {
     const showAll = isAdmin && all === "true";
-    const rows = showAll
-        ? db.prepare("SELECT * FROM contacts ORDER BY name ASC").all()
-        : db
-              .prepare(
-                  "SELECT * FROM contacts WHERE user_email = ? ORDER BY name ASC",
-              )
-              .all(userEmail);
-    return rows.map((c) => ({ ...c, links: linksForContact(c.id) }));
+    const conditions = [];
+    const params = [];
+
+    if (!showAll) {
+        conditions.push("user_email = ?");
+        params.push(userEmail);
+    }
+
+    if (next_action_before !== undefined && next_action_before !== null && next_action_before !== "") {
+        const bound = toCalendarDate(next_action_before);
+        if (!bound) {
+            throw new ServiceError(
+                400,
+                "next_action_before must be a calendar date (YYYY-MM-DD)",
+            );
+        }
+        // Inclusive: "who do I owe a touch by Friday" should include Friday.
+        conditions.push("next_action_at IS NOT NULL AND date(next_action_at) <= ?");
+        params.push(bound);
+    }
+
+    if (has_next_action === true) {
+        conditions.push("next_action_at IS NOT NULL");
+    } else if (has_next_action === false) {
+        conditions.push("next_action_at IS NULL");
+    }
+
+    if (query) {
+        conditions.push("(name LIKE ? OR employer LIKE ? OR contact_role LIKE ?)");
+        const like = `%${query}%`;
+        params.push(like, like, like);
+    }
+
+    const where = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
+    // Ordered by what is owed first, then by name: the main question a job-search
+    // contacts table answers is "who do I owe a touch", and alphabetical order
+    // carries no information about that.
+    const rows = db
+        .prepare(
+            `SELECT * FROM contacts${where}
+             ORDER BY (next_action_at IS NULL), date(next_action_at) ASC, name ASC`,
+        )
+        .all(...params);
+
+    return rows.map((c) => withFollowUp({ ...c, links: linksForContact(c.id) }));
 }
 
 function getContact(userEmail, id, { isAdmin = false } = {}) {
@@ -99,7 +185,11 @@ function getContact(userEmail, id, { isAdmin = false } = {}) {
         ? db.prepare("SELECT * FROM contacts WHERE id = ?").get(id)
         : getOwnContact(id, userEmail);
     if (!contact) throw new ServiceError(404, "Not found");
-    return { ...contact, links: linksForContact(contact.id) };
+    return withFollowUp({
+        ...contact,
+        links: linksForContact(contact.id),
+        interactions: notesForContact(contact.id),
+    });
 }
 
 function createContact(userEmail, data) {
@@ -109,10 +199,15 @@ function createContact(userEmail, data) {
     const lengthError = validateInputLengths(data, EDITABLE_FIELDS);
     if (lengthError) throw new ServiceError(400, lengthError);
 
+    const dateError = validateDateFields(data);
+    if (dateError) throw new ServiceError(400, dateError);
+
     const result = db
         .prepare(
-            `INSERT INTO contacts (name, contact_role, employer, email, phone, notes, user_email)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO contacts
+             (name, contact_role, employer, email, phone, notes,
+              last_contacted_at, next_action_at, next_action, user_email)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
             name,
@@ -121,6 +216,9 @@ function createContact(userEmail, data) {
             data.email || null,
             data.phone || null,
             data.notes || null,
+            toCalendarDate(data.last_contacted_at),
+            toCalendarDate(data.next_action_at),
+            data.next_action || null,
             userEmail,
         );
 
@@ -133,6 +231,9 @@ function updateContact(userEmail, id, data) {
 
     const lengthError = validateInputLengths(data, EDITABLE_FIELDS);
     if (lengthError) throw new ServiceError(400, lengthError);
+
+    const dateError = validateDateFields(data);
+    if (dateError) throw new ServiceError(400, dateError);
 
     if (data.name !== undefined && !String(data.name).trim()) {
         throw new ServiceError(400, "name cannot be empty");
@@ -325,6 +426,54 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
     return getContact(userEmail, contactId);
 }
 
+// Log an interaction. `occurred_at` defaults to today in the instance
+// timezone, because the common case is logging something that just happened --
+// but a call written up three days later belongs on the day of the call, so it
+// is settable.
+function addContactNote(userEmail, contactId, { content, occurred_at } = {}) {
+    const contact = getOwnContact(contactId, userEmail);
+    if (!contact) throw new ServiceError(404, "Not found");
+
+    const body = content && String(content).trim();
+    if (!body) throw new ServiceError(400, "content is required");
+    if (body.length > LIMITS.content) {
+        throw new ServiceError(
+            400,
+            `content exceeds maximum length of ${LIMITS.content} characters`,
+        );
+    }
+
+    let when = todayInInstanceZone();
+    if (occurred_at !== undefined && occurred_at !== null && occurred_at !== "") {
+        const parsed = toCalendarDate(occurred_at);
+        if (!parsed) {
+            throw new ServiceError(
+                400,
+                "occurred_at must be a calendar date (YYYY-MM-DD)",
+            );
+        }
+        when = parsed;
+    }
+
+    db.transaction(() => {
+        db.prepare(
+            "INSERT INTO contact_notes (contact_id, content, occurred_at) VALUES (?, ?, ?)",
+        ).run(contactId, body, when);
+
+        // Logging an interaction IS contact, so last_contacted_at is derived
+        // from it rather than being a second field to remember to update. Only
+        // advances -- back-dating an old note must not rewind the record.
+        const current = toCalendarDate(contact.last_contacted_at);
+        if (!current || when > current) {
+            db.prepare(
+                "UPDATE contacts SET last_contacted_at = ?, updated_at = ? WHERE id = ?",
+            ).run(when, new Date().toISOString(), contactId);
+        }
+    })();
+
+    return getContact(userEmail, contactId);
+}
+
 module.exports = {
     ServiceError,
     LIMITS,
@@ -338,4 +487,6 @@ module.exports = {
     unlinkContact,
     contactsForApplication,
     linksForContact,
+    notesForContact,
+    addContactNote,
 };

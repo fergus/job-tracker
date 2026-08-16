@@ -28,6 +28,12 @@ router.get("/", (req, res) => {
             svc.listContacts(req.userEmail, {
                 all: req.query.all,
                 isAdmin: req.isAdmin,
+                next_action_before: req.query.next_action_before,
+                has_next_action:
+                    req.query.has_next_action === undefined
+                        ? undefined
+                        : req.query.has_next_action === "true",
+                query: req.query.query,
             }),
         );
     } catch (e) {
@@ -83,6 +89,16 @@ router.post("/convert/:applicationId", (req, res) => {
                 req.params.applicationId,
                 req.body,
             ),
+        );
+    } catch (e) {
+        handleError(res, e);
+    }
+});
+
+router.post("/:id/notes", (req, res) => {
+    try {
+        res.status(201).json(
+            svc.addContactNote(req.userEmail, req.params.id, req.body),
         );
     } catch (e) {
         handleError(res, e);

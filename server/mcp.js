@@ -1110,8 +1110,23 @@ function createMcpServer() {
 
     server.tool(
         "list_contacts",
-        "List contacts (recruiters, referrers, hiring managers) with the records each is linked to. Use this to answer questions about people rather than roles.",
-        {},
+        "List contacts (recruiters, referrers, hiring managers) with the records each is linked to, ordered by what is owed soonest. Each carries follow_up_state (overdue | due | upcoming) derived against the instance timezone, so you never recompute it. Use next_action_before to answer \"who do I owe a touch this week\".",
+        {
+            next_action_before: z
+                .string()
+                .optional()
+                .describe(
+                    "Only contacts whose next action falls on or before this calendar date (YYYY-MM-DD).",
+                ),
+            has_next_action: z
+                .boolean()
+                .optional()
+                .describe("true = only contacts with a next action set; false = only those without."),
+            query: z
+                .string()
+                .optional()
+                .describe("Partial match on name, employer or role."),
+        },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
             if (!userEmail)
@@ -1120,7 +1135,11 @@ function createMcpServer() {
                     isError: true,
                 };
             try {
-                const result = contactsSvc.listContacts(userEmail);
+                const result = contactsSvc.listContacts(userEmail, {
+                    next_action_before: args.next_action_before,
+                    has_next_action: args.has_next_action,
+                    query: args.query,
+                });
                 return {
                     content: [
                         { type: "text", text: JSON.stringify(result, null, 2) },
@@ -1381,6 +1400,46 @@ function createMcpServer() {
                     application_id,
                     data,
                 );
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "add_contact_note",
+        "Log an interaction with a contact -- messaged, replied, meeting held, agreed to follow up. This is the relationship's history; the contact's `notes` field is a standing description, not a log. Logging advances last_contacted_at automatically, so there is no second field to maintain.",
+        {
+            contact_id: z.number().int().positive().describe("Contact ID"),
+            content: z
+                .string()
+                .min(1)
+                .max(10000)
+                .describe("What happened, in your own words"),
+            occurred_at: z
+                .string()
+                .optional()
+                .describe(
+                    "Calendar date the interaction happened (YYYY-MM-DD). Defaults to today in the instance timezone -- set it when writing up something from a few days ago.",
+                ),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.addContactNote(userEmail, args.contact_id, {
+                    content: args.content,
+                    occurred_at: args.occurred_at,
+                });
                 return {
                     content: [
                         { type: "text", text: JSON.stringify(result, null, 2) },
