@@ -14,3 +14,7 @@ smb-share/
 
 .claude/settings.local.json
 .claude/skills/fs-next/.cache/
+
+# Playwright output
+test-results/
+playwright-report/
