@@ -2,7 +2,12 @@ const fs = require("fs");
 const fsPromises = require("fs").promises;
 const path = require("path");
 
-const uploadsDir = path.resolve(path.join(__dirname, "..", "..", "uploads"));
+// Overridable so a test (or an operator) can point the app -- and the
+// destructive orphaned-file sweep in db.js -- at a scratch directory
+// instead of the real one.
+const uploadsDir = path.resolve(
+    process.env.UPLOADS_DIR || path.join(__dirname, "..", "..", "uploads"),
+);
 
 function safePath(base, filename) {
     const resolved = path.resolve(base, filename);

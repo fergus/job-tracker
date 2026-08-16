@@ -329,7 +329,9 @@ const hasCvData = db
     .get();
 
 if (!alreadyRun && hasCvData.count > 0) {
-    const uploadsDir = path.join(__dirname, "..", "uploads");
+    const uploadsDir = path.resolve(
+        process.env.UPLOADS_DIR || path.join(__dirname, "..", "uploads"),
+    );
 
     const MIME_MAP = {
         ".pdf": "application/pdf",
@@ -403,7 +405,9 @@ if (!backfillRan) {
             "[backfill] Starting attachment text extraction backfill...",
         );
         const { extractText } = require("./services/extraction");
-        const uploadsDir = path.join(__dirname, "..", "uploads");
+        const uploadsDir = path.resolve(
+        process.env.UPLOADS_DIR || path.join(__dirname, "..", "uploads"),
+    );
 
         const attachments = db
             .prepare(
@@ -605,7 +609,9 @@ db.listAuditLogByApp = db.prepare(
 // Orphaned file sweeper: remove files in uploads/ not referenced by DB
 function runOrphanedFileSweep() {
     if (dbPath === ":memory:") return;
-    const uploadsDir = path.join(__dirname, "..", "uploads");
+    const uploadsDir = path.resolve(
+        process.env.UPLOADS_DIR || path.join(__dirname, "..", "uploads"),
+    );
     if (!fs.existsSync(uploadsDir)) return;
 
     const referenced = new Set();

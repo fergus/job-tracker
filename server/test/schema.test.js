@@ -77,6 +77,13 @@ function bootStartup(dbPath, env = {}) {
         {
             env: {
                 ...process.env,
+                // db.js runs a destructive orphaned-file sweep on startup that
+                // deletes anything in the uploads dir not referenced by ITS
+                // database. These boots use throwaway databases, so without an
+                // override they would wipe the real uploads directory shared
+                // with the other test files running in parallel. A caller may
+                // override it, so this is a default and must precede ...env.
+                UPLOADS_DIR: path.join(tmpDir, "uploads"),
                 ...env,
                 DB_PATH: dbPath,
                 DB_MODULE: path.join(__dirname, "..", "db.js"),
@@ -103,6 +110,7 @@ function tablesOf(db) {
 
 before(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jt-schema-"));
+    fs.mkdirSync(path.join(tmpDir, "uploads"), { recursive: true });
 });
 
 after(() => {
@@ -567,6 +575,38 @@ describe("U1 contact_links integrity", () => {
                     )
                     .run(contactId, appId),
             /UNIQUE/i,
+        );
+    });
+});
+
+describe("startup never sweeps an uploads directory it was not pointed at", () => {
+    // Regression: db.js's orphaned-file sweep used a hardcoded shared path, so
+    // any boot against a throwaway database deleted the real uploads directory's
+    // contents. Under a parallel test runner that raced other suites' fixtures;
+    // aimed at the wrong directory in production it would delete real files.
+    test("a boot with UPLOADS_DIR set leaves other directories untouched", () => {
+        const dbPath = makeDbPath("sweep-scope");
+        const ownUploads = path.join(tmpDir, "sweep-own");
+        const foreignUploads = path.join(tmpDir, "sweep-foreign");
+        fs.mkdirSync(ownUploads, { recursive: true });
+        fs.mkdirSync(foreignUploads, { recursive: true });
+
+        const orphan = path.join(ownUploads, "orphan.txt");
+        const bystander = path.join(foreignUploads, "bystander.txt");
+        fs.writeFileSync(orphan, "unreferenced");
+        fs.writeFileSync(bystander, "belongs to someone else");
+
+        bootStartup(dbPath, { UPLOADS_DIR: ownUploads });
+
+        assert.equal(
+            fs.existsSync(orphan),
+            false,
+            "the sweep should still clean the directory it was pointed at",
+        );
+        assert.equal(
+            fs.existsSync(bystander),
+            true,
+            "and must not touch any other uploads directory",
         );
     });
 });
