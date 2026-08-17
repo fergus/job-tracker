@@ -160,6 +160,7 @@ Child component
 
 - `SidebarMenu` sits at `z-40`.
 - Application modals (`ApplicationPanel`, detail view) sit at `z-50`.
+- `ContactPanel` sits at `z-[55]`: it stacks over the application panel it is opened from, rather than replacing it, so closing it returns you to the record.
 - Body scroll is locked (`document.body.style.overflow = 'hidden'`) while sidebar or a modal is open on mobile.
 
 ---

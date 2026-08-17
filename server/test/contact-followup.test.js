@@ -274,6 +274,32 @@ describe("who do I owe a touch", () => {
         );
     });
 
+    test("a record's linked people carry their follow-up state", async () => {
+        const app = await as(req.post("/api/applications")).send({
+            company_name: "Linked Co",
+            role_title: "Engineer",
+            status: "interested",
+        });
+        const c = await mkContact({
+            name: "Linked Person",
+            next_action_at: "2020-01-01",
+            next_action: "Long overdue call",
+        });
+        await as(req.post(`/api/contacts/${c.id}/links`)).send({
+            application_id: app.body.id,
+        });
+
+        const res = await as(req.get(`/api/applications/${app.body.id}`));
+        const person = res.body.contacts.find((p) => p.id === c.id);
+        assert.equal(
+            person.follow_up_state,
+            "overdue",
+            "the record's own panel must see who is owed a touch without a call per person",
+        );
+        assert.equal(person.next_action, "Long overdue call");
+        assert.ok(person.follow_up_days < 0);
+    });
+
     test("rejects a malformed bound rather than returning everything", async () => {
         const res = await as(req.get("/api/contacts?next_action_before=soon"));
         assert.equal(res.status, 400);

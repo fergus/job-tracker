@@ -114,18 +114,21 @@ function linksForContact(contactId) {
         .all(contactId);
 }
 
-// The people attached to a record.
+// The people attached to a record. Carries the follow-up state so the record's
+// own panel can show who is owed a touch without a second round trip per person.
 function contactsForApplication(applicationId) {
     return db
         .prepare(
             `SELECT c.id, c.name, c.contact_role, c.employer, c.email, c.phone,
+                    c.last_contacted_at, c.next_action_at, c.next_action,
                     cl.id AS link_id, cl.relation
              FROM contact_links cl
              JOIN contacts c ON c.id = cl.contact_id
              WHERE cl.application_id = ?
              ORDER BY c.name ASC`,
         )
-        .all(applicationId);
+        .all(applicationId)
+        .map(withFollowUp);
 }
 
 function listContacts(
