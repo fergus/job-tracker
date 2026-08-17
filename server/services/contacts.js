@@ -430,7 +430,11 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
 // timezone, because the common case is logging something that just happened --
 // but a call written up three days later belongs on the day of the call, so it
 // is settable.
-function addContactNote(userEmail, contactId, { content, occurred_at } = {}) {
+function addContactNote(
+    userEmail,
+    contactId,
+    { content, occurred_at, next_action_at, next_action } = {},
+) {
     const contact = getOwnContact(contactId, userEmail);
     if (!contact) throw new ServiceError(404, "Not found");
 
@@ -455,6 +459,41 @@ function addContactNote(userEmail, contactId, { content, occurred_at } = {}) {
         when = parsed;
     }
 
+    // The next touch is an explicit commitment, so it only changes when named:
+    // omit the field and the existing value stands, pass null to clear it. Each
+    // of the pair is independent, so re-wording a commitment does not drop its
+    // date and vice versa.
+    const nextUpdates = [];
+    const nextValues = [];
+    if (next_action_at !== undefined) {
+        let nextAt = null;
+        if (next_action_at !== null && next_action_at !== "") {
+            nextAt = toCalendarDate(next_action_at);
+            if (!nextAt) {
+                throw new ServiceError(
+                    400,
+                    "next_action_at must be a calendar date (YYYY-MM-DD)",
+                );
+            }
+        }
+        nextUpdates.push("next_action_at = ?");
+        nextValues.push(nextAt);
+    }
+    if (next_action !== undefined) {
+        const nextWhat =
+            next_action === null || next_action === ""
+                ? null
+                : String(next_action);
+        if (nextWhat && nextWhat.length > LIMITS.next_action) {
+            throw new ServiceError(
+                400,
+                `next_action exceeds maximum length of ${LIMITS.next_action} characters`,
+            );
+        }
+        nextUpdates.push("next_action = ?");
+        nextValues.push(nextWhat);
+    }
+
     db.transaction(() => {
         db.prepare(
             "INSERT INTO contact_notes (contact_id, content, occurred_at) VALUES (?, ?, ?)",
@@ -468,6 +507,12 @@ function addContactNote(userEmail, contactId, { content, occurred_at } = {}) {
             db.prepare(
                 "UPDATE contacts SET last_contacted_at = ?, updated_at = ? WHERE id = ?",
             ).run(when, new Date().toISOString(), contactId);
+        }
+
+        if (nextUpdates.length > 0) {
+            db.prepare(
+                `UPDATE contacts SET ${nextUpdates.join(", ")}, updated_at = ? WHERE id = ?`,
+            ).run(...nextValues, new Date().toISOString(), contactId);
         }
     })();
 

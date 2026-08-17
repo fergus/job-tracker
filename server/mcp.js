@@ -1189,6 +1189,17 @@ function createMcpServer() {
             email: z.string().max(320).optional().describe("Email address"),
             phone: z.string().max(50).optional().describe("Phone number"),
             notes: z.string().max(10000).optional().describe("Free-text notes"),
+            next_action_at: z
+                .string()
+                .optional()
+                .describe(
+                    "Calendar date you owe them the next touch (YYYY-MM-DD). Drives follow_up_state and the next_action_before filter on list_contacts.",
+                ),
+            next_action: z
+                .string()
+                .max(500)
+                .optional()
+                .describe("What that next touch is, e.g. call back about the Acme role"),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -1277,6 +1288,21 @@ function createMcpServer() {
                 .nullable()
                 .optional()
                 .describe("Free-text notes. Replaces the existing notes wholesale."),
+            next_action_at: z
+                .string()
+                .nullable()
+                .optional()
+                .describe(
+                    "Calendar date you owe them the next touch (YYYY-MM-DD), or null to clear it. Drives follow_up_state and the next_action_before filter on list_contacts.",
+                ),
+            next_action: z
+                .string()
+                .max(500)
+                .nullable()
+                .optional()
+                .describe(
+                    "What that next touch is, e.g. call back about the Acme role. Null clears it.",
+                ),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -1427,6 +1453,21 @@ function createMcpServer() {
                 .describe(
                     "Calendar date the interaction happened (YYYY-MM-DD). Defaults to today in the instance timezone -- set it when writing up something from a few days ago.",
                 ),
+            next_action_at: z
+                .string()
+                .nullable()
+                .optional()
+                .describe(
+                    "Calendar date of the next touch this interaction leaves you owing (YYYY-MM-DD), or null to clear it. Omit to leave the existing commitment alone. Set it here rather than in a second update_contact call.",
+                ),
+            next_action: z
+                .string()
+                .max(500)
+                .nullable()
+                .optional()
+                .describe(
+                    "What that next touch is, e.g. chase the shortlist decision. Null clears it.",
+                ),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -1439,6 +1480,8 @@ function createMcpServer() {
                 const result = contactsSvc.addContactNote(userEmail, args.contact_id, {
                     content: args.content,
                     occurred_at: args.occurred_at,
+                    next_action_at: args.next_action_at,
+                    next_action: args.next_action,
                 });
                 return {
                     content: [
