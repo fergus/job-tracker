@@ -409,11 +409,23 @@
               <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">People</span>
               <ul v-if="panelApp.contacts && panelApp.contacts.length" class="mt-3 space-y-2">
                 <li v-for="c in panelApp.contacts" :key="c.link_id" class="flex items-center justify-between gap-2">
-                  <span class="text-sm text-ink">
+                  <button
+                    type="button"
+                    @click="emit('open-contact', c.id)"
+                    class="text-sm text-ink text-left hover:text-accent focus-visible:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded px-1 -mx-1"
+                    :title="`Open ${c.name}`"
+                    :aria-label="`Open ${c.name}`"
+                  >
                     {{ c.name }}
                     <span v-if="c.relation" class="text-ink-3">&middot; {{ c.relation }}</span>
                     <span v-else-if="c.contact_role" class="text-ink-3">&middot; {{ c.contact_role }}</span>
-                  </span>
+                  </button>
+                  <span
+                    v-if="followUpChip(c)"
+                    class="text-xs shrink-0 ml-auto"
+                    :class="followUpChip(c).tone"
+                    :title="followUpChip(c).title"
+                  >{{ followUpChip(c).text }}</span>
                   <button
                     @click="onUnlinkContact(c.id)"
                     class="p-1 rounded text-ink-3 hover:text-danger shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -860,7 +872,7 @@ const auditLogLoading = ref(false)
 const auditLogOpen = ref(false)
 
 const props = defineProps({ panelApp: Object, totalApplications: { type: Number, default: 0 } })
-const emit = defineEmits(['close', 'saved', 'panel-app-updated'])
+const emit = defineEmits(['close', 'saved', 'panel-app-updated', 'open-contact'])
 
 // --- Outcome and people ---
 
@@ -887,6 +899,30 @@ function onRecordTypeChange(value) {
 function onCloseReasonChange(value) {
   if (!value) return
   persistOutcome({ state: 'closed', close_reason: value }, 'Failed to set close reason')
+}
+
+// A linked person's outstanding commitment, at glance length. The server
+// derives the state, so the panel never reclassifies a date itself.
+function followUpChip(contact) {
+  if (!contact.follow_up_state) return null
+  const days = contact.follow_up_days
+  const what = contact.next_action ? `: ${contact.next_action}` : ''
+  if (contact.follow_up_state === 'overdue') {
+    const late = Math.abs(days)
+    return {
+      text: `${late}d overdue`,
+      tone: 'text-danger',
+      title: `Overdue by ${late} ${late === 1 ? 'day' : 'days'}${what}`,
+    }
+  }
+  if (contact.follow_up_state === 'due') {
+    return { text: 'due today', tone: 'text-accent', title: `Due today${what}` }
+  }
+  return {
+    text: `in ${days}d`,
+    tone: 'text-ink-3',
+    title: `Due in ${days} ${days === 1 ? 'day' : 'days'}${what}`,
+  }
 }
 
 async function onAddContact() {

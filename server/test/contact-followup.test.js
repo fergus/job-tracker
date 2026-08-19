@@ -202,6 +202,104 @@ describe("who do I owe a touch", () => {
         );
     });
 
+    test("logging an interaction can set the next touch in the same call", async () => {
+        const c = await mkContact({ name: "Re-dater" });
+        const res = await as(req.post(`/api/contacts/${c.id}/notes`)).send({
+            content: "Emailed her the updated CV",
+            occurred_at: "2026-08-14",
+            next_action_at: "2026-08-21",
+            next_action: "Chase the shortlist decision",
+        });
+        assert.equal(res.status, 201);
+        assert.equal(res.body.next_action_at, "2026-08-21");
+        assert.equal(res.body.next_action, "Chase the shortlist decision");
+        assert.equal(res.body.last_contacted_at, "2026-08-14");
+    });
+
+    test("logging without naming a next touch leaves the existing one alone", async () => {
+        const c = await mkContact({
+            name: "Committed",
+            next_action_at: "2026-09-01",
+            next_action: "Call about the offer",
+        });
+        const res = await as(req.post(`/api/contacts/${c.id}/notes`)).send({
+            content: "Bumped into him at a meetup",
+        });
+        assert.equal(res.body.next_action_at, "2026-09-01");
+        assert.equal(res.body.next_action, "Call about the offer");
+    });
+
+    test("an explicit null on the note clears the commitment", async () => {
+        const c = await mkContact({
+            name: "Discharged",
+            next_action_at: "2026-09-01",
+            next_action: "Call about the offer",
+        });
+        const res = await as(req.post(`/api/contacts/${c.id}/notes`)).send({
+            content: "Role is filled, nothing left to chase",
+            next_action_at: null,
+            next_action: null,
+        });
+        assert.equal(res.body.next_action_at, null);
+        assert.equal(res.body.next_action, null);
+        assert.equal(res.body.follow_up_state, null);
+    });
+
+    test("re-wording the next touch does not drop its date", async () => {
+        const c = await mkContact({
+            name: "Reworded",
+            next_action_at: "2026-09-01",
+            next_action: "Call",
+        });
+        const res = await as(req.post(`/api/contacts/${c.id}/notes`)).send({
+            content: "She prefers email",
+            next_action: "Email instead of calling",
+        });
+        assert.equal(res.body.next_action_at, "2026-09-01");
+        assert.equal(res.body.next_action, "Email instead of calling");
+    });
+
+    test("rejects a malformed next_action_at on a note", async () => {
+        const c = await mkContact({ name: "Note Validator" });
+        const res = await as(req.post(`/api/contacts/${c.id}/notes`)).send({
+            content: "Spoke to her",
+            next_action_at: "next Thursday",
+        });
+        assert.equal(res.status, 400);
+        const after = await as(req.get(`/api/contacts/${c.id}`));
+        assert.equal(
+            after.body.interactions.length,
+            0,
+            "a rejected note must not be written at all",
+        );
+    });
+
+    test("a record's linked people carry their follow-up state", async () => {
+        const app = await as(req.post("/api/applications")).send({
+            company_name: "Linked Co",
+            role_title: "Engineer",
+            status: "interested",
+        });
+        const c = await mkContact({
+            name: "Linked Person",
+            next_action_at: "2020-01-01",
+            next_action: "Long overdue call",
+        });
+        await as(req.post(`/api/contacts/${c.id}/links`)).send({
+            application_id: app.body.id,
+        });
+
+        const res = await as(req.get(`/api/applications/${app.body.id}`));
+        const person = res.body.contacts.find((p) => p.id === c.id);
+        assert.equal(
+            person.follow_up_state,
+            "overdue",
+            "the record's own panel must see who is owed a touch without a call per person",
+        );
+        assert.equal(person.next_action, "Long overdue call");
+        assert.ok(person.follow_up_days < 0);
+    });
+
     test("rejects a malformed bound rather than returning everything", async () => {
         const res = await as(req.get("/api/contacts?next_action_before=soon"));
         assert.equal(res.status, 400);

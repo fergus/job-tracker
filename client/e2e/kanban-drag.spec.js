@@ -1,13 +1,30 @@
 import { test, expect } from '@playwright/test'
 
+// Sortable decides where a card lands from the dragover events it sees along
+// the way, so the pointer is walked to the target in steps. A single jump only
+// registers when the target column is nearly empty, which made these specs pass
+// or fail on how many records earlier specs happened to leave behind.
 async function dragWithDelay(page, sourceLocator, targetLocator, delay = 150) {
   const sourceBox = await sourceLocator.boundingBox()
   const targetBox = await targetLocator.boundingBox()
 
-  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+  const fromX = sourceBox.x + sourceBox.width / 2
+  const fromY = sourceBox.y + sourceBox.height / 2
+  const toX = targetBox.x + targetBox.width / 2
+  const toY = targetBox.y + targetBox.height / 2
+
+  await page.mouse.move(fromX, fromY)
   await page.mouse.down()
   await page.waitForTimeout(delay)
-  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2)
+
+  const STEPS = 10
+  for (let step = 1; step <= STEPS; step++) {
+    await page.mouse.move(
+      fromX + ((toX - fromX) * step) / STEPS,
+      fromY + ((toY - fromY) * step) / STEPS,
+    )
+    await page.waitForTimeout(20)
+  }
   await page.mouse.up()
 }
 

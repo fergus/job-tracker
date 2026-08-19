@@ -186,3 +186,9 @@ export function linkContact(contactId, applicationId, relation) {
 export function unlinkContact(contactId, applicationId) {
   return api.delete(`/contacts/${contactId}/links/${applicationId}`).then((r) => r.data)
 }
+
+// Logging an interaction advances last_contacted_at server-side, and can carry
+// the next touch it leaves you owing, so one call closes the loop.
+export function addContactNote(contactId, data) {
+  return api.post(`/contacts/${contactId}/notes`, data).then((r) => r.data)
+}

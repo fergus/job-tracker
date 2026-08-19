@@ -147,6 +147,14 @@
             @close="closePanel"
             @saved="handlePanelSaved"
             @panel-app-updated="panelApp = $event"
+            @open-contact="openContact"
+        />
+        <ContactPanel
+            v-if="contactId"
+            :key="contactId"
+            :contactId="contactId"
+            @close="contactId = null"
+            @saved="handlePanelSaved"
         />
         <SettingsPanel
             v-if="showSettings"
@@ -210,6 +218,10 @@ const ApplicationPanel = defineAsyncComponent(() =>
     import("./components/ApplicationPanel.vue")
 );
 
+const ContactPanel = defineAsyncComponent(() =>
+    import("./components/ContactPanel.vue")
+);
+
 const toast = useToast();
 
 const version = __APP_VERSION__;
@@ -226,6 +238,7 @@ const showPanel = ref(false);
 const currentUser = ref(null);
 const showAllUsers = ref(false);
 const showSettings = ref(false);
+const contactId = ref(null);
 const compactHeader = ref(false);
 const logoTrigger = ref(0);
 const statusVersion = ref(0);
@@ -290,14 +303,31 @@ async function loadApplications() {
     applications.value = await fetchApplications(null, showAllUsers.value);
 }
 
-function openPanel(app = null) {
+// The board holds list rows, which carry no linked contacts -- only the detail
+// endpoint attaches them. Open on the row so the panel appears at once, then
+// upgrade to the full record so the People section is not falsely empty.
+async function openPanel(app = null) {
     panelApp.value = app ?? {};
     showPanel.value = true;
+    if (!app?.id) return;
+    try {
+        const detail = await fetchApplication(app.id);
+        if (panelApp.value?.id === app.id) panelApp.value = detail;
+    } catch (err) {
+        toast.error("Error loading application: " + getErrorMessage(err));
+    }
 }
 
 function closePanel() {
     panelApp.value = null;
     showPanel.value = false;
+    contactId.value = null;
+}
+
+// The contact drawer stacks over the application panel rather than replacing
+// it, so closing it returns you to the record you came from.
+function openContact(id) {
+    contactId.value = id;
 }
 
 async function handlePanelSaved() {

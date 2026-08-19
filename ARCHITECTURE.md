@@ -208,10 +208,12 @@ graph TD
     App --> AP["ApplicationPanel.vue<br/>Create/edit/detail slide-in panel"]
     App --> SM["SidebarMenu.vue<br/>Slide-in nav"]
     App --> SP["SettingsPanel.vue<br/>API keys + admin data scope"]
+    App --> CP["ContactPanel.vue<br/>Contact detail, next touch, interaction log"]
     KB --> KC["KanbanCard.vue<br/>Card in column"]
 
     AP --> API["api.js<br/>Axios HTTP client"]
     SP --> API
+    CP --> API
     App --> API
 ```
 
