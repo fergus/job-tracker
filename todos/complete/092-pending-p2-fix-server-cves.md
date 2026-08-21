@@ -41,6 +41,9 @@ Both were NOT auto-applied because they are CVE fixes (p2 review items), even th
 
 ## Acceptance Criteria
 
-- [ ] `cd server && npm audit` reports 0 vulnerabilities
-- [ ] Server tests pass (`cd server && npm test`)
-- [ ] MCP server still functions correctly
+- [x] `cd server && npm audit` reports 0 vulnerabilities
+- [x] Server tests pass (`cd server && npm test`)
+- [x] MCP server still functions correctly
+
+## Completion
+- Completed 2026-08-21: `npm audit fix` in server/ resolved all CVEs — ip-address 10.2.0 → 10.5.0 (via express-rate-limit 8.6.2), hono 4.12.33 → 4.13.3 (via @modelcontextprotocol/sdk 1.30.0 → @hono/node-server 2.0.12). `npm audit` reports 0 vulnerabilities. Server tests: 345/345 pass (suite covers the MCP Streamable HTTP transport). better-sqlite3 rebuilt after install-script skip.

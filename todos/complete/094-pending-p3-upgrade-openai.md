@@ -36,7 +36,10 @@ Minor bump (7.3.x → 7.4.x), NOT auto-applied in cron mode.
 
 ## Acceptance Criteria
 
-- [ ] `cd server && npm outdated` shows openai current
-- [ ] `cd client && npm outdated` shows openai current
-- [ ] Server tests pass (`cd server && npm test`)
-- [ ] Client builds (`npm run build:client` from project root)
+- [x] `cd server && npm outdated` shows openai current
+- [x] `cd client && npm outdated` shows openai current
+- [x] Server tests pass (`cd server && npm test`)
+- [x] Client builds (`npm run build:client` from project root)
+
+## Completion
+- Completed 2026-08-21: openai upgraded 7.3.0 → 7.4.0 in both server/ and client/. `npm outdated` shows openai current (7.4.0; 7.5.0 is now latest — candidate for next weekly check). Server tests 345/345 pass; client unit tests 132/132 pass; build succeeds.

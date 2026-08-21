@@ -38,5 +38,8 @@ NOT auto-applied because it is a CVE fix (p2 review item), even though in-range.
 
 ## Acceptance Criteria
 
-- [ ] `cd client && npm audit` reports 0 vulnerabilities
-- [ ] Client builds (`npm run build:client` from project root)
+- [x] `cd client && npm audit` reports 0 vulnerabilities
+- [x] Client builds (`npm run build:client` from project root)
+
+## Completion
+- Completed 2026-08-21: `npm audit fix` in client/ resolved the nanoid advisory — nanoid 3.3.16 → 3.3.18 (via vite 8.2.1 → postcss 8.5.25). `npm audit` reports 0 vulnerabilities. Client unit tests 132/132 pass; `npm run build:client` succeeds.
