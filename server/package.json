@@ -1,6 +1,6 @@
 {
     "name": "job-tracker-server",
-    "version": "0.21.2",
+    "version": "0.21.3",
     "private": true,
     "scripts": {
         "test": "node --test test/*.test.js test/*/*.test.js"
@@ -15,7 +15,7 @@
         "mammoth": "^1.12.1",
         "morgan": "^1.11.0",
         "multer": "^2.2.0",
-        "openai": "^7.4.0",
+        "openai": "^7.5.0",
         "pdf-parse": "^2.4.5",
         "zod": "^4.4.1"
     },

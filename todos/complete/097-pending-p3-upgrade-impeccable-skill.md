@@ -26,5 +26,8 @@ node .claude/skills/impeccable/scripts/cleanup-deprecated.mjs
 
 ## Acceptance Criteria
 
-- [ ] Local `SKILL.md` reports version 4.1.1
-- [ ] `node .claude/skills/impeccable/scripts/context.mjs` runs without errors
+- [x] Local `SKILL.md` reports version 4.1.1
+- [x] `node .claude/skills/impeccable/scripts/context.mjs` runs without errors
+
+## Completion
+- Completed 2026-08-22: impeccable wholesale-replaced from fresh clone of `pbakaus/impeccable` (4.1.1). SKILL.md reports `version: 4.1.1`. Note: the proposed fix's `cleanup-deprecated.mjs` step is stale — 4.x no longer ships that script; correct post-install check is `node .claude/skills/impeccable/scripts/context.mjs`, which runs clean.
