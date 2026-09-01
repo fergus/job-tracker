@@ -25,6 +25,9 @@ cd /home/fstevens/code/job-tracker/client && npm install morgan@1.12.0
 
 ## Acceptance Criteria
 
-- [ ] Both `server/package.json` and `client/package.json` reference `^1.12.0`
-- [ ] Server tests pass (`cd server && npm test`)
-- [ ] Client builds (`npm run build:client`)
+- [x] Both `server/package.json` and `client/package.json` reference `^1.12.0`
+- [x] Server tests pass (`cd server && npm test`)
+- [x] Client builds (`npm run build:client`)
+
+## Completion
+- Completed 2026-09-01: upgraded morgan 1.11.0 → 1.12.0 in both `server/` and `client/`. Verification: server tests 345/345 pass, client build succeeds, `npm audit` reports 0 vulnerabilities in both workspaces.

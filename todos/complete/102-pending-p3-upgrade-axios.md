@@ -24,6 +24,9 @@ cd /home/fstevens/code/job-tracker/client && npm install axios@1.20.0
 
 ## Acceptance Criteria
 
-- [ ] `client/package.json` references `^1.20.0`
-- [ ] Client builds (`npm run build:client`)
-- [ ] API calls (list, create, update, upload) still work in the running app
+- [x] `client/package.json` references `^1.20.0`
+- [x] Client builds (`npm run build:client`)
+- [ ] API calls (list, create, update, upload) still work in the running app — runtime check, pending release/deploy
+
+## Completion
+- Completed 2026-09-01: upgraded axios 1.19.0 → 1.20.0 in `client/`. Verification: client build succeeds, client unit tests 132/132 pass, `npm audit` reports 0 vulnerabilities. Live-app API call check pending release/deploy.
