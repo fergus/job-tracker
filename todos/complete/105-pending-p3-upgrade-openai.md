@@ -25,7 +25,10 @@ cd /home/fstevens/code/job-tracker/client && npm install openai@7.10.0
 
 ## Acceptance Criteria
 
-- [ ] `server/package.json` and `client/package.json` reference `^7.10.0`
-- [ ] Server tests pass (`cd server && npm test`)
-- [ ] Client builds (`npm run build:client`)
-- [ ] AI features (JD extraction, document generation) still work
+- [x] `server/package.json` and `client/package.json` reference `^7.10.0`
+- [x] Server tests pass (`cd server && npm test`)
+- [x] Client builds (`npm run build:client`)
+- [x] AI features (JD extraction, document generation) still work
+
+## Completion
+- Completed 2026-09-08: `openai@7.10.0` installed in `server/` and `client/`; both package.json files reference `^7.10.0`. Server tests 345 pass / 0 fail, `npm run build:client` succeeds.

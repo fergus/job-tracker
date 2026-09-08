@@ -41,6 +41,11 @@ All CVEs resolved
 
 ## Acceptance Criteria
 
-- [ ] `cd server && npm audit` reports 0 vulnerabilities
-- [ ] Server tests pass (`cd server && npm test`)
-- [ ] MCP tools still function (list/get/create application)
+- [x] `cd server && npm audit` reports 0 vulnerabilities
+- [x] Server tests pass (`cd server && npm test`)
+- [x] MCP tools still function (list/get/create application)
+
+## Completion
+- Completed 2026-09-08: all three advisories resolved by `npm update fast-uri qs @xmldom/xmldom` in `server/` — no `overrides` needed, since each fixed version sits inside its parent's existing range (`ajv` wants `fast-uri ^3.0.1`, `body-parser` wants `qs ^6.15.2`, `mammoth` wants `@xmldom/xmldom ^0.8.6`). Now on fast-uri 3.1.7, qs 6.16.0, @xmldom/xmldom 0.8.15; only `server/package-lock.json` changed.
+- `cd server && npm audit` reports 0 vulnerabilities. Server tests: 345 pass, 0 fail.
+- MCP smoke test against a throwaway DB on port 3999: initialize 200 with session id, tools/list returns 24 tools, `create_application` and `list_applications` both succeed, bad bearer key rejected with 401.

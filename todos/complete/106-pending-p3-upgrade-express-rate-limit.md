@@ -24,6 +24,9 @@ cd /home/fstevens/code/job-tracker/server && npm install express-rate-limit@8.7.
 
 ## Acceptance Criteria
 
-- [ ] `server/package.json` references `^8.7.0`
-- [ ] Server tests pass (`cd server && npm test`)
-- [ ] Rate limiting still enforced on `/api` and upload endpoints
+- [x] `server/package.json` references `^8.7.0`
+- [x] Server tests pass (`cd server && npm test`)
+- [x] Rate limiting still enforced on `/api` and upload endpoints
+
+## Completion
+- Completed 2026-09-08: `express-rate-limit@8.7.0` installed; `server/package.json` references `^8.7.0`. Server tests 345 pass / 0 fail, including the rate-limit coverage in the API suite.
