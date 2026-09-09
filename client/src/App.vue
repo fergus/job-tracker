@@ -154,7 +154,7 @@
             :key="contactId"
             :contactId="contactId"
             @close="contactId = null"
-            @saved="handlePanelSaved"
+            @saved="handleContactSaved"
         />
         <SettingsPanel
             v-if="showSettings"
@@ -182,6 +182,7 @@ import {
     fetchMe,
     fetchApplications,
     fetchApplication,
+    fetchContacts,
     updateStatus,
     updateApplication,
 } from "./api";
@@ -231,8 +232,12 @@ const SHOW_CLOSED_KEY = "jobtracker_show_closed";
 
 
 
+// Two tiers: the section is which entity you are looking at, the view is
+// which lens the Applications section is under. People has no lens.
+const section = ref("applications");
 const view = ref("kanban");
 const applications = ref([]);
+const contacts = ref([]);
 const panelApp = ref(null);
 const showPanel = ref(false);
 const currentUser = ref(null);
@@ -289,10 +294,17 @@ watch(showClosed, (visible) => {
     }
 });
 
-watch(showPanel, (panel) => {
-    const lock = panel && window.innerWidth < 768;
-    document.body.style.overflow = lock ? "hidden" : "";
-});
+// One watcher owns the body-scroll style. The contact drawer can now be
+// opened without an application panel behind it, and two watchers writing the
+// same property would race: closing the panel while the drawer is still open
+// would unlock the page underneath it.
+watch(
+    [showPanel, contactId],
+    ([panel, contact]) => {
+        const lock = (panel || contact !== null) && window.innerWidth < 768;
+        document.body.style.overflow = lock ? "hidden" : "";
+    },
+);
 
 function toggleCompact() {
     compactHeader.value = !compactHeader.value;
@@ -301,6 +313,32 @@ function toggleCompact() {
 
 async function loadApplications() {
     applications.value = await fetchApplications(null, showAllUsers.value);
+}
+
+// The contact list is server-ordered (KTD1), so it is always replaced whole
+// rather than patched in place -- a spliced row cannot reposition itself.
+async function loadContacts() {
+    try {
+        contacts.value = await fetchContacts(showAllUsers.value);
+    } catch (err) {
+        toast.error("Error loading contacts: " + getErrorMessage(err));
+    }
+}
+
+// R23. The contact list is not on the change event stream (KTD8), so its
+// freshness comes from refetching at the moments the user could have missed
+// something: arriving at the section, returning to the tab, and a stream
+// reconnect that proves the client was disconnected.
+function setSection(next) {
+    if (section.value === next) return;
+    section.value = next;
+    if (next === "people") loadContacts();
+}
+
+function refreshOnFocus() {
+    if (document.visibilityState === "visible" && section.value === "people") {
+        loadContacts();
+    }
 }
 
 // The board holds list rows, which carry no linked contacts -- only the detail
@@ -328,6 +366,17 @@ function closePanel() {
 // it, so closing it returns you to the record you came from.
 function openContact(id) {
     contactId.value = id;
+}
+
+// The drawer is reachable from two places now. Saving from the application
+// panel has to refresh that record; saving from People has no record behind it
+// and must refresh the contact list instead.
+async function handleContactSaved() {
+    if (showPanel.value) {
+        await handlePanelSaved();
+        return;
+    }
+    await loadContacts();
 }
 
 async function handlePanelSaved() {
@@ -439,6 +488,7 @@ function setShowAll(val) {
     if (showAllUsers.value === val) return;
     showAllUsers.value = val;
     loadApplications();
+    if (section.value === "people") loadContacts();
     connectLiveUpdates();
 }
 
@@ -575,6 +625,9 @@ function requestReconnectRefetch() {
     );
     refetchQueue = gate.state;
     if (gate.apply) runRefetch();
+    // Contacts have no drag gesture to land under, so they refetch straight
+    // away rather than going through the applications queue.
+    if (section.value === "people") loadContacts();
 }
 
 watch(dragActive, (active) => {
@@ -609,14 +662,15 @@ function handleRemoteChange(evt) {
 
 onMounted(async () => {
     const isMobile = window.innerWidth < 768;
-    view.value = isMobile ? "kanban" : "kanban";
     compactHeader.value = storageGetBool(COMPACT_KEY, isMobile);
+    document.addEventListener("visibilitychange", refreshOnFocus);
     currentUser.value = await fetchMe();
     loadApplications();
     connectLiveUpdates();
 });
 
 onUnmounted(() => {
+    document.removeEventListener("visibilitychange", refreshOnFocus);
     liveUpdates.value?.stop();
     if (justNowTimer !== null) {
         clearTimeout(justNowTimer);
