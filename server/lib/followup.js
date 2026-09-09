@@ -76,6 +76,18 @@ function daysUntil(dateValue, now = new Date()) {
     return Math.round(ms / 86400000);
 }
 
+// Whole days since a date, never negative. `last_contacted_at` is derived from
+// the interaction log and only advances, but a note can be logged with a
+// future occurred_at, and "contacted -2 days ago" is not a thing anyone means:
+// a date ahead of today reads as contacted today.
+function daysSince(dateValue, now = new Date()) {
+    const date = toCalendarDate(dateValue);
+    if (!date) return null;
+    const today = todayInInstanceZone(now);
+    const ms = Date.parse(`${today}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`);
+    return Math.max(0, Math.round(ms / 86400000));
+}
+
 module.exports = {
     VALID_FOLLOWUP_STATES,
     instanceTimezone,
@@ -83,4 +95,5 @@ module.exports = {
     toCalendarDate,
     followUpState,
     daysUntil,
+    daysSince,
 };
