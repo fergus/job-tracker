@@ -145,7 +145,10 @@
                     v-else
                     key="people"
                     :contacts="contacts"
+                    :readOnly="showAllUsers"
+                    :pendingId="snoozingContactId"
                     @open-contact="openContact"
+                    @snooze="handleSnooze"
                 />
             </Transition>
         </main>
@@ -194,6 +197,7 @@ import {
     fetchApplications,
     fetchApplication,
     fetchContacts,
+    updateContact,
     updateStatus,
     updateApplication,
 } from "./api";
@@ -350,6 +354,26 @@ function setSection(next) {
     section.value = next;
     sectionAnnouncement.value = `${SECTION_LABELS[next]} section`;
     if (next === "people") loadContacts();
+}
+
+// KTD3: the update endpoint, not the notes endpoint -- logging a note would
+// advance last_contacted_at, and rescheduling a commitment is not contact.
+// KTD4: the list is refetched rather than the row spliced, because ordering is
+// the server's and a moved row cannot reposition itself. R24: nothing moves
+// optimistically, and a row already in flight cannot be resubmitted.
+const snoozingContactId = ref(null);
+
+async function handleSnooze(id, date) {
+    if (snoozingContactId.value !== null) return;
+    snoozingContactId.value = id;
+    try {
+        await updateContact(id, { next_action_at: date });
+        await loadContacts();
+    } catch (err) {
+        toast.error("Failed to reschedule — " + getErrorMessage(err));
+    } finally {
+        snoozingContactId.value = null;
+    }
 }
 
 function refreshOnFocus() {

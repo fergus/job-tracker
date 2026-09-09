@@ -26,12 +26,16 @@
         </p>
 
         <ul v-else class="flex flex-col">
-          <li v-for="contact in group.contacts" :key="contact.id">
+          <li
+            v-for="contact in group.contacts"
+            :key="contact.id"
+            class="border-b border-line/60 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3"
+          >
             <button
               type="button"
               @click="$emit('open-contact', contact.id)"
               :aria-label="rowLabel(contact)"
-              class="w-full text-left min-h-[44px] py-3 border-b border-line/60 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 transition-colors hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm px-2 -mx-2"
+              class="flex-1 min-w-0 text-left min-h-[44px] py-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 transition-colors hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm px-2 -mx-2"
             >
               <span class="min-w-0">
                 <span class="text-sm font-medium text-ink">{{ contact.name }}</span>
@@ -52,6 +56,58 @@
                 </span>
               </span>
             </button>
+
+            <!-- R12: the only action on a row. Logging what actually happened
+                 stays in the drawer, so the interaction history does not fill
+                 up with one-tap stubs. R21: in all-users mode there is no
+                 write to make, so the control is absent rather than failing. -->
+            <div
+              v-if="!readOnly && contact.follow_up_state"
+              class="shrink-0 flex items-center gap-1 pb-2 sm:pb-0"
+            >
+              <button
+                v-for="offset in SNOOZE_OFFSETS"
+                :key="offset.days"
+                type="button"
+                :disabled="pendingId === contact.id"
+                @click="snooze(contact, offset.days)"
+                class="min-h-[44px] px-2 text-xs text-ink-3 hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+                :aria-label="`Snooze ${contact.name} ${offset.label}`"
+              >
+                {{ offset.label }}
+              </button>
+              <!-- The native date input, sized to a glyph: shown at its own
+                   width it prints mm/dd/yyyy on every dated row, which is
+                   clutter in a list you scan. The input still owns the click,
+                   the focus and the accessible name. -->
+              <span
+                class="relative min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-ink-3 hover:text-ink transition-colors rounded-sm focus-within:ring-2 focus-within:ring-accent"
+                :class="pendingId === contact.id ? 'opacity-40' : ''"
+              >
+                <svg
+                  class="w-4 h-4 pointer-events-none"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M8 7V3m8 4V3M3 11h18M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
+                  />
+                </svg>
+                <input
+                  type="date"
+                  :disabled="pendingId === contact.id"
+                  :value="''"
+                  @change="snoozeTo(contact, $event)"
+                  :aria-label="`Pick a new next-action date for ${contact.name}`"
+                  class="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                />
+              </span>
+            </div>
           </li>
         </ul>
       </section>
@@ -69,8 +125,38 @@ import { followUpProse, followUpTone } from '../utils/followUp.js'
 // only thing it computes is which of four buckets each person falls in, and
 // it does that in one pass -- sibling computeds each rescanning the same
 // array is a documented past defect in this repo.
-const props = defineProps({ contacts: { type: Array, default: () => [] } })
-defineEmits(['open-contact'])
+const props = defineProps({
+  contacts: { type: Array, default: () => [] },
+  readOnly: { type: Boolean, default: false },
+  pendingId: { type: [Number, String], default: null },
+})
+const emit = defineEmits(['open-contact', 'snooze'])
+
+// Relative offsets cover the reason a commitment slips -- "not today, but
+// soon" -- and the date input covers the case where the user knows exactly
+// when. Both write the date and nothing else.
+const SNOOZE_OFFSETS = [
+  { days: 1, label: '+1d' },
+  { days: 7, label: '+1w' },
+]
+
+function snooze(contact, days) {
+  if (props.pendingId !== null) return
+  emit('snooze', contact.id, shiftDate(today.value, days))
+}
+
+function snoozeTo(contact, event) {
+  const picked = event.target.value
+  event.target.value = ''
+  if (!picked || props.pendingId !== null) return
+  emit('snooze', contact.id, picked)
+}
+
+function shiftDate(from, days) {
+  const d = new Date(`${from}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
 
 const groups = computed(() => groupContacts(props.contacts))
 
