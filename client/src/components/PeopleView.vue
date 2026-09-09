@@ -47,7 +47,7 @@
       <div class="grid sm:grid-cols-2 gap-3">
         <div>
           <label for="people-new-next-at" class="block text-xs text-ink-3 mb-1">
-            Next action date <span class="text-ink-3/70">(optional)</span>
+            Next action date <span class="text-ink-3/70">&nbsp;(optional)</span>
           </label>
           <input
             id="people-new-next-at"
@@ -58,7 +58,7 @@
         </div>
         <div>
           <label for="people-new-next" class="block text-xs text-ink-3 mb-1">
-            Next action <span class="text-ink-3/70">(optional)</span>
+            Next action <span class="text-ink-3/70">&nbsp;(optional)</span>
           </label>
           <input
             id="people-new-next"

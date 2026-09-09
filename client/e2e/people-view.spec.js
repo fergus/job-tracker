@@ -173,3 +173,54 @@ test('a blank name is refused before a request is made', async ({ page }) => {
   await page.waitForTimeout(200)
   expect(posted).toBe(0)
 })
+
+test('a failed snooze leaves the row where it is and says so', async ({ page, request }) => {
+  const [person] = await seed(request, [
+    {
+      name: 'Bartholomew Quist',
+      employer: 'Ravensmoor',
+      next_action_at: shift(-3),
+      next_action: 'Send the follow-up note',
+    },
+  ])
+
+  await openPeople(page)
+  await page.route(`**/api/contacts/${person.id}`, (route) =>
+    route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"nope"}' }),
+  )
+
+  await page.getByRole('button', { name: 'Snooze Bartholomew Quist +1d' }).click()
+  await page.waitForTimeout(500)
+
+  await expect(page.getByText(/Failed to reschedule/)).toBeVisible()
+  // R24: no optimistic move — the row still reads as overdue.
+  await expect(page.getByText(/Overdue by 3 days: Send the follow-up note/)).toBeVisible()
+
+  const after = await (await request.get(`/api/contacts/${person.id}`)).json()
+  expect(after.next_action_at).toBe(shift(-3))
+})
+
+test('a second snooze is ignored while the first is in flight', async ({ page, request }) => {
+  const [person] = await seed(request, [
+    { name: 'Cordelia Shanklin', employer: 'Winterbourne', next_action_at: shift(-2), next_action: 'Ring back' },
+  ])
+
+  await openPeople(page)
+
+  let writes = 0
+  await page.route(`**/api/contacts/${person.id}`, async (route) => {
+    if (route.request().method() === 'PUT') {
+      writes++
+      await new Promise((r) => setTimeout(r, 800))
+    }
+    await route.continue()
+  })
+
+  const first = page.getByRole('button', { name: 'Snooze Cordelia Shanklin +1d' })
+  const second = page.getByRole('button', { name: 'Snooze Cordelia Shanklin +1w' })
+  await first.click()
+  await expect(second).toBeDisabled()
+  await page.waitForTimeout(1200)
+
+  expect(writes).toBe(1)
+})
