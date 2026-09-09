@@ -1,5 +1,11 @@
 <template>
   <div class="max-w-screen-2xl mx-auto px-4 py-4">
+    <!-- Lens switch. Above the empty/populated split deliberately: an empty
+         timeline still has to offer the way back to the board. -->
+    <div class="flex justify-end mb-2 md:mb-3">
+      <ViewLensToggle view="timeline" @set-view="$emit('set-view', $event)" />
+    </div>
+
     <!-- Empty state -->
     <div v-if="sortedApps.length === 0" class="text-center py-20">
       <template v-if="closedCount > 0">
@@ -23,7 +29,6 @@
           <span v-if="summary.avgCurrent > 0" class="ml-2">avg. in stage: <span class="font-medium text-ink-2">{{ summary.avgCurrent }}d</span></span>
         </div>
         <div class="flex flex-col items-end gap-2">
-          <ViewLensToggle view="timeline" @set-view="$emit('set-view', $event)" />
           <div class="flex items-center gap-2">
             <label for="timeline-sort" class="text-xs text-ink-3">Sort by</label>
             <select

@@ -149,6 +149,7 @@
                     :pendingId="snoozingContactId"
                     @open-contact="openContact"
                     @snooze="handleSnooze"
+                    @create="handleCreateContact"
                 />
             </Transition>
         </main>
@@ -197,6 +198,7 @@ import {
     fetchApplications,
     fetchApplication,
     fetchContacts,
+    createContact,
     updateContact,
     updateStatus,
     updateApplication,
@@ -373,6 +375,20 @@ async function handleSnooze(id, date) {
         toast.error("Failed to reschedule — " + getErrorMessage(err));
     } finally {
         snoozingContactId.value = null;
+    }
+}
+
+// R16: a contact created here carries no application link -- that is the whole
+// point of the affordance. Nothing scrolls to or highlights the new row; the
+// next action it was given is what places it.
+async function handleCreateContact(data, done) {
+    try {
+        await createContact(data);
+        await loadContacts();
+        done(true);
+    } catch (err) {
+        toast.error("Failed to add person — " + getErrorMessage(err));
+        done(false);
     }
 }
 
