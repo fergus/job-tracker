@@ -11,9 +11,9 @@
         <!-- Top bar -->
         <header class="bg-panel shadow-xs border-b border-line">
             <div
-                class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between"
+                class="max-w-screen-2xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-y-1"
             >
-                <div class="flex items-center gap-2.5">
+                <div class="flex items-center gap-2.5 order-1">
                     <LogoBuild :trigger="logoTrigger" />
                     <h1
                         class="text-xl font-bold font-condensed tracking-wide text-ink"
@@ -30,13 +30,13 @@
                         :display="freshnessDisplay"
                         :absolute="freshnessAbsolute"
                     />
-                    <SectionNav
-                        :section="section"
-                        @set-section="setSection"
-                        class="ml-2"
-                    />
                 </div>
-                <div class="flex items-center gap-3">
+                <SectionNav
+                    :section="section"
+                    @set-section="setSection"
+                    class="order-3 w-full sm:order-2 sm:w-auto sm:ml-4 sm:mr-auto"
+                />
+                <div class="flex items-center gap-3 order-2 sm:order-3">
                     <!-- Show/Hide Closed toggle -->
                     <button
                         v-show="closedCount > 0"
@@ -141,7 +141,12 @@
                     @toggle-show-closed="toggleShowClosed"
                     @set-view="view = $event"
                 />
-                <PeopleView v-else key="people" :contacts="contacts" />
+                <PeopleView
+                    v-else
+                    key="people"
+                    :contacts="contacts"
+                    @open-contact="openContact"
+                />
             </Transition>
         </main>
 
