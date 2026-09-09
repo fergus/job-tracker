@@ -74,3 +74,25 @@ test('timeline renders accepted bars in full colour and rejected bars muted', as
   const acceptedRow = page.getByRole('button', { name: 'TimelineAccepted — Engineer, currently accepted' })
   await expect(acceptedRow.locator('span').first()).toHaveClass(/text-ink/)
 })
+
+test('People is reachable as a third destination and carries no lens control', async ({ page, request }) => {
+  await request.post('/api/contacts', {
+    data: { name: 'Rooksby Pennywhistle', employer: 'Cardinal Search' },
+  })
+  await request.post('/api/applications', {
+    data: { company_name: 'SectionCorp', role_title: 'Engineer', status: 'interested' },
+  })
+
+  await page.goto('/')
+  await expect(page.getByText('SectionCorp').first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'People' }).click()
+  await page.waitForTimeout(400)
+  await expect(page.getByText('Rooksby Pennywhistle')).toBeVisible()
+  await expect(page.getByText('SectionCorp')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Board' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Applications', exact: true }).click()
+  await page.waitForTimeout(400)
+  await expect(page.getByText('SectionCorp').first()).toBeVisible()
+})
