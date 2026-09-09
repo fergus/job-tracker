@@ -30,6 +30,11 @@
                         :display="freshnessDisplay"
                         :absolute="freshnessAbsolute"
                     />
+                    <SectionNav
+                        :section="section"
+                        @set-section="setSection"
+                        class="ml-2"
+                    />
                 </div>
                 <div class="flex items-center gap-3">
                     <!-- Show/Hide Closed toggle -->
@@ -113,7 +118,7 @@
         <main id="main-content" class="flex-1 px-4 py-4">
             <Transition name="view" mode="out-in">
                 <KanbanBoard
-                    v-if="view === 'kanban'"
+                    v-if="section === 'applications' && view === 'kanban'"
                     key="kanban"
                     :applications="applications"
                     :showUser="showAllUsers"
@@ -127,7 +132,7 @@
                     @set-view="view = $event"
                 />
                 <TimelineView
-                    v-else
+                    v-else-if="section === 'applications'"
                     key="timeline"
                     :applications="displayApplications"
                     :showClosed="showClosed"
@@ -136,6 +141,7 @@
                     @toggle-show-closed="toggleShowClosed"
                     @set-view="view = $event"
                 />
+                <PeopleView v-else key="people" :contacts="contacts" />
             </Transition>
         </main>
 
@@ -211,6 +217,8 @@ import FreshnessSlot from "./components/FreshnessSlot.vue";
 import FreshnessBar from "./components/FreshnessBar.vue";
 import { defineAsyncComponent } from 'vue'
 import KanbanBoard from "./components/KanbanBoard.vue";
+import SectionNav from "./components/SectionNav.vue";
+import PeopleView from "./components/PeopleView.vue";
 import TimelineView from "./components/TimelineView.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import ToastContainer from "./components/ToastContainer.vue";
@@ -329,9 +337,13 @@ async function loadContacts() {
 // freshness comes from refetching at the moments the user could have missed
 // something: arriving at the section, returning to the tab, and a stream
 // reconnect that proves the client was disconnected.
+const SECTION_LABELS = { applications: "Applications", people: "People" };
+const sectionAnnouncement = ref("");
+
 function setSection(next) {
     if (section.value === next) return;
     section.value = next;
+    sectionAnnouncement.value = `${SECTION_LABELS[next]} section`;
     if (next === "people") loadContacts();
 }
 
@@ -523,6 +535,9 @@ const freshnessAbsolute = computed(
     () => liveUpdates.value?.absolute.value ?? "",
 );
 
+// R26 shares this region rather than adding a second one. A connection the
+// user has to act on outranks a destination they just chose themselves, so the
+// freshness tiers win while they are showing.
 const politeAnnouncement = computed(() => {
     if (freshnessTier.value === TIER_DEGRADED) {
         return "Live updates are delayed.";
@@ -530,7 +545,7 @@ const politeAnnouncement = computed(() => {
     if (freshnessTier.value === TIER_STALE) {
         return "Live updates are not being received.";
     }
-    return "";
+    return sectionAnnouncement.value;
 });
 
 const assertiveAnnouncement = computed(() =>

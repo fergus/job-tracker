@@ -23,15 +23,7 @@
           <span v-if="summary.avgCurrent > 0" class="ml-2">avg. in stage: <span class="font-medium text-ink-2">{{ summary.avgCurrent }}d</span></span>
         </div>
         <div class="flex flex-col items-end gap-2">
-          <button
-            @click="$emit('set-view', 'kanban')"
-            class="text-xs text-ink-3 hover:text-ink transition-colors flex items-center gap-1 min-h-5"
-          >
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-            Board
-          </button>
+          <ViewLensToggle view="timeline" @set-view="$emit('set-view', $event)" />
           <div class="flex items-center gap-2">
             <label for="timeline-sort" class="text-xs text-ink-3">Sort by</label>
             <select
@@ -195,6 +187,7 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { computeSegments, durationDays, isRejected, isAccepted, isTerminal } from '../utils/timeline'
 import { storageGetString, storageSet } from '../utils/storage.js'
 import { formatShortDate } from '../utils/date.js'
+import ViewLensToggle from './ViewLensToggle.vue'
 
 const props = defineProps({ applications: Array, showClosed: Boolean, closedCount: Number })
 const emit = defineEmits(['open-detail', 'toggle-show-closed', 'set-view'])
