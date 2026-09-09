@@ -286,6 +286,7 @@ import { fetchContact, updateContact, addContactNote } from '../api'
 import { formatDate } from '../utils/date.js'
 import { renderMarkdown } from '../utils/markdown.js'
 import { getErrorMessage } from '../utils/error.js'
+import { followUpProse, followUpTone } from '../utils/followUp.js'
 import { useToast } from '../composables/useToast'
 
 const props = defineProps({ contactId: { type: Number, required: true } })
@@ -332,24 +333,15 @@ const contactSubtitle = computed(() => {
   return [contact.value.contact_role, contact.value.employer].filter(Boolean).join(' at ')
 })
 
-const followUpClass = computed(() => {
-  if (contact.value?.follow_up_state === 'overdue') return 'text-danger'
-  if (contact.value?.follow_up_state === 'due') return 'text-accent'
-  return 'text-ink-3'
-})
+const followUpClass = computed(() => followUpTone(contact.value?.follow_up_state))
 
-const followUpLabel = computed(() => {
-  const c = contact.value
-  if (!c?.follow_up_state) return ''
-  const what = c.next_action ? `: ${c.next_action}` : ''
-  const days = c.follow_up_days
-  if (c.follow_up_state === 'overdue') {
-    const late = Math.abs(days)
-    return `Overdue by ${late} ${late === 1 ? 'day' : 'days'}${what}`
-  }
-  if (c.follow_up_state === 'due') return `Due today${what}`
-  return `Due in ${days} ${days === 1 ? 'day' : 'days'}${what}`
-})
+const followUpLabel = computed(() =>
+  followUpProse(
+    contact.value?.follow_up_state,
+    contact.value?.follow_up_days,
+    contact.value?.next_action,
+  ),
+)
 
 const isDirty = computed(() => EDITABLE.some((f) => form[f] !== original[f]))
 
