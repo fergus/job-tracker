@@ -270,7 +270,9 @@
         <span class="text-xs text-ink-3">
           {{ contact.last_contacted_at ? `Last contacted ${formatDate(contact.last_contacted_at)}` : 'Never contacted' }}
         </span>
+        <span v-if="readOnly" class="text-xs text-ink-3">Read-only</span>
         <button
+          v-else
           @click="save"
           :disabled="!isDirty || saving"
           class="text-sm px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-accent-fg font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
@@ -289,7 +291,13 @@ import { getErrorMessage } from '../utils/error.js'
 import { followUpProse, followUpTone } from '../utils/followUp.js'
 import { useToast } from '../composables/useToast'
 
-const props = defineProps({ contactId: { type: Number, required: true } })
+const props = defineProps({
+  contactId: { type: Number, required: true },
+  // Admin viewing another user's data: the record is readable with the
+  // all-users flag, but every write is refused server-side, so the drawer must
+  // not offer one.
+  readOnly: { type: Boolean, default: false },
+})
 const emit = defineEmits(['close', 'saved'])
 
 const toast = useToast()
@@ -357,7 +365,7 @@ async function load() {
   loading.value = true
   loadError.value = null
   try {
-    hydrate(await fetchContact(props.contactId))
+    hydrate(await fetchContact(props.contactId, props.readOnly))
   } catch (err) {
     loadError.value = 'Could not load this contact -- ' + getErrorMessage(err)
   } finally {

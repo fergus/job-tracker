@@ -9,8 +9,6 @@
  * and the API on different answers across a day boundary.
  */
 
-import { MS_PER_DAY } from './date.js'
-
 /** Group keys in render order: what is owed, then everyone else. */
 export const GROUP_ORDER = ['overdue', 'due', 'upcoming', 'none']
 
@@ -49,29 +47,24 @@ export function groupContacts(contacts) {
 /**
  * How long since this person was last contacted, in prose.
  *
- * `today` is passed in rather than read from the clock so the caller can drive
- * it from a reactive date and a session left open overnight does not keep
- * showing yesterday's wording (KTD7).
+ * Takes the server's own `days_since_contact` rather than recomputing it. The
+ * server derives it against the instance timezone (KTD1); redoing the same
+ * arithmetic here against the browser's calendar date put the two on different
+ * answers for anyone whose browser zone differs from the instance zone, and
+ * left the field the API ships unread.
  *
- * @param {string|null} lastContactedAt calendar date, or null if never
- * @param {string} today calendar date to measure against
+ * @param {number|null} daysSinceContact whole days, or null if never contacted
  */
-export function contactedProse(lastContactedAt, today) {
-  if (!lastContactedAt) return 'Never contacted'
-
-  const elapsed = Math.max(
-    0,
-    Math.round(
-      (Date.parse(`${today}T00:00:00Z`) -
-        Date.parse(`${lastContactedAt.slice(0, 10)}T00:00:00Z`)) /
-        MS_PER_DAY,
-    ),
-  )
-
-  if (elapsed === 0) return 'Last contacted today'
-  if (elapsed < 7) return `Last contacted ${plural(elapsed, 'day')} ago`
-  if (elapsed < 30) return `Last contacted ${plural(Math.floor(elapsed / 7), 'week')} ago`
-  return `Last contacted ${plural(Math.floor(elapsed / 30), 'month')} ago`
+export function contactedProse(daysSinceContact) {
+  if (daysSinceContact === null || daysSinceContact === undefined) {
+    return 'Never contacted'
+  }
+  if (daysSinceContact === 0) return 'Last contacted today'
+  if (daysSinceContact < 7) return `Last contacted ${plural(daysSinceContact, 'day')} ago`
+  if (daysSinceContact < 30) {
+    return `Last contacted ${plural(Math.floor(daysSinceContact / 7), 'week')} ago`
+  }
+  return `Last contacted ${plural(Math.floor(daysSinceContact / 30), 'month')} ago`
 }
 
 function plural(count, noun) {

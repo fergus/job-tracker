@@ -224,3 +224,38 @@ test('a second snooze is ignored while the first is in flight', async ({ page, r
 
   expect(writes).toBe(1)
 })
+
+test('all-users mode is read-only and its rows still open', async ({ page, request }) => {
+  // Seeded as somebody else, so the admin is looking at data they may read but
+  // must not write.
+  await request.post('/api/contacts', {
+    headers: { 'X-Forwarded-Email': 'someone.else@example.com', 'X-Forwarded-User': 'someone.else@example.com' },
+    data: {
+      name: 'Aurelio Winterhalter',
+      employer: 'Fernbrook Partners',
+      next_action_at: shift(-2),
+      next_action: 'Return the introduction',
+    },
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  await page.getByRole('radio', { name: 'All Applications' }).click()
+  await page.getByRole('button', { name: 'Close settings' }).click().catch(() => page.keyboard.press('Escape'))
+  await page.getByRole('button', { name: 'People', exact: true }).click()
+  await page.waitForTimeout(500)
+
+  const row = page.getByRole('button', { name: /Aurelio Winterhalter/ })
+  await expect(row).toBeVisible()
+
+  // AE7/R21: nothing on the page offers a write.
+  await expect(page.getByRole('button', { name: /^Snooze / })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '+ Add person' })).toHaveCount(0)
+
+  // The row is presented as actionable, so it must actually open rather than
+  // dead-ending on an ownership 404.
+  await row.click()
+  await expect(page.getByRole('heading', { name: 'Aurelio Winterhalter' })).toBeVisible()
+  await expect(page.getByText('Read-only')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save contact' })).toHaveCount(0)
+})

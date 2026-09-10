@@ -94,27 +94,27 @@ describe('grouping the contact list', () => {
 })
 
 describe('the elapsed-contact wording', () => {
-  const TODAY = '2026-09-09'
-
   test('says never rather than showing a duration', () => {
-    assert.equal(contactedProse(null, TODAY), 'Never contacted')
-    assert.equal(contactedProse('', TODAY), 'Never contacted')
+    assert.equal(contactedProse(null), 'Never contacted')
+    assert.equal(contactedProse(undefined), 'Never contacted')
   })
 
   test('reads as today on the day', () => {
-    assert.equal(contactedProse('2026-09-09', TODAY), 'Last contacted today')
-  })
-
-  test('a date in the future reads as today, never as negative time', () => {
-    assert.equal(contactedProse('2026-09-11', TODAY), 'Last contacted today')
+    assert.equal(contactedProse(0), 'Last contacted today')
   })
 
   test('scales from days to weeks to months', () => {
-    assert.equal(contactedProse('2026-09-06', TODAY), 'Last contacted 3 days ago')
-    assert.equal(contactedProse('2026-09-08', TODAY), 'Last contacted 1 day ago')
-    assert.equal(contactedProse('2026-08-19', TODAY), 'Last contacted 3 weeks ago')
-    assert.equal(contactedProse('2026-09-02', TODAY), 'Last contacted 1 week ago')
-    assert.equal(contactedProse('2026-01-12', TODAY), 'Last contacted 8 months ago')
-    assert.equal(contactedProse('2025-09-09', TODAY), 'Last contacted 12 months ago')
+    assert.equal(contactedProse(1), 'Last contacted 1 day ago')
+    assert.equal(contactedProse(3), 'Last contacted 3 days ago')
+    assert.equal(contactedProse(7), 'Last contacted 1 week ago')
+    assert.equal(contactedProse(21), 'Last contacted 3 weeks ago')
+    assert.equal(contactedProse(240), 'Last contacted 8 months ago')
+    assert.equal(contactedProse(365), 'Last contacted 12 months ago')
+  })
+
+  test('takes the server count as given, doing no clamping of its own', () => {
+    // The server already clamps a future last_contacted_at to zero
+    // (server/lib/followup.js daysSince), so there is one owner of that rule.
+    assert.equal(contactedProse(0), 'Last contacted today')
   })
 })

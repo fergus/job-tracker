@@ -142,7 +142,7 @@
                   {{ followUpProse(contact.follow_up_state, contact.follow_up_days, contact.next_action) }}
                 </span>
                 <span class="block text-ink-3">
-                  {{ contactedProse(contact.last_contacted_at, today) }}
+                  {{ contactedProse(contact.days_since_contact) }}
                 </span>
               </span>
             </button>
@@ -159,7 +159,7 @@
                 v-for="offset in SNOOZE_OFFSETS"
                 :key="offset.days"
                 type="button"
-                :disabled="pendingId === contact.id"
+                :disabled="pendingId !== null"
                 @click="snooze(contact, offset.days)"
                 class="min-h-[44px] px-2 text-xs text-ink-3 hover:text-ink transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
                 :aria-label="`Snooze ${contact.name} ${offset.label}`"
@@ -190,7 +190,7 @@
                 </svg>
                 <input
                   type="date"
-                  :disabled="pendingId === contact.id"
+                  :disabled="pendingId !== null"
                   :value="''"
                   @change="snoozeTo(contact, $event)"
                   :aria-label="`Pick a new next-action date for ${contact.name}`"
@@ -220,7 +220,7 @@ const props = defineProps({
   readOnly: { type: Boolean, default: false },
   pendingId: { type: [Number, String], default: null },
 })
-const emit = defineEmits(['open-contact', 'snooze', 'create'])
+const emit = defineEmits(['open-contact', 'snooze', 'create', 'day-changed'])
 
 const creating = ref(false)
 const savingNew = ref(false)
@@ -260,6 +260,13 @@ function submitCreate() {
 // Relative offsets cover the reason a commitment slips -- "not today, but
 // soon" -- and the date input covers the case where the user knows exactly
 // when. Both write the date and nothing else.
+//
+// Known edge, accepted: the offset shifts from the browser's calendar date
+// while the server classifies against INSTANCE_TIMEZONE. A browser running a
+// day ahead of the instance can land "+1d" on a date the server still calls
+// today, leaving the row due. Deliberate for a single-operator instance whose
+// browser and server normally share a zone; the date picker is exact either
+// way.
 const SNOOZE_OFFSETS = [
   { days: 1, label: '+1d' },
   { days: 7, label: '+1w' },
@@ -267,13 +274,15 @@ const SNOOZE_OFFSETS = [
 
 function snooze(contact, days) {
   if (props.pendingId !== null) return
-  emit('snooze', contact.id, shiftDate(today.value, days))
+  emit('snooze', contact.id, shiftDate(localCalendarDate(), days))
 }
 
 function snoozeTo(contact, event) {
   const picked = event.target.value
-  event.target.value = ''
+  // Clear only once the pick is actually being acted on: clearing first threw
+  // away a date the guard then refused, with nothing shown to the user.
   if (!picked || props.pendingId !== null) return
+  event.target.value = ''
   emit('snooze', contact.id, picked)
 }
 
@@ -285,12 +294,13 @@ function shiftDate(from, days) {
 
 const groups = computed(() => groupContacts(props.contacts))
 
-// KTD7. Group membership stays server-derived, but the rendered elapsed text
-// would otherwise still read "3 days ago" after a session sat open past
-// midnight. A minute-resolution tick is enough for a day boundary and costs
-// nothing; only the text moves.
-const today = ref(localCalendarDate())
+// KTD7 says classification stays server-derived and the client refetches
+// rather than recomputes. The interval is only a day-rollover detector: when
+// the calendar date changes under a session left open overnight, the whole
+// list is refetched so group membership moves with it. Nothing here derives a
+// date itself -- rendering reads the server's own counts.
 let dayTimer = null
+let currentDay = localCalendarDate()
 
 function localCalendarDate() {
   const now = new Date()
@@ -302,7 +312,9 @@ function localCalendarDate() {
 onMounted(() => {
   dayTimer = setInterval(() => {
     const now = localCalendarDate()
-    if (now !== today.value) today.value = now
+    if (now === currentDay) return
+    currentDay = now
+    emit('day-changed')
   }, 60000)
 })
 
@@ -319,7 +331,7 @@ function rowLabel(contact) {
     contact.follow_up_days,
     contact.next_action,
   )
-  return [who, owed, contactedProse(contact.last_contacted_at, today.value)]
+  return [who, owed, contactedProse(contact.days_since_contact)]
     .filter(Boolean)
     .join('. ')
 }

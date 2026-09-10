@@ -150,6 +150,7 @@
                     @open-contact="openContact"
                     @snooze="handleSnooze"
                     @create="handleCreateContact"
+                    @day-changed="refreshContacts"
                 />
             </Transition>
         </main>
@@ -168,6 +169,7 @@
             v-if="contactId"
             :key="contactId"
             :contactId="contactId"
+            :readOnly="showAllUsers"
             @close="contactId = null"
             @saved="handleContactSaved"
         />
@@ -336,11 +338,33 @@ async function loadApplications() {
 
 // The contact list is server-ordered (KTD1), so it is always replaced whole
 // rather than patched in place -- a spliced row cannot reposition itself.
+//
+// Six triggers can call this, so it carries the same discipline the
+// applications refetch already has: a token so a slow earlier response cannot
+// overwrite a newer one, and a scope check so a response for the wrong set of
+// users is dropped rather than rendered. It reports success instead of
+// swallowing the error, because a caller that just wrote something needs to
+// tell "the write failed" from "the write landed but the list is stale".
+let contactsLoadSeq = 0;
+
 async function loadContacts() {
+    const seq = ++contactsLoadSeq;
+    const scope = showAllUsers.value;
     try {
-        contacts.value = await fetchContacts(showAllUsers.value);
-    } catch (err) {
-        toast.error("Error loading contacts: " + getErrorMessage(err));
+        const next = await fetchContacts(scope);
+        // A newer load, or a scope toggle mid-flight, owns the list now.
+        if (seq !== contactsLoadSeq || scope !== showAllUsers.value) return true;
+        contacts.value = next;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// The refresh triggers with no write of their own behind them.
+async function refreshContacts() {
+    if (!(await loadContacts())) {
+        toast.error("Error loading contacts — the list may be out of date");
     }
 }
 
@@ -351,11 +375,20 @@ async function loadContacts() {
 const SECTION_LABELS = { applications: "Applications", people: "People" };
 const sectionAnnouncement = ref("");
 
+let announcementTimer = null;
+
 function setSection(next) {
     if (section.value === next) return;
     section.value = next;
+    // Cleared once read: the region is shared with the freshness tiers, so a
+    // message left standing gets re-announced when a tier later clears.
     sectionAnnouncement.value = `${SECTION_LABELS[next]} section`;
-    if (next === "people") loadContacts();
+    if (announcementTimer !== null) clearTimeout(announcementTimer);
+    announcementTimer = setTimeout(() => {
+        sectionAnnouncement.value = "";
+        announcementTimer = null;
+    }, 1000);
+    if (next === "people") refreshContacts();
 }
 
 // KTD3: the update endpoint, not the notes endpoint -- logging a note would
@@ -368,13 +401,21 @@ const snoozingContactId = ref(null);
 async function handleSnooze(id, date) {
     if (snoozingContactId.value !== null) return;
     snoozingContactId.value = id;
+    let written = false;
     try {
         await updateContact(id, { next_action_at: date });
-        await loadContacts();
+        written = true;
     } catch (err) {
         toast.error("Failed to reschedule — " + getErrorMessage(err));
     } finally {
         snoozingContactId.value = null;
+    }
+    if (!written) return;
+    // The commitment moved. A failure from here is a stale list, not a failed
+    // reschedule, and saying otherwise sends the user to redo a change that
+    // already applied.
+    if (!(await loadContacts())) {
+        toast.error("Rescheduled, but the list did not refresh — reload to see it in place");
     }
 }
 
@@ -384,17 +425,22 @@ async function handleSnooze(id, date) {
 async function handleCreateContact(data, done) {
     try {
         await createContact(data);
-        await loadContacts();
-        done(true);
     } catch (err) {
         toast.error("Failed to add person — " + getErrorMessage(err));
         done(false);
+        return;
     }
+    // The person exists now, so the form closes either way; only the list's
+    // freshness is in question.
+    if (!(await loadContacts())) {
+        toast.error("Added, but the list did not refresh — reload to see them");
+    }
+    done(true);
 }
 
 function refreshOnFocus() {
     if (document.visibilityState === "visible" && section.value === "people") {
-        loadContacts();
+        refreshContacts();
     }
 }
 
@@ -545,7 +591,7 @@ function setShowAll(val) {
     if (showAllUsers.value === val) return;
     showAllUsers.value = val;
     loadApplications();
-    if (section.value === "people") loadContacts();
+    if (section.value === "people") refreshContacts();
     connectLiveUpdates();
 }
 
@@ -687,7 +733,7 @@ function requestReconnectRefetch() {
     if (gate.apply) runRefetch();
     // Contacts have no drag gesture to land under, so they refetch straight
     // away rather than going through the applications queue.
-    if (section.value === "people") loadContacts();
+    if (section.value === "people") refreshContacts();
 }
 
 watch(dragActive, (active) => {
@@ -731,6 +777,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     document.removeEventListener("visibilitychange", refreshOnFocus);
+    if (announcementTimer !== null) clearTimeout(announcementTimer);
     liveUpdates.value?.stop();
     if (justNowTimer !== null) {
         clearTimeout(justNowTimer);

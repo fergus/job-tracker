@@ -161,8 +161,10 @@ export function fetchContacts(all = false) {
   return api.get('/contacts', { params: all ? { all: 'true' } : {} }).then((r) => r.data)
 }
 
-export function fetchContact(id) {
-  return api.get(`/contacts/${id}`).then((r) => r.data)
+export function fetchContact(id, all = false) {
+  return api
+    .get(`/contacts/${id}`, { params: all ? { all: 'true' } : {} })
+    .then((r) => r.data)
 }
 
 export function createContact(data) {
