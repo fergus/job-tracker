@@ -33,6 +33,9 @@ jobs:
       - name: Install client dependencies
         run: cd client && npm ci
 
+      - name: Run client unit tests
+        run: cd client && npm run test:unit
+
       - name: Build client
         run: npm run build:client
 

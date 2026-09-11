@@ -134,7 +134,7 @@ All application state lives as a flat `applications` ref in `App.vue`. There is 
 - Child components emit events for mutations.
 - `App.vue` handles events → calls API → reloads list → updates `selectedApp` for open panels.
 
-UI preferences (`compactHeader`, default view) are stored in `localStorage` (`jobtracker_compact_header`) and initialised based on viewport width.
+UI preferences are stored in `localStorage` — `compactHeader` (`jobtracker_compact_header`, initialised from viewport width), the show-closed toggle and the timeline sort. The section (Applications/People) and the lens (Board/Timeline) are **not** persisted: both reset to Applications/Board on reload.
 
 ### Event Flow
 
@@ -216,6 +216,7 @@ Auth middleware (`server/middleware/auth.js`) supports two methods:
 - Admin can pass `?all=true` on list endpoints to view all users' data.
 - `PATCH /api/applications/:id/status` auto-sets the corresponding `*_at` date field.
 - **`status` is derived, not authoritative.** It used to encode three unrelated facts at once, and is kept only so callers that have not migrated keep working. `services/applications.js` writes both shapes on every write: a `status` write derives `stage`/`state`/`close_reason`, and a write to any of those re-derives `status`. The legacy column is lossy in one direction by design — it has a single failure state, so `withdrawn`, `role_closed`, `lapsed` and `not_pursued` all read back as `rejected`. Filter on `state` and `record_type`, never on `status`.
+- **Contacts are ordered by what is owed, then by who is going cold.** `GET /api/contacts` sorts commitments first by `next_action_at`, then everyone without one by `last_contacted_at` ascending (longest quiet first), with the never-contacted last and name as the final tiebreak. Every contact carries `days_since_contact`, derived the same way `follow_up_days` is — null when never contacted, and clamped to zero rather than going negative for a date in the future.
 - **One follow-up model, shared.** `server/lib/followup.js` owns the instance timezone (`INSTANCE_TIMEZONE`, falling back to `TZ` then UTC) and the `overdue`/`due`/`upcoming` derivation. Contacts consume it today; the pending follow-up-date plan for applications consumes the same core rather than adding a second. Never recompute the classification in a caller — the API returns `follow_up_state` and `follow_up_days`.
 - **`last_contacted_at` is derived from the interaction log, never typed.** `add_contact_note` advances it, and only forwards, so writing up an old call cannot make a relationship look staler than it is.
 - **`next_action_at` is the opposite: an explicit commitment, never derived.** It changes only when a write names it, so no note, status change or edit can silently discard it. Write it on `create_contact`, `update_contact`, or `add_contact_note` — the last of these is the one to reach for, since the moment you log a call is the moment you know when to chase next. The pair `next_action_at`/`next_action` moves independently: re-wording the commitment leaves its date alone, and an explicit `null` on either clears just that half.

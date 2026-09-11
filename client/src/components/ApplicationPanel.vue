@@ -846,6 +846,7 @@ import { renderMarkdown } from '../utils/markdown.js'
 import { storageGetBool, storageSet } from '../utils/storage.js'
 import { formatDate, formatShortDate, formatDateTime } from '../utils/date.js'
 import { getErrorMessage, getErrorType } from '../utils/error.js'
+import { followUpProse, followUpBrief, followUpTone } from '../utils/followUp.js'
 
 const toast = useToast()
 
@@ -904,24 +905,12 @@ function onCloseReasonChange(value) {
 // A linked person's outstanding commitment, at glance length. The server
 // derives the state, so the panel never reclassifies a date itself.
 function followUpChip(contact) {
-  if (!contact.follow_up_state) return null
-  const days = contact.follow_up_days
-  const what = contact.next_action ? `: ${contact.next_action}` : ''
-  if (contact.follow_up_state === 'overdue') {
-    const late = Math.abs(days)
-    return {
-      text: `${late}d overdue`,
-      tone: 'text-danger',
-      title: `Overdue by ${late} ${late === 1 ? 'day' : 'days'}${what}`,
-    }
-  }
-  if (contact.follow_up_state === 'due') {
-    return { text: 'due today', tone: 'text-accent', title: `Due today${what}` }
-  }
+  const state = contact.follow_up_state
+  if (!state) return null
   return {
-    text: `in ${days}d`,
-    tone: 'text-ink-3',
-    title: `Due in ${days} ${days === 1 ? 'day' : 'days'}${what}`,
+    text: followUpBrief(state, contact.follow_up_days),
+    tone: followUpTone(state),
+    title: followUpProse(state, contact.follow_up_days, contact.next_action),
   }
 }
 

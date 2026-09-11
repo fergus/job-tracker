@@ -270,7 +270,9 @@
         <span class="text-xs text-ink-3">
           {{ contact.last_contacted_at ? `Last contacted ${formatDate(contact.last_contacted_at)}` : 'Never contacted' }}
         </span>
+        <span v-if="readOnly" class="text-xs text-ink-3">Read-only</span>
         <button
+          v-else
           @click="save"
           :disabled="!isDirty || saving"
           class="text-sm px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-accent-fg font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
@@ -286,9 +288,16 @@ import { fetchContact, updateContact, addContactNote } from '../api'
 import { formatDate } from '../utils/date.js'
 import { renderMarkdown } from '../utils/markdown.js'
 import { getErrorMessage } from '../utils/error.js'
+import { followUpProse, followUpTone } from '../utils/followUp.js'
 import { useToast } from '../composables/useToast'
 
-const props = defineProps({ contactId: { type: Number, required: true } })
+const props = defineProps({
+  contactId: { type: Number, required: true },
+  // Admin viewing another user's data: the record is readable with the
+  // all-users flag, but every write is refused server-side, so the drawer must
+  // not offer one.
+  readOnly: { type: Boolean, default: false },
+})
 const emit = defineEmits(['close', 'saved'])
 
 const toast = useToast()
@@ -332,24 +341,15 @@ const contactSubtitle = computed(() => {
   return [contact.value.contact_role, contact.value.employer].filter(Boolean).join(' at ')
 })
 
-const followUpClass = computed(() => {
-  if (contact.value?.follow_up_state === 'overdue') return 'text-danger'
-  if (contact.value?.follow_up_state === 'due') return 'text-accent'
-  return 'text-ink-3'
-})
+const followUpClass = computed(() => followUpTone(contact.value?.follow_up_state))
 
-const followUpLabel = computed(() => {
-  const c = contact.value
-  if (!c?.follow_up_state) return ''
-  const what = c.next_action ? `: ${c.next_action}` : ''
-  const days = c.follow_up_days
-  if (c.follow_up_state === 'overdue') {
-    const late = Math.abs(days)
-    return `Overdue by ${late} ${late === 1 ? 'day' : 'days'}${what}`
-  }
-  if (c.follow_up_state === 'due') return `Due today${what}`
-  return `Due in ${days} ${days === 1 ? 'day' : 'days'}${what}`
-})
+const followUpLabel = computed(() =>
+  followUpProse(
+    contact.value?.follow_up_state,
+    contact.value?.follow_up_days,
+    contact.value?.next_action,
+  ),
+)
 
 const isDirty = computed(() => EDITABLE.some((f) => form[f] !== original[f]))
 
@@ -365,7 +365,7 @@ async function load() {
   loading.value = true
   loadError.value = null
   try {
-    hydrate(await fetchContact(props.contactId))
+    hydrate(await fetchContact(props.contactId, props.readOnly))
   } catch (err) {
     loadError.value = 'Could not load this contact -- ' + getErrorMessage(err)
   } finally {

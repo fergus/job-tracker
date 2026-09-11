@@ -12,6 +12,7 @@ const app = require("../app");
 const {
     followUpState,
     daysUntil,
+    daysSince,
     todayInInstanceZone,
 } = require("../lib/followup");
 
@@ -311,5 +312,151 @@ describe("who do I owe a touch", () => {
             next_action_at: "the 25th",
         });
         assert.equal(res.status, 400);
+    });
+});
+
+describe("how long since I spoke to them", () => {
+    const QUIET = "quiet@example.com";
+
+    function asQuiet(r) {
+        return r.set("X-Forwarded-Email", QUIET).set("X-Forwarded-User", QUIET);
+    }
+
+    async function mkQuietContact(body) {
+        const res = await asQuiet(req.post("/api/contacts")).send(body);
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        return res.body;
+    }
+
+    test("counts whole days since the last contact, clamping a future date to zero", () => {
+        const now = new Date("2026-08-12T14:30:00Z"); // 13 Aug in Sydney
+        assert.equal(daysSince("2026-08-06", now), 7);
+        assert.equal(daysSince("2026-08-13", now), 0);
+        assert.equal(
+            daysSince("2026-08-14", now),
+            0,
+            "a last-contacted date in the future must never read as negative",
+        );
+    });
+
+    test("never contacted yields null rather than a large number", () => {
+        assert.equal(daysSince(null), null);
+        assert.equal(daysSince(""), null);
+    });
+
+    test("the list carries days since contact for every contact", async () => {
+        await mkQuietContact({ name: "Carrier", last_contacted_at: "2026-01-01" });
+        const res = await asQuiet(req.get("/api/contacts"));
+        assert.equal(res.status, 200);
+        for (const c of res.body) {
+            assert.ok(
+                "days_since_contact" in c,
+                "every contact must carry the derived field",
+            );
+        }
+        const carrier = res.body.find((c) => c.name === "Carrier");
+        assert.ok(carrier.days_since_contact > 0);
+    });
+
+    test("the no-commitment tail runs longest-quiet first, never-contacted last", async () => {
+        const ORDER = "order@example.com";
+        const asOrder = (r) =>
+            r.set("X-Forwarded-Email", ORDER).set("X-Forwarded-User", ORDER);
+        const today = todayInInstanceZone();
+        const daysAgo = (n) => {
+            const d = new Date(`${today}T00:00:00Z`);
+            d.setUTCDate(d.getUTCDate() - n);
+            return d.toISOString().slice(0, 10);
+        };
+
+        // Deliberately created in an order that neither matches the expected
+        // result nor alphabetical order, so a passing assertion means the
+        // ORDER BY did the work.
+        await asOrder(req.post("/api/contacts")).send({
+            name: "Three Weeks",
+            last_contacted_at: daysAgo(21),
+        });
+        await asOrder(req.post("/api/contacts")).send({ name: "Never Contacted" });
+        await asOrder(req.post("/api/contacts")).send({
+            name: "Eight Months",
+            last_contacted_at: daysAgo(240),
+        });
+
+        const res = await asOrder(req.get("/api/contacts"));
+        assert.deepEqual(
+            res.body.map((c) => c.name),
+            ["Eight Months", "Three Weeks", "Never Contacted"],
+        );
+    });
+
+    test("a commitment always sorts above every contact without one", async () => {
+        const MIX = "mix@example.com";
+        const asMix = (r) =>
+            r.set("X-Forwarded-Email", MIX).set("X-Forwarded-User", MIX);
+
+        await asMix(req.post("/api/contacts")).send({
+            name: "Quiet For Years",
+            last_contacted_at: "2020-01-01",
+        });
+        await asMix(req.post("/api/contacts")).send({
+            name: "Owed Something",
+            next_action_at: "2030-12-31",
+            last_contacted_at: todayInInstanceZone(),
+        });
+
+        const res = await asMix(req.get("/api/contacts"));
+        assert.deepEqual(
+            res.body.map((c) => c.name),
+            ["Owed Something", "Quiet For Years"],
+        );
+    });
+
+    test("equal last-contacted dates fall back to name order", async () => {
+        const TIE = "tie@example.com";
+        const asTie = (r) =>
+            r.set("X-Forwarded-Email", TIE).set("X-Forwarded-User", TIE);
+        const same = "2026-05-05";
+
+        for (const name of ["Zoe Abbott", "Adam Zeller", "Mia Nguyen"]) {
+            await asTie(req.post("/api/contacts")).send({
+                name,
+                last_contacted_at: same,
+            });
+        }
+
+        const res = await asTie(req.get("/api/contacts"));
+        assert.deepEqual(
+            res.body.map((c) => c.name),
+            ["Adam Zeller", "Mia Nguyen", "Zoe Abbott"],
+        );
+    });
+
+    test("a future last-contacted date sorts as though contacted today", async () => {
+        const FUT = "future@example.com";
+        const asFut = (r) =>
+            r.set("X-Forwarded-Email", FUT).set("X-Forwarded-User", FUT);
+        const today = todayInInstanceZone();
+        const shift = (n) => {
+            const d = new Date(`${today}T00:00:00Z`);
+            d.setUTCDate(d.getUTCDate() + n);
+            return d.toISOString().slice(0, 10);
+        };
+
+        await asFut(req.post("/api/contacts")).send({
+            name: "A Week Ago",
+            last_contacted_at: shift(-7),
+        });
+        await asFut(req.post("/api/contacts")).send({
+            name: "Dated Tomorrow",
+            last_contacted_at: shift(1),
+        });
+
+        const res = await asFut(req.get("/api/contacts"));
+        const tomorrow = res.body.find((c) => c.name === "Dated Tomorrow");
+        assert.equal(tomorrow.days_since_contact, 0);
+        assert.deepEqual(
+            res.body.map((c) => c.name),
+            ["A Week Ago", "Dated Tomorrow"],
+        );
     });
 });

@@ -23,7 +23,7 @@ export default defineConfig({
     // land in the same rate-limit bucket. At the production default of 100 a
     // minute the run starts 429ing partway through and later specs fail on
     // setup rather than on anything they assert.
-    command: `cd .. && PORT=${PORT} MCP_PORT=${Number(PORT) + 1} DB_PATH=:memory: NODE_ENV=test RATE_LIMIT_API=100000 RATE_LIMIT_UPLOADS=100000 node server/index.js`,
+    command: `cd .. && PORT=${PORT} MCP_PORT=${Number(PORT) + 1} DB_PATH=:memory: NODE_ENV=test ADMIN_EMAILS=dev@localhost RATE_LIMIT_API=100000 RATE_LIMIT_UPLOADS=100000 node server/index.js`,
     url: `${baseURL}/api/me`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',

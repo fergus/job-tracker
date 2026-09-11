@@ -11,9 +11,9 @@
         <!-- Top bar -->
         <header class="bg-panel shadow-xs border-b border-line">
             <div
-                class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between"
+                class="max-w-screen-2xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-y-1"
             >
-                <div class="flex items-center gap-2.5">
+                <div class="flex items-center gap-2.5 order-1">
                     <LogoBuild :trigger="logoTrigger" />
                     <h1
                         class="text-xl font-bold font-condensed tracking-wide text-ink"
@@ -31,7 +31,12 @@
                         :absolute="freshnessAbsolute"
                     />
                 </div>
-                <div class="flex items-center gap-3">
+                <SectionNav
+                    :section="section"
+                    @set-section="setSection"
+                    class="order-3 w-full sm:order-2 sm:w-auto sm:ml-4 sm:mr-auto"
+                />
+                <div class="flex items-center gap-3 order-2 sm:order-3">
                     <!-- Show/Hide Closed toggle -->
                     <button
                         v-show="closedCount > 0"
@@ -113,7 +118,7 @@
         <main id="main-content" class="flex-1 px-4 py-4">
             <Transition name="view" mode="out-in">
                 <KanbanBoard
-                    v-if="view === 'kanban'"
+                    v-if="section === 'applications' && view === 'kanban'"
                     key="kanban"
                     :applications="applications"
                     :showUser="showAllUsers"
@@ -127,7 +132,7 @@
                     @set-view="view = $event"
                 />
                 <TimelineView
-                    v-else
+                    v-else-if="section === 'applications'"
                     key="timeline"
                     :applications="displayApplications"
                     :showClosed="showClosed"
@@ -135,6 +140,17 @@
                     @open-detail="openPanel"
                     @toggle-show-closed="toggleShowClosed"
                     @set-view="view = $event"
+                />
+                <PeopleView
+                    v-else
+                    key="people"
+                    :contacts="contacts"
+                    :readOnly="showAllUsers"
+                    :pendingId="snoozingContactId"
+                    @open-contact="openContact"
+                    @snooze="handleSnooze"
+                    @create="handleCreateContact"
+                    @day-changed="refreshContacts"
                 />
             </Transition>
         </main>
@@ -153,8 +169,9 @@
             v-if="contactId"
             :key="contactId"
             :contactId="contactId"
+            :readOnly="showAllUsers"
             @close="contactId = null"
-            @saved="handlePanelSaved"
+            @saved="handleContactSaved"
         />
         <SettingsPanel
             v-if="showSettings"
@@ -182,6 +199,9 @@ import {
     fetchMe,
     fetchApplications,
     fetchApplication,
+    fetchContacts,
+    createContact,
+    updateContact,
     updateStatus,
     updateApplication,
 } from "./api";
@@ -210,6 +230,8 @@ import FreshnessSlot from "./components/FreshnessSlot.vue";
 import FreshnessBar from "./components/FreshnessBar.vue";
 import { defineAsyncComponent } from 'vue'
 import KanbanBoard from "./components/KanbanBoard.vue";
+import SectionNav from "./components/SectionNav.vue";
+import PeopleView from "./components/PeopleView.vue";
 import TimelineView from "./components/TimelineView.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import ToastContainer from "./components/ToastContainer.vue";
@@ -231,8 +253,12 @@ const SHOW_CLOSED_KEY = "jobtracker_show_closed";
 
 
 
+// Two tiers: the section is which entity you are looking at, the view is
+// which lens the Applications section is under. People has no lens.
+const section = ref("applications");
 const view = ref("kanban");
 const applications = ref([]);
+const contacts = ref([]);
 const panelApp = ref(null);
 const showPanel = ref(false);
 const currentUser = ref(null);
@@ -289,10 +315,17 @@ watch(showClosed, (visible) => {
     }
 });
 
-watch(showPanel, (panel) => {
-    const lock = panel && window.innerWidth < 768;
-    document.body.style.overflow = lock ? "hidden" : "";
-});
+// One watcher owns the body-scroll style. The contact drawer can now be
+// opened without an application panel behind it, and two watchers writing the
+// same property would race: closing the panel while the drawer is still open
+// would unlock the page underneath it.
+watch(
+    [showPanel, contactId],
+    ([panel, contact]) => {
+        const lock = (panel || contact !== null) && window.innerWidth < 768;
+        document.body.style.overflow = lock ? "hidden" : "";
+    },
+);
 
 function toggleCompact() {
     compactHeader.value = !compactHeader.value;
@@ -301,6 +334,114 @@ function toggleCompact() {
 
 async function loadApplications() {
     applications.value = await fetchApplications(null, showAllUsers.value);
+}
+
+// The contact list is server-ordered (KTD1), so it is always replaced whole
+// rather than patched in place -- a spliced row cannot reposition itself.
+//
+// Six triggers can call this, so it carries the same discipline the
+// applications refetch already has: a token so a slow earlier response cannot
+// overwrite a newer one, and a scope check so a response for the wrong set of
+// users is dropped rather than rendered. It reports success instead of
+// swallowing the error, because a caller that just wrote something needs to
+// tell "the write failed" from "the write landed but the list is stale".
+let contactsLoadSeq = 0;
+
+async function loadContacts() {
+    const seq = ++contactsLoadSeq;
+    const scope = showAllUsers.value;
+    try {
+        const next = await fetchContacts(scope);
+        // A newer load, or a scope toggle mid-flight, owns the list now.
+        if (seq !== contactsLoadSeq || scope !== showAllUsers.value) return true;
+        contacts.value = next;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// The refresh triggers with no write of their own behind them.
+async function refreshContacts() {
+    if (!(await loadContacts())) {
+        toast.error("Error loading contacts — the list may be out of date");
+    }
+}
+
+// R23. The contact list is not on the change event stream (KTD8), so its
+// freshness comes from refetching at the moments the user could have missed
+// something: arriving at the section, returning to the tab, and a stream
+// reconnect that proves the client was disconnected.
+const SECTION_LABELS = { applications: "Applications", people: "People" };
+const sectionAnnouncement = ref("");
+
+let announcementTimer = null;
+
+function setSection(next) {
+    if (section.value === next) return;
+    section.value = next;
+    // Cleared once read: the region is shared with the freshness tiers, so a
+    // message left standing gets re-announced when a tier later clears.
+    sectionAnnouncement.value = `${SECTION_LABELS[next]} section`;
+    if (announcementTimer !== null) clearTimeout(announcementTimer);
+    announcementTimer = setTimeout(() => {
+        sectionAnnouncement.value = "";
+        announcementTimer = null;
+    }, 1000);
+    if (next === "people") refreshContacts();
+}
+
+// KTD3: the update endpoint, not the notes endpoint -- logging a note would
+// advance last_contacted_at, and rescheduling a commitment is not contact.
+// KTD4: the list is refetched rather than the row spliced, because ordering is
+// the server's and a moved row cannot reposition itself. R24: nothing moves
+// optimistically, and a row already in flight cannot be resubmitted.
+const snoozingContactId = ref(null);
+
+async function handleSnooze(id, date) {
+    if (snoozingContactId.value !== null) return;
+    snoozingContactId.value = id;
+    let written = false;
+    try {
+        await updateContact(id, { next_action_at: date });
+        written = true;
+    } catch (err) {
+        toast.error("Failed to reschedule — " + getErrorMessage(err));
+    } finally {
+        snoozingContactId.value = null;
+    }
+    if (!written) return;
+    // The commitment moved. A failure from here is a stale list, not a failed
+    // reschedule, and saying otherwise sends the user to redo a change that
+    // already applied.
+    if (!(await loadContacts())) {
+        toast.error("Rescheduled, but the list did not refresh — reload to see it in place");
+    }
+}
+
+// R16: a contact created here carries no application link -- that is the whole
+// point of the affordance. Nothing scrolls to or highlights the new row; the
+// next action it was given is what places it.
+async function handleCreateContact(data, done) {
+    try {
+        await createContact(data);
+    } catch (err) {
+        toast.error("Failed to add person — " + getErrorMessage(err));
+        done(false);
+        return;
+    }
+    // The person exists now, so the form closes either way; only the list's
+    // freshness is in question.
+    if (!(await loadContacts())) {
+        toast.error("Added, but the list did not refresh — reload to see them");
+    }
+    done(true);
+}
+
+function refreshOnFocus() {
+    if (document.visibilityState === "visible" && section.value === "people") {
+        refreshContacts();
+    }
 }
 
 // The board holds list rows, which carry no linked contacts -- only the detail
@@ -328,6 +469,17 @@ function closePanel() {
 // it, so closing it returns you to the record you came from.
 function openContact(id) {
     contactId.value = id;
+}
+
+// The drawer is reachable from two places now. Saving from the application
+// panel has to refresh that record; saving from People has no record behind it
+// and must refresh the contact list instead.
+async function handleContactSaved() {
+    if (showPanel.value) {
+        await handlePanelSaved();
+        return;
+    }
+    await loadContacts();
 }
 
 async function handlePanelSaved() {
@@ -439,6 +591,7 @@ function setShowAll(val) {
     if (showAllUsers.value === val) return;
     showAllUsers.value = val;
     loadApplications();
+    if (section.value === "people") refreshContacts();
     connectLiveUpdates();
 }
 
@@ -473,6 +626,9 @@ const freshnessAbsolute = computed(
     () => liveUpdates.value?.absolute.value ?? "",
 );
 
+// R26 shares this region rather than adding a second one. A connection the
+// user has to act on outranks a destination they just chose themselves, so the
+// freshness tiers win while they are showing.
 const politeAnnouncement = computed(() => {
     if (freshnessTier.value === TIER_DEGRADED) {
         return "Live updates are delayed.";
@@ -480,7 +636,7 @@ const politeAnnouncement = computed(() => {
     if (freshnessTier.value === TIER_STALE) {
         return "Live updates are not being received.";
     }
-    return "";
+    return sectionAnnouncement.value;
 });
 
 const assertiveAnnouncement = computed(() =>
@@ -575,6 +731,9 @@ function requestReconnectRefetch() {
     );
     refetchQueue = gate.state;
     if (gate.apply) runRefetch();
+    // Contacts have no drag gesture to land under, so they refetch straight
+    // away rather than going through the applications queue.
+    if (section.value === "people") refreshContacts();
 }
 
 watch(dragActive, (active) => {
@@ -609,14 +768,16 @@ function handleRemoteChange(evt) {
 
 onMounted(async () => {
     const isMobile = window.innerWidth < 768;
-    view.value = isMobile ? "kanban" : "kanban";
     compactHeader.value = storageGetBool(COMPACT_KEY, isMobile);
+    document.addEventListener("visibilitychange", refreshOnFocus);
     currentUser.value = await fetchMe();
     loadApplications();
     connectLiveUpdates();
 });
 
 onUnmounted(() => {
+    document.removeEventListener("visibilitychange", refreshOnFocus);
+    if (announcementTimer !== null) clearTimeout(announcementTimer);
     liveUpdates.value?.stop();
     if (justNowTimer !== null) {
         clearTimeout(justNowTimer);

@@ -9,6 +9,7 @@ const db = require("../db");
 const {
     followUpState,
     daysUntil,
+    daysSince,
     toCalendarDate,
     todayInInstanceZone,
 } = require("../lib/followup");
@@ -76,6 +77,7 @@ function withFollowUp(contact) {
         ...contact,
         follow_up_state: followUpState(contact.next_action_at),
         follow_up_days: daysUntil(contact.next_action_at),
+        days_since_contact: daysSince(contact.last_contacted_at),
     };
 }
 
@@ -170,13 +172,19 @@ function listContacts(
     }
 
     const where = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
-    // Ordered by what is owed first, then by name: the main question a job-search
-    // contacts table answers is "who do I owe a touch", and alphabetical order
-    // carries no information about that.
+    // Ordered by what is owed first, then -- for everyone carrying no
+    // commitment -- by how long they have been quiet, longest first, with the
+    // never-contacted at the very bottom. The main question a job-search
+    // contacts table answers is "who do I owe a touch"; the second is "who is
+    // going cold". Alphabetical order answers neither, so it is only the
+    // tiebreak. Contacts who were never contacted sort last rather than first
+    // because the top of the list is about re-warming existing relationships.
     const rows = db
         .prepare(
             `SELECT * FROM contacts${where}
-             ORDER BY (next_action_at IS NULL), date(next_action_at) ASC, name ASC`,
+             ORDER BY (next_action_at IS NULL), date(next_action_at) ASC,
+                      (last_contacted_at IS NULL), date(last_contacted_at) ASC,
+                      name ASC`,
         )
         .all(...params);
 
