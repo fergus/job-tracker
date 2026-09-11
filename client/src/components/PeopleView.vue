@@ -125,23 +125,30 @@
               type="button"
               @click="$emit('open-contact', contact.id)"
               :aria-label="rowLabel(contact)"
-              class="flex-1 min-w-0 text-left min-h-[44px] py-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 transition-colors hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm px-2 -mx-2"
+              class="flex-1 min-w-0 text-left min-h-[44px] py-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-0.5 sm:gap-4 transition-colors hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm px-2 -mx-2"
             >
-              <span class="min-w-0">
+              <!-- One line, ellipsed. A recruiter's full name and employer can
+                   each run past the row on their own, and letting them wrap
+                   turned a scannable list into a stack of paragraphs. -->
+              <span class="min-w-0 flex-1 truncate" :title="nameLine(contact)">
                 <span class="text-sm font-medium text-ink">{{ contact.name }}</span>
                 <span v-if="contact.employer" class="text-sm text-ink-3">
                   — {{ contact.employer }}
                 </span>
               </span>
-              <span class="shrink-0 text-xs sm:text-right">
+              <!-- Bounded so a long commitment cannot crowd out the name it
+                   belongs to; the full wording is a hover away and in the
+                   drawer. -->
+              <span class="min-w-0 shrink-0 sm:max-w-[45%] text-xs sm:text-right">
                 <span
                   v-if="contact.follow_up_state"
                   :class="followUpTone(contact.follow_up_state)"
-                  class="block"
+                  class="block truncate"
+                  :title="followUpProse(contact.follow_up_state, contact.follow_up_days, contact.next_action)"
                 >
                   {{ followUpProse(contact.follow_up_state, contact.follow_up_days, contact.next_action) }}
                 </span>
-                <span class="block text-ink-3">
+                <span class="block truncate text-ink-3">
                   {{ contactedProse(contact.days_since_contact) }}
                 </span>
               </span>
@@ -324,6 +331,10 @@ onUnmounted(() => {
 
 // R8 and R11: a row is a person and where they work. What roles they are
 // attached to belongs in the drawer, not in a list you scan.
+function nameLine(contact) {
+  return contact.employer ? `${contact.name} — ${contact.employer}` : contact.name
+}
+
 function rowLabel(contact) {
   const who = contact.employer ? `${contact.name}, ${contact.employer}` : contact.name
   const owed = followUpProse(

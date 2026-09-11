@@ -259,3 +259,52 @@ test('all-users mode is read-only and its rows still open', async ({ page, reque
   await expect(page.getByText('Read-only')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save contact' })).toHaveCount(0)
 })
+
+test('long names and commitments stay inside their row', async ({ page, request }) => {
+  // Real recruiter names, employers and commitments run far longer than a
+  // tidy fixture. Unbounded, the commitment cell refused to shrink and drove
+  // the name into a four-line stack that pushed the row controls off the line.
+  await seed(request, [
+    {
+      name: 'Perpetua Featherstonehaugh-Wollondilly',
+      employer: 'Commonwealth Scientific and Industrial Research Organisation',
+      next_action_at: shift(-22),
+      next_action:
+        'Follow up on the second-round panel feedback and confirm whether the relocation package is still on the table',
+    },
+  ])
+
+  await openPeople(page)
+
+  // Anchored to the start of the accessible name so the row is selected and
+  // not its own snooze buttons, which also carry the person's name.
+  const row = page.getByRole('button', { name: /^Perpetua Featherstonehaugh-Wollondilly,/ })
+  await expect(row).toBeVisible()
+
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.waitForTimeout(200)
+
+    // Nothing spills horizontally, at the document or the row.
+    const doc = await page.evaluate(() => ({
+      scrollW: document.documentElement.scrollWidth,
+      clientW: document.documentElement.clientWidth,
+    }))
+    expect(doc.scrollW, `document overflow at ${width}px`).toBeLessThanOrEqual(doc.clientW)
+
+    const spill = await row.evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(spill, `row overflow at ${width}px`).toBeLessThanOrEqual(1)
+
+    // The long text is ellipsed rather than wrapped: a truncating element
+    // reports more content than it can show.
+    const truncated = await row.evaluate((el) =>
+      [...el.querySelectorAll('.truncate')].some((n) => n.scrollWidth > n.clientWidth),
+    )
+    expect(truncated, `expected ellipsis at ${width}px`).toBe(true)
+  }
+
+  // The row stays a scannable height rather than growing into a paragraph.
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.waitForTimeout(200)
+  expect((await row.boundingBox()).height).toBeLessThan(70)
+})
