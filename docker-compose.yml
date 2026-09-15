@@ -47,6 +47,9 @@ services:
       # One-shot status-split backfill. Unset (the default) reports what it
       # would derive and writes nothing; set to "apply" to perform the write.
       - SCHEMA_BACKFILL=${SCHEMA_BACKFILL:-}
+      # IANA zone that decides when a follow-up is due. Empty falls back to
+      # the container's TZ, then UTC.
+      - INSTANCE_TIMEZONE=${INSTANCE_TIMEZONE:-}
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
