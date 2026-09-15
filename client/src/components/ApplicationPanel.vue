@@ -489,6 +489,42 @@
                       class="text-sm text-ink cursor-pointer hover:text-accent"
                     >{{ formatDate(panelApp[d.key]) }}</p>
                   </div>
+                  <!-- Follow up: a bare calendar date written through PUT, not the
+                       stage-date route, so it sits outside the loop above. -->
+                  <div>
+                    <p class="text-xs text-ink-3 uppercase tracking-wide">Follow up</p>
+                    <div v-if="editingDateKey === 'next_action_at'" class="flex items-center gap-1">
+                      <input
+                        type="date"
+                        aria-label="Follow-up date"
+                        :value="panelApp.next_action_at || ''"
+                        @change="onFollowUpChange"
+                        @blur="editingDateKey = null"
+                        @keydown.escape="editingDateKey = null"
+                        class="text-sm border border-accent rounded px-1 py-0.5 focus:ring-2 focus:ring-accent outline-hidden w-full bg-raised text-ink"
+                      />
+                      <button
+                        v-if="panelApp.next_action_at"
+                        @mousedown.prevent="saveFollowUp(null)"
+                        class="p-1 rounded text-ink-3 hover:text-danger flex items-center justify-center shrink-0 min-h-[44px] min-w-[44px]"
+                        title="Clear follow-up date"
+                        aria-label="Clear follow-up date"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                    <button
+                      v-else
+                      type="button"
+                      @click="editingDateKey = 'next_action_at'"
+                      aria-label="Edit follow-up date"
+                      class="block text-left text-sm text-ink cursor-pointer hover:text-accent"
+                    >{{ formatCalendarDate(panelApp.next_action_at) }}</button>
+                    <p
+                      v-if="panelApp.follow_up_state"
+                      :class="['text-xs mt-0.5', followUpTone(panelApp.follow_up_state)]"
+                    >{{ followUpProse(panelApp.follow_up_state, panelApp.follow_up_days, null) }}</p>
+                  </div>
                 </div>
               </div>
             </details>
@@ -1304,6 +1340,35 @@ async function clearDate(key) {
     emit('saved')
   } catch (err) {
     toast.error('Error clearing date: ' + getErrorMessage(err))
+  }
+}
+
+// The follow-up date is a bare YYYY-MM-DD. new Date('YYYY-MM-DD') parses as UTC
+// midnight and would show the day before west of Greenwich, so build it local.
+function formatCalendarDate(date) {
+  if (!date) return '-'
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString()
+}
+
+function onFollowUpChange(event) {
+  const val = event.target.value
+  editingDateKey.value = null
+  if (!val) return
+  saveFollowUp(val)
+}
+
+// Sent alone and as the input's own YYYY-MM-DD: a PUT carrying only
+// next_action_at leaves updated_at untouched, which keeps the card's staleness
+// honest. The refresh behind `saved` brings back the server's follow_up_state,
+// so the prose below the date is never classified here.
+async function saveFollowUp(value) {
+  editingDateKey.value = null
+  try {
+    await updateApplication(props.panelApp.id, { next_action_at: value })
+    emit('saved')
+  } catch (err) {
+    toast.error('Error updating follow-up date: ' + getErrorMessage(err))
   }
 }
 
