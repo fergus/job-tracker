@@ -303,3 +303,183 @@ describe("admin access", () => {
         assert.equal(rawRow(a.id).next_action_at, shiftDays(0));
     });
 });
+
+describe("filtering the list by follow-up state (U2)", () => {
+    // A dedicated owner per scenario: other tests share the in-memory DB, so
+    // asserting on global counts would couple this block to their fixtures.
+    let seq = 0;
+    function owner() {
+        seq += 1;
+        return `followup-filter-${seq}@example.com`;
+    }
+
+    async function seed(email, rows) {
+        const created = {};
+        for (const [key, body] of Object.entries(rows)) {
+            const res = await as(req.post("/api/applications"), email).send({
+                company_name: `Filter ${key}`,
+                role_title: "Engineer",
+                status: "applied",
+                ...body,
+            });
+            assert.equal(res.status, 201, JSON.stringify(res.body));
+            created[key] = res.body;
+        }
+        return created;
+    }
+
+    async function seedAe6(email) {
+        return seed(email, {
+            dueA: { next_action_at: shiftDays(0) },
+            dueB: { next_action_at: shiftDays(0) },
+            dueC: { next_action_at: shiftDays(0) },
+            overdue: { next_action_at: shiftDays(-3) },
+            nextWeek: { next_action_at: shiftDays(7) },
+            none: {},
+        });
+    }
+
+    function ids(rows) {
+        return rows.map((r) => r.id).sort((a, b) => a - b);
+    }
+
+    test("overdue,due returns the four and not the rest, each with its state (AE6)", async () => {
+        const email = owner();
+        const c = await seedAe6(email);
+
+        const res = await as(req.get("/api/applications?follow_up_state=overdue,due"), email);
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.deepEqual(
+            ids(res.body),
+            ids([c.dueA, c.dueB, c.dueC, c.overdue]),
+        );
+        const byId = Object.fromEntries(res.body.map((r) => [r.id, r]));
+        assert.equal(byId[c.overdue.id].follow_up_state, "overdue");
+        for (const k of ["dueA", "dueB", "dueC"]) {
+            assert.equal(byId[c[k].id].follow_up_state, "due");
+        }
+    });
+
+    test("upcoming returns only the future-dated record", async () => {
+        const email = owner();
+        const c = await seedAe6(email);
+        const res = await as(req.get("/api/applications?follow_up_state=upcoming"), email);
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.deepEqual(ids(res.body), [c.nextWeek.id]);
+        assert.equal(res.body[0].follow_up_state, "upcoming");
+    });
+
+    test("records with no date never match any filter value", async () => {
+        const email = owner();
+        const c = await seedAe6(email);
+        for (const value of ["overdue", "due", "upcoming", "overdue,due,upcoming"]) {
+            const rows = svc.listApplications(email, { follow_up_state: value.split(",") });
+            assert.ok(!rows.some((r) => r.id === c.none.id), value);
+            assert.ok(rows.every((r) => r.follow_up_state !== null), value);
+        }
+        const all = svc.listApplications(email, {
+            follow_up_state: ["overdue", "due", "upcoming"],
+        });
+        assert.equal(all.length, 5);
+    });
+
+    test("pagination total counts only matching records", async () => {
+        const email = owner();
+        await seedAe6(email);
+        const page = svc.listApplications(email, {
+            follow_up_state: ["overdue", "due"],
+            limit: 2,
+            offset: 0,
+        });
+        assert.equal(page.total, 4);
+        assert.equal(page.items.length, 2);
+        const rest = svc.listApplications(email, {
+            follow_up_state: ["overdue", "due"],
+            limit: 2,
+            offset: 2,
+        });
+        assert.equal(rest.total, 4);
+        assert.equal(rest.items.length, 2);
+        const seen = new Set([...page.items, ...rest.items].map((r) => r.id));
+        assert.equal(seen.size, 4, "pages do not overlap");
+    });
+
+    test("keeps updated_at DESC ordering under the filter", async () => {
+        const email = owner();
+        await seedAe6(email);
+        const rows = svc.listApplications(email, { follow_up_state: ["overdue", "due"] });
+        const stamps = rows.map((r) => r.updated_at);
+        assert.deepEqual(stamps, [...stamps].sort().reverse());
+    });
+
+    test("composes with state=open: a closed overdue record is excluded", async () => {
+        const email = owner();
+        const c = await seed(email, {
+            openOverdue: { next_action_at: shiftDays(-1) },
+            closedOverdue: { status: "rejected", next_action_at: shiftDays(-1) },
+        });
+        const res = await as(
+            req.get("/api/applications?state=open&follow_up_state=overdue"),
+            email,
+        );
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.deepEqual(ids(res.body), [c.openOverdue.id]);
+
+        const without = await as(req.get("/api/applications?follow_up_state=overdue"), email);
+        assert.deepEqual(ids(without.body), ids([c.openOverdue, c.closedOverdue]));
+    });
+
+    test("an unknown member is rejected with 400 rather than ignored", async () => {
+        const email = owner();
+        await seedAe6(email);
+        const res = await as(req.get("/api/applications?follow_up_state=due,soon"), email);
+        assert.equal(res.status, 400);
+        assert.match(res.body.error, /follow_up_state/);
+        assert.match(res.body.error, /overdue, due, upcoming/);
+
+        assert.throws(
+            () => svc.listApplications(email, { follow_up_state: ["due", "soon"] }),
+            (e) => e.status === 400,
+        );
+        assert.throws(
+            () => svc.listApplications(email, { follow_up_state: [42] }),
+            (e) => e.status === 400,
+        );
+    });
+
+    test("an empty filter value behaves as no filter", async () => {
+        const email = owner();
+        await seedAe6(email);
+        const res = await as(req.get("/api/applications?follow_up_state="), email);
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.equal(res.body.length, 6);
+        assert.equal(svc.listApplications(email, { follow_up_state: [] }).length, 6);
+        assert.equal(svc.listApplications(email, { follow_up_state: "" }).length, 6);
+    });
+
+    test("the service splits a comma-separated string the same as an array", async () => {
+        const email = owner();
+        await seedAe6(email);
+        const fromString = svc.listApplications(email, { follow_up_state: "overdue, due" });
+        const fromArray = svc.listApplications(email, { follow_up_state: ["overdue", "due"] });
+        assert.deepEqual(ids(fromString), ids(fromArray));
+        assert.equal(fromArray.length, 4);
+    });
+
+    test("today is the instance-zone calendar day, not UTC's (AE1 boundary)", async () => {
+        const email = owner();
+        const c = await seed(email, {
+            sydneyToday: { next_action_at: "2026-08-13" },
+            utcToday: { next_action_at: "2026-08-12" },
+        });
+        // 00:30 on 13 Aug in Sydney is still 12 Aug in UTC.
+        const now = new Date("2026-08-12T14:30:00Z");
+        const due = svc.listApplications(email, { follow_up_state: ["due"], now });
+        assert.deepEqual(ids(due), [c.sydneyToday.id]);
+        assert.equal(due[0].follow_up_state, "due");
+
+        const overdue = svc.listApplications(email, { follow_up_state: ["overdue"], now });
+        assert.deepEqual(ids(overdue), [c.utcToday.id]);
+        assert.equal(overdue[0].follow_up_state, "overdue");
+    });
+});

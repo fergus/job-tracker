@@ -61,6 +61,8 @@ router.get("/", (req, res) => {
                 company_name: req.query.company_name,
                 all: req.query.all,
                 updated_since: req.query.updated_since,
+                // Comma-separated (or repeated) values; the service splits.
+                follow_up_state: req.query.follow_up_state,
                 isAdmin: req.isAdmin,
             }),
         );

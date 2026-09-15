@@ -9,9 +9,11 @@ const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 const { emitChange } = require("../lib/events");
 const { deriveRecord } = require("./migration-backfill");
 const {
+    VALID_FOLLOWUP_STATES,
     followUpState,
     daysUntil,
     toCalendarDate,
+    todayInInstanceZone,
 } = require("../lib/followup");
 
 class ServiceError extends Error {
@@ -196,10 +198,12 @@ function listApplications(
         all,
         updated_since,
         company_name,
+        follow_up_state,
         limit,
         offset,
         includeNotes = true,
         isAdmin = false,
+        now = new Date(),
     } = {},
 ) {
     const showAll = isAdmin && all === "true";
@@ -287,6 +291,22 @@ function listApplications(
         params.push(`%${company_name}%`);
     }
 
+    const followUpStates = parseFollowUpStates(follow_up_state);
+    if (followUpStates.length > 0) {
+        // Compared in SQL rather than filtered after the fetch so the paginated
+        // total counts matching rows, not the page. Today is computed once from
+        // the same `now` the decorator uses, so a request straddling midnight
+        // cannot return a row under `due` that it then labels `overdue`.
+        const today = todayInInstanceZone(now);
+        const ops = { overdue: "<", due: "=", upcoming: ">" };
+        conditions.push(
+            `a.next_action_at IS NOT NULL AND (${followUpStates
+                .map((s) => `date(a.next_action_at) ${ops[s]} ?`)
+                .join(" OR ")})`,
+        );
+        for (let i = 0; i < followUpStates.length; i++) params.push(today);
+    }
+
     const where =
         conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
 
@@ -309,7 +329,7 @@ function listApplications(
             .all(...params, resolvedLimit, resolvedOffset);
 
         const items = (includeNotes ? attachNotes(rows) : rows).map((r) =>
-            withFollowUp(r),
+            withFollowUp(r, now),
         );
         return { total, items };
     }
@@ -320,7 +340,36 @@ function listApplications(
         )
         .all(...params);
 
-    return (includeNotes ? attachNotes(rows) : rows).map((r) => withFollowUp(r));
+    return (includeNotes ? attachNotes(rows) : rows).map((r) => withFollowUp(r, now));
+}
+
+// Accepts an array or a comma-separated string, so REST and MCP callers share
+// one parse. Empty means no filter; an unknown member is rejected for the same
+// reason as the split filters above.
+function parseFollowUpStates(value) {
+    if (value === undefined || value === null) return [];
+    const raw = Array.isArray(value) ? value : [value];
+    const members = [];
+    for (const item of raw) {
+        if (typeof item !== "string") {
+            throw new ServiceError(
+                400,
+                `Invalid follow_up_state: expected one or more of ${VALID_FOLLOWUP_STATES.join(", ")}`,
+            );
+        }
+        for (const part of item.split(",")) {
+            const s = part.trim();
+            if (!s) continue;
+            if (!VALID_FOLLOWUP_STATES.includes(s)) {
+                throw new ServiceError(
+                    400,
+                    `Invalid follow_up_state: expected one or more of ${VALID_FOLLOWUP_STATES.join(", ")}`,
+                );
+            }
+            if (!members.includes(s)) members.push(s);
+        }
+    }
+    return members;
 }
 
 function getApplication(userEmail, id, { isAdmin = false } = {}) {
