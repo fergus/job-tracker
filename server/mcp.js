@@ -105,7 +105,7 @@ function createMcpServer() {
 
     server.tool(
         "list_applications",
-        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead). The legacy `status` field is derived from those and kept only for compatibility -- filter on state and record_type instead, since status collapses every non-acceptance close onto 'rejected'.",
+        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead). The legacy `status` field is derived from those and kept only for compatibility -- filter on state and record_type instead, since status collapses every non-acceptance close onto 'rejected'. Each record carries next_action_at (the follow-up date) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
         {
             status: z
                 .enum([
@@ -155,11 +155,17 @@ function createMcpServer() {
                 .describe(
                     "Filter by record kind. A lead is a role identified but never applied to; filter to 'application' for true pipeline counts.",
                 ),
+            follow_up_state: z
+                .array(z.enum(["overdue", "due", "upcoming"]))
+                .optional()
+                .describe(
+                    "Only records whose follow-up date is in one of these states. Records with no follow-up date never match. Use [\"overdue\",\"due\"] for what needs chasing today.",
+                ),
             fields: z
                 .array(z.string())
                 .optional()
                 .describe(
-                    "Limit which fields are returned per record. Omit to return all fields. Suggested summary preset: [\"id\",\"company_name\",\"role_title\",\"status\",\"job_location\",\"job_posting_url\",\"salary_min\",\"salary_max\",\"interested_at\",\"applied_at\",\"closed_at\",\"updated_at\"]",
+                    "Limit which fields are returned per record. Omit to return all fields. Suggested summary preset: [\"id\",\"company_name\",\"role_title\",\"status\",\"job_location\",\"job_posting_url\",\"salary_min\",\"salary_max\",\"interested_at\",\"applied_at\",\"closed_at\",\"updated_at\",\"next_action_at\",\"follow_up_state\"]",
                 ),
             limit: z
                 .number()
@@ -201,6 +207,7 @@ function createMcpServer() {
                     record_type: args.record_type,
                     company_name: args.company_name,
                     updated_since: args.updated_since,
+                    follow_up_state: args.follow_up_state,
                     limit,
                     offset,
                     includeNotes,
@@ -322,6 +329,13 @@ function createMcpServer() {
                 .optional()
                 .nullable()
                 .describe("Maximum salary"),
+            next_action_at: z
+                .string()
+                .optional()
+                .nullable()
+                .describe(
+                    "Calendar date to follow up on this record (YYYY-MM-DD). Drives follow_up_state and the follow_up_state filter on list_applications.",
+                ),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -432,6 +446,16 @@ function createMcpServer() {
                 .enum(["application", "lead"])
                 .optional()
                 .describe("Whether this is a real application or an unpursued lead"),
+            // Kept a plain string: the service validates the calendar date and
+            // its 400 reaches the agent through toolError with a clearer message
+            // than a zod regex failure would give.
+            next_action_at: z
+                .string()
+                .optional()
+                .nullable()
+                .describe(
+                    "Calendar date to follow up on this record (YYYY-MM-DD), or null to clear it. Set it to when you should chase again, e.g. after add_note. A date-only change does not bump updated_at.",
+                ),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
