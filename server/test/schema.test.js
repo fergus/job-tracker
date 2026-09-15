@@ -64,6 +64,15 @@ const PRE_PLAN_SCHEMA = `
   );
 `;
 
+// Columns added to applications after the pre-plan shape above.
+const APPLICATION_COLUMNS = [
+    "stage",
+    "state",
+    "close_reason",
+    "record_type",
+    "next_action_at",
+];
+
 function makeDbPath(name) {
     return path.join(tmpDir, `${name}.db`);
 }
@@ -124,9 +133,18 @@ describe("U1 schema migration", () => {
 
         const db = new Database(dbPath, { readonly: true });
         const appCols = columnsOf(db, "applications");
-        for (const col of ["stage", "state", "close_reason", "record_type"]) {
+        for (const col of APPLICATION_COLUMNS) {
             assert.ok(appCols.includes(col), `applications is missing ${col}`);
         }
+
+        const indexes = db
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
+            .all()
+            .map((r) => r.name);
+        assert.ok(
+            indexes.includes("idx_applications_next_action"),
+            "missing the follow-up date index",
+        );
 
         const tables = tablesOf(db);
         for (const t of ["contacts", "contact_links", "_row_backups"]) {
@@ -158,7 +176,7 @@ describe("U1 schema migration", () => {
 
         const db = new Database(dbPath, { readonly: true });
         const appCols = columnsOf(db, "applications");
-        for (const col of ["stage", "state", "close_reason", "record_type"]) {
+        for (const col of APPLICATION_COLUMNS) {
             assert.ok(appCols.includes(col), `applications is missing ${col}`);
         }
 
@@ -167,6 +185,8 @@ describe("U1 schema migration", () => {
         assert.equal(row.role_title, "Engineer");
         assert.equal(row.status, "rejected");
         assert.equal(row.applied_at, "2026-01-01T00:00:00.000Z");
+        assert.equal(row.updated_at, "2026-01-02T00:00:00.000Z");
+        assert.equal(row.next_action_at, null, "no follow-up is invented for old rows");
         db.close();
     });
 
@@ -178,7 +198,7 @@ describe("U1 schema migration", () => {
 
         const db = new Database(dbPath, { readonly: true });
         const appCols = columnsOf(db, "applications");
-        for (const col of ["stage", "state", "close_reason", "record_type"]) {
+        for (const col of APPLICATION_COLUMNS) {
             assert.equal(
                 appCols.filter((c) => c === col).length,
                 1,

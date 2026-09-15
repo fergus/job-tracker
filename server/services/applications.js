@@ -8,6 +8,11 @@ const { isValidUrl } = require("../lib/validation");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 const { emitChange } = require("../lib/events");
 const { deriveRecord } = require("./migration-backfill");
+const {
+    followUpState,
+    daysUntil,
+    toCalendarDate,
+} = require("../lib/followup");
 
 class ServiceError extends Error {
     constructor(status, message) {
@@ -127,6 +132,40 @@ function getOwnApp(id, userEmail) {
     return db
         .prepare("SELECT * FROM applications WHERE id = ? AND user_email = ?")
         .get(id, userEmail);
+}
+
+// Decorate a record with its derived follow-up state, so the API, MCP and the
+// board all read one classification instead of each recomputing it. `now` is
+// injectable for tests; callers mapping over rows must not pass the index.
+function withFollowUp(row, now = new Date()) {
+    return {
+        ...row,
+        follow_up_state: followUpState(row.next_action_at, now),
+        follow_up_days: daysUntil(row.next_action_at, now),
+    };
+}
+
+const FOLLOW_UP_DATE_ERROR =
+    "next_action_at must be a calendar date (YYYY-MM-DD)";
+
+// Normalise a follow-up date write to YYYY-MM-DD, or null to clear. '' clears
+// too: multipart forms send empty fields as ''. toCalendarDate only checks the
+// shape, so 2026-13-40 would pass it; the round trip through Date.UTC rejects
+// dates that do not exist without changing the helper contacts share.
+function normaliseFollowUpDate(value) {
+    if (value === null || value === "") return null;
+    const date = typeof value === "string" ? toCalendarDate(value) : null;
+    if (!date) throw new ServiceError(400, FOLLOW_UP_DATE_ERROR);
+    const [y, m, d] = date.split("-").map(Number);
+    const check = new Date(Date.UTC(y, m - 1, d));
+    if (
+        check.getUTCFullYear() !== y ||
+        check.getUTCMonth() !== m - 1 ||
+        check.getUTCDate() !== d
+    ) {
+        throw new ServiceError(400, FOLLOW_UP_DATE_ERROR);
+    }
+    return date;
 }
 
 function attachNotes(rows) {
@@ -269,7 +308,9 @@ function listApplications(
             )
             .all(...params, resolvedLimit, resolvedOffset);
 
-        const items = includeNotes ? attachNotes(rows) : rows;
+        const items = (includeNotes ? attachNotes(rows) : rows).map((r) =>
+            withFollowUp(r),
+        );
         return { total, items };
     }
 
@@ -279,7 +320,7 @@ function listApplications(
         )
         .all(...params);
 
-    return includeNotes ? attachNotes(rows) : rows;
+    return (includeNotes ? attachNotes(rows) : rows).map((r) => withFollowUp(r));
 }
 
 function getApplication(userEmail, id, { isAdmin = false } = {}) {
@@ -291,7 +332,10 @@ function getApplication(userEmail, id, { isAdmin = false } = {}) {
     // Required lazily: contacts requires db, and requiring it at module scope
     // would create a cycle through the shared db module during startup.
     const { contactsForApplication } = require("./contacts");
-    return { ...withNotes, contacts: contactsForApplication(row.id) };
+    return withFollowUp({
+        ...withNotes,
+        contacts: contactsForApplication(row.id),
+    });
 }
 
 function createApplication(userEmail, data) {
@@ -362,6 +406,11 @@ function createApplication(userEmail, data) {
         throw new ServiceError(400, "salary_min must not exceed salary_max");
     }
 
+    const nextActionAt =
+        data.next_action_at === undefined
+            ? null
+            : normaliseFollowUpDate(data.next_action_at);
+
     const now = new Date().toISOString();
     const appStatus =
         status && VALID_STATUSES.includes(status) ? status : "interested";
@@ -381,8 +430,8 @@ function createApplication(userEmail, data) {
       salary_min, salary_max, job_location,
       created_at, updated_at,
       interested_at, applied_at, responded_at, interview_at, offer_at, closed_at, user_email,
-      stage, state, close_reason, record_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      stage, state, close_reason, record_type, next_action_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
         )
         .run(
@@ -414,13 +463,14 @@ function createApplication(userEmail, data) {
             triple.state,
             triple.close_reason,
             recordType,
+            nextActionAt,
         );
 
     const created = db
         .prepare("SELECT * FROM applications WHERE id = ?")
         .get(result.lastInsertRowid);
     emitChange(userEmail, "created", created.id);
-    return created;
+    return withFollowUp(created);
 }
 
 function updateApplication(userEmail, id, data) {
@@ -487,6 +537,11 @@ function updateApplication(userEmail, id, data) {
     if (salaryMin != null && salaryMax != null && salaryMin > salaryMax) {
         throw new ServiceError(400, "salary_min must not exceed salary_max");
     }
+
+    const nextActionAt =
+        data.next_action_at === undefined
+            ? undefined
+            : normaliseFollowUpDate(data.next_action_at);
 
     for (const field of fields) {
         if (data[field] !== undefined) {
@@ -666,11 +721,24 @@ function updateApplication(userEmail, id, data) {
         }
     }
 
+    // Pushed after every other field so a write carrying only the date is
+    // recognisable by the update count alone.
+    if (nextActionAt !== undefined) {
+        updates.push("next_action_at = ?");
+        values.push(nextActionAt);
+    }
+    const followUpOnly = nextActionAt !== undefined && updates.length === 1;
+
     if (updates.length === 0)
         throw new ServiceError(400, "No fields to update");
 
-    updates.push("updated_at = ?");
-    values.push(new Date().toISOString());
+    // A date-only write leaves updated_at alone: updated_at drives card
+    // staleness, and scheduling or clearing a follow-up is not activity on the
+    // record. It still emits, so open boards pick the date up.
+    if (!followUpOnly) {
+        updates.push("updated_at = ?");
+        values.push(new Date().toISOString());
+    }
     values.push(id);
     values.push(userEmail);
 
@@ -678,7 +746,9 @@ function updateApplication(userEmail, id, data) {
         `UPDATE applications SET ${updates.join(", ")} WHERE id = ? AND user_email = ?`,
     ).run(...values);
     emitChange(userEmail, "updated", Number(id));
-    return db.prepare("SELECT * FROM applications WHERE id = ?").get(id);
+    return withFollowUp(
+        db.prepare("SELECT * FROM applications WHERE id = ?").get(id),
+    );
 }
 
 function updateStatus(userEmail, id, status) {
@@ -733,7 +803,9 @@ function updateStatus(userEmail, id, status) {
         `UPDATE applications SET ${updates.join(", ")} WHERE id = ? AND user_email = ?`,
     ).run(...values);
     emitChange(userEmail, "updated", Number(id));
-    return db.prepare("SELECT * FROM applications WHERE id = ?").get(id);
+    return withFollowUp(
+        db.prepare("SELECT * FROM applications WHERE id = ?").get(id),
+    );
 }
 
 function deleteApplication(userEmail, id) {
@@ -915,6 +987,7 @@ module.exports = {
     tripleFromStatus,
     getOwnApp,
     attachNotes,
+    withFollowUp,
     listApplications,
     getApplication,
     createApplication,
