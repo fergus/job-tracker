@@ -18,18 +18,19 @@
     <p v-if="showUser" :class="['text-xs truncate mt-0.5', quiet ? 'text-ink-3 opacity-60' : 'text-ink-3']">{{ application.user_email }}</p>
     <!-- Hidden on narrow columns (<200px); shown when column is wide enough to breathe -->
     <div class="hidden @[200px]:flex items-center justify-between mt-3">
+      <!-- One slot: a follow-up date when set, otherwise staleness (see cardSignal.js) -->
       <span
         class="text-xs flex items-center gap-1"
-        :class="stalenessClass"
-        :title="stalenessLabel"
+        :class="signal.tone"
+        :title="signal.title"
       >
         <span
-          v-if="stalenessLevel > 0"
+          v-if="signal.dot"
           class="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0"
-          :class="stalenessDotClass"
+          :class="signal.dot"
           aria-hidden="true"
         ></span>
-        {{ formatRelativeDate(application.updated_at) }}
+        {{ signal.text }}
       </span>
       <span class="flex gap-1.5 items-center">
         <span v-if="application.attachment_count > 0" class="flex items-center gap-0.5 text-ink-3" :title="`${application.attachment_count} attachment${application.attachment_count > 1 ? 's' : ''}`">
@@ -53,46 +54,10 @@
 
 <script setup>
 import { computed } from 'vue'
+import { cardSignal } from '../utils/cardSignal.js'
 
 const props = defineProps({ application: Object, showUser: Boolean, quiet: Boolean })
 defineEmits(['select'])
 
-const STALE_STAGES = new Set(['applied', 'responded', 'interview', 'offer'])
-
-const staleDays = computed(() => {
-  if (!STALE_STAGES.has(props.application.status)) return 0
-  return (Date.now() - new Date(props.application.updated_at)) / 86_400_000
-})
-
-const stalenessLevel = computed(() => {
-  if (staleDays.value >= 30) return 2
-  if (staleDays.value >= 14) return 1
-  return 0
-})
-
-const stalenessClass = computed(() => {
-  if (stalenessLevel.value === 2) return 'text-danger'
-  if (stalenessLevel.value === 1) return 'text-accent'
-  return 'text-ink-3'
-})
-
-const stalenessDotClass = computed(() => {
-  if (stalenessLevel.value === 2) return 'bg-danger'
-  return 'bg-accent'
-})
-
-function formatStaleDuration(days) {
-  if (days >= 60) return `${Math.round(days / 30)} months`
-  if (days >= 30) return '1 month'
-  return `${Math.round(days)} days`
-}
-
-const stalenessLabel = computed(() => {
-  if (stalenessLevel.value === 0) return ''
-  const duration = formatStaleDuration(staleDays.value)
-  if (stalenessLevel.value === 2) return `No movement in ${duration} — worth following up`
-  return `No movement in ${duration}`
-})
-
-import { formatRelativeDate } from '../utils/date.js'
+const signal = computed(() => cardSignal(props.application, Date.now()))
 </script>

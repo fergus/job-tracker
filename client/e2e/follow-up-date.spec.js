@@ -34,6 +34,19 @@ async function openPanel(page, company) {
   return dialog
 }
 
+// The board card, located outside the dialog so panel prose cannot satisfy a
+// card assertion. The card is the role=button tile carrying the company name.
+// The board renders desktop and mobile layouts into the same DOM, so each card
+// matches twice; the desktop one comes first.
+function boardCard(page, company) {
+  return page.locator('[role="button"]').filter({ hasText: company }).first()
+}
+
+async function closePanel(page) {
+  await page.getByRole('dialog').getByRole('button', { name: 'Close panel' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+}
+
 test('setting a follow-up date from the panel states how soon it is due', async ({
   page,
   request,
@@ -127,4 +140,44 @@ test('a failed follow-up save says so and leaves the date as it was', async ({
 
   const after = await request.get(`/api/applications/${app.id}`).then((r) => r.json())
   expect(after.next_action_at).toBe('2099-06-01')
+})
+
+test('the board card swaps its slot to the follow-up and back when the date is cleared', async ({
+  page,
+  request,
+}) => {
+  const app = await seedApp(request, 'FollowCardCo')
+  const target = await serverDateInDays(request, app.id, 3)
+
+  const dialog = await openPanel(page, 'FollowCardCo')
+  await dialog.getByRole('button', { name: 'Edit follow-up date' }).click()
+  await dialog.getByLabel('Follow-up date', { exact: true }).fill(target)
+  await expect(dialog.getByText('Due in 3 days', { exact: true })).toBeVisible()
+  await closePanel(page)
+
+  const card = boardCard(page, 'FollowCardCo')
+  await expect(card.getByText('in 3d', { exact: true })).toBeVisible()
+  await expect(card.locator('[title="Due in 3 days"]')).toBeVisible()
+  await expect(card.getByText('today', { exact: true })).toHaveCount(0)
+
+  await card.click()
+  const reopened = page.getByRole('dialog')
+  await reopened.getByRole('button', { name: 'Edit follow-up date' }).click()
+  await reopened.getByRole('button', { name: 'Clear follow-up date' }).click()
+  await expect(reopened.getByText('Due in 3 days', { exact: true })).toHaveCount(0)
+  await closePanel(page)
+
+  await expect(card.getByText('in 3d', { exact: true })).toHaveCount(0)
+  await expect(card.getByText('today', { exact: true })).toBeVisible()
+})
+
+test('the board card says how late an overdue follow-up is', async ({ page, request }) => {
+  const app = await seedApp(request, 'FollowLateCo')
+  const yesterday = await serverDateInDays(request, app.id, -1)
+  await request.put(`/api/applications/${app.id}`, { data: { next_action_at: yesterday } })
+
+  await page.goto('/')
+  const card = boardCard(page, 'FollowLateCo')
+  await expect(card.getByText('1d overdue', { exact: true })).toBeVisible()
+  await expect(card.locator('[title="Overdue by 1 day"]')).toHaveClass(/text-danger/)
 })

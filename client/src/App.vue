@@ -210,6 +210,7 @@ import { useToast } from "./composables/useToast";
 import { storageGetBool, storageSet } from "./utils/storage.js";
 import { getErrorMessage } from "./utils/error.js";
 import { useLiveUpdates } from "./composables/useLiveUpdates.js";
+import { useDayRollover } from "./composables/useDayRollover.js";
 import {
     TIER_PENDING,
     TIER_LIVE,
@@ -773,12 +774,18 @@ onMounted(async () => {
     currentUser.value = await fetchMe();
     loadApplications();
     connectLiveUpdates();
+    // Follow-up state is classified server-side against today, so a board
+    // left open past midnight is showing yesterday's classification. Refetch
+    // through the reconnect path so it waits out a drag, drops a response for
+    // a stale scope, and reconciles an open panel.
+    dayRollover = useDayRollover(requestReconnectRefetch);
 });
 
 onUnmounted(() => {
     document.removeEventListener("visibilitychange", refreshOnFocus);
     if (announcementTimer !== null) clearTimeout(announcementTimer);
     liveUpdates.value?.stop();
+    dayRollover?.stop();
     if (justNowTimer !== null) {
         clearTimeout(justNowTimer);
         justNowTimer = null;
