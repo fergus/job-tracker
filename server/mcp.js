@@ -12,6 +12,7 @@ const {
 const { z } = require("zod");
 const db = require("./db");
 const svc = require("./services/applications");
+const notesSvc = require("./services/notes");
 const contactsSvc = require("./services/contacts");
 const { resolveApiKey } = require("./lib/apiKeySecret");
 const { uploadsDir } = require("./lib/files");
@@ -521,7 +522,7 @@ function createMcpServer() {
 
     server.tool(
         "add_note",
-        "Add a stage note to a job application.",
+        "Add a stage note to a job application. Logging a chase is the moment you know when to chase next, so set next_action_at in the same call rather than following up with update_application.",
         {
             id: z.number().int().positive().describe("Application ID"),
             stage: z
@@ -536,6 +537,16 @@ function createMcpServer() {
                 ])
                 .describe("Stage this note applies to"),
             content: z.string().min(1).max(10000).describe("Note content"),
+            // Kept a plain string for the same reason update_application does:
+            // the service validates the calendar date and its 400 reaches the
+            // agent through toolError with a clearer message than a zod regex.
+            next_action_at: z
+                .string()
+                .optional()
+                .nullable()
+                .describe(
+                    "Calendar date to follow up on this record (YYYY-MM-DD), or null to clear it. Omit to leave the existing follow-up date alone.",
+                ),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -545,9 +556,13 @@ function createMcpServer() {
                     isError: true,
                 };
             try {
-                const result = svc.addNote(userEmail, args.id, {
+                // The same writer the REST route uses. There were two copies of
+                // this until add_note grew a follow-up date and only one of
+                // them learned about it.
+                const result = notesSvc.addNote(userEmail, args.id, {
                     stage: args.stage,
                     content: args.content,
+                    next_action_at: args.next_action_at,
                 });
                 return {
                     content: [

@@ -280,7 +280,7 @@ A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`).
 
 **Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `list_attachments`, `upload_attachment`, `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `link_contact`, `unlink_contact`, `add_contact_note`, `convert_application_to_contact`
 
-**Follow-ups on applications** — `list_applications`, `get_application`, `create_application` and `update_application` all carry `next_action_at`, and returned records include `follow_up_state`. The morning sweep is one `list_applications` call with `follow_up_state: ["overdue", "due"]`; after logging a chase with `add_note`, re-date it with `update_application` (`next_action_at: null` clears it). There is deliberately no separate follow-ups tool.
+**Follow-ups on applications** — `list_applications`, `get_application`, `create_application` and `update_application` all carry `next_action_at`, and returned records include `follow_up_state`. The morning sweep is one `list_applications` call with `follow_up_state: ["overdue", "due"]`. `add_note` also takes `next_action_at`, so logging a chase and re-dating it is one call — the same shape `add_contact_note` has; omit the field to leave the date alone, pass `null` to clear it. There is deliberately no separate follow-ups tool.
 
 **`upload_attachment`** — for small files (<~30KB): parameters `application_id`, `filename`, `file_content` (base64-encoded string). Accepts file bytes directly; works over remote HTTP transport.
 

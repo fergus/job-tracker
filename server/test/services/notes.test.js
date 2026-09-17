@@ -44,6 +44,79 @@ describe("services/notes", () => {
             assert.ok(updatedApp.updated_at >= before);
         });
 
+        // Logging a chase is the moment you know when to chase next, so the
+        // note and the commitment land in one call rather than two.
+        test("records the next follow-up date in the same call", () => {
+            const app = makeApp();
+            addNote(TEST_EMAIL, app.id, {
+                stage: "interview",
+                content: "Chased the recruiter",
+                next_action_at: "2099-03-04",
+            });
+
+            const row = db
+                .prepare("SELECT next_action_at FROM applications WHERE id = ?")
+                .get(app.id);
+            assert.equal(row.next_action_at, "2099-03-04");
+        });
+
+        test("omitting the date leaves an existing commitment alone", () => {
+            const app = createApplication(TEST_EMAIL, {
+                company_name: "Acme",
+                role_title: "Engineer",
+                next_action_at: "2099-05-06",
+            });
+            addNote(TEST_EMAIL, app.id, {
+                stage: "interview",
+                content: "Bumped into them at a meetup",
+            });
+
+            const row = db
+                .prepare("SELECT next_action_at FROM applications WHERE id = ?")
+                .get(app.id);
+            assert.equal(row.next_action_at, "2099-05-06");
+        });
+
+        test("an explicit null clears the commitment", () => {
+            const app = createApplication(TEST_EMAIL, {
+                company_name: "Acme",
+                role_title: "Engineer",
+                next_action_at: "2099-05-06",
+            });
+            addNote(TEST_EMAIL, app.id, {
+                stage: "rejected",
+                content: "Role is filled, nothing left to chase",
+                next_action_at: null,
+            });
+
+            const row = db
+                .prepare("SELECT next_action_at FROM applications WHERE id = ?")
+                .get(app.id);
+            assert.equal(row.next_action_at, null);
+        });
+
+        // Validated before the transaction opens: a bad date must not leave a
+        // note behind with no re-dating.
+        test("a malformed date rejects the note as well", () => {
+            const app = makeApp();
+            assert.throws(
+                () =>
+                    addNote(TEST_EMAIL, app.id, {
+                        stage: "interview",
+                        content: "Spoke to them",
+                        next_action_at: "next Thursday",
+                    }),
+                (err) => err instanceof ServiceError && err.status === 400,
+            );
+
+            const notes = db
+                .prepare(
+                    "SELECT COUNT(*) c FROM stage_notes WHERE application_id = ?",
+                )
+                .get(app.id).c;
+            assert.equal(notes, 0, "a rejected write must not store the note");
+        });
+
         test("requires stage and content", () => {
             const app = makeApp();
             assert.throws(

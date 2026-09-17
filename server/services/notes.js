@@ -1,9 +1,14 @@
 "use strict";
 const db = require("../db");
-const { ServiceError, VALID_STATUSES, getOwnApp } = require("./applications");
+const {
+    ServiceError,
+    VALID_STATUSES,
+    getOwnApp,
+    normaliseFollowUpDate,
+} = require("./applications");
 const { emitChange } = require("../lib/events");
 
-function addNote(userEmail, appId, { stage, content }) {
+function addNote(userEmail, appId, { stage, content, next_action_at }) {
     const existing = getOwnApp(appId, userEmail);
     if (!existing) throw new ServiceError(404, "Not found");
 
@@ -17,6 +22,17 @@ function addNote(userEmail, appId, { stage, content }) {
             "content exceeds maximum length of 10000 characters",
         );
 
+    // The moment you log a chase is the moment you know when to chase next, so
+    // the note and the new commitment land together. Validated before the
+    // transaction opens: a malformed date must reject the whole write rather
+    // than leaving a note behind with no re-dating. Omitted leaves the existing
+    // date alone; an explicit null clears it. The same validator the direct
+    // writes use, so a note cannot store a date an update would refuse.
+    const followUp =
+        next_action_at === undefined
+            ? undefined
+            : normaliseFollowUpDate(next_action_at);
+
     const now = new Date().toISOString();
     const insertNote = db.transaction(() => {
         const result = db
@@ -24,6 +40,11 @@ function addNote(userEmail, appId, { stage, content }) {
                 "INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
             )
             .run(appId, stage, content, now, now);
+        if (followUp !== undefined) {
+            db.prepare(
+                "UPDATE applications SET next_action_at = ? WHERE id = ?",
+            ).run(followUp, appId);
+        }
         db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
             now,
             appId,

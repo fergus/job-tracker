@@ -886,41 +886,6 @@ function deleteApplication(userEmail, id) {
     return { success: true };
 }
 
-function addNote(userEmail, appId, { stage, content }) {
-    const existing = getOwnApp(appId, userEmail);
-    if (!existing) throw new ServiceError(404, "Not found");
-
-    if (!stage || !content)
-        throw new ServiceError(400, "stage and content are required");
-    if (!VALID_STATUSES.includes(stage))
-        throw new ServiceError(400, "Invalid stage");
-    if (content.length > 10000)
-        throw new ServiceError(
-            400,
-            "content exceeds maximum length of 10000 characters",
-        );
-
-    const now = new Date().toISOString();
-    const insertNote = db.transaction(() => {
-        const result = db
-            .prepare(
-                "INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            )
-            .run(appId, stage, content, now, now);
-        db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
-            now,
-            appId,
-        );
-        return result;
-    });
-
-    const result = insertNote();
-    emitChange(userEmail, "updated", Number(appId));
-    return db
-        .prepare("SELECT * FROM stage_notes WHERE id = ?")
-        .get(result.lastInsertRowid);
-}
-
 async function uploadAttachments(userEmail, appId, files) {
     const existing = getOwnApp(appId, userEmail);
     if (!existing) throw new ServiceError(404, "Not found");
@@ -1038,13 +1003,13 @@ module.exports = {
     getOwnApp,
     attachNotes,
     withFollowUp,
+    normaliseFollowUpDate,
     listApplications,
     getApplication,
     createApplication,
     updateApplication,
     updateStatus,
     deleteApplication,
-    addNote,
     listAttachments,
     getAttachment,
     uploadAttachments,

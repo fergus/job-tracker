@@ -1782,6 +1782,85 @@ describe("MCP Server", () => {
             assert.equal(created.follow_up_state, "upcoming");
         });
 
+        // The flow AGENTS.md names: logging a chase is when you know the next
+        // one, so it is one call rather than a note plus a separate re-date.
+        test("add_note logs the chase and re-dates it in one call", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowNoteCo",
+                    role_title: "Engineer",
+                    next_action_at: todayInInstanceZone(),
+                }),
+            );
+            assert.ok((await listIds(call, { follow_up_state: ["overdue", "due"] })).includes(created.id));
+
+            payloadOf(
+                await call("add_note", {
+                    id: created.id,
+                    stage: "interview",
+                    content: "Chased the recruiter",
+                    next_action_at: "2099-05-06",
+                }),
+            );
+
+            const fetched = payloadOf(await call("get_application", { id: created.id }));
+            assert.equal(fetched.next_action_at, "2099-05-06");
+            assert.equal(fetched.follow_up_state, "upcoming");
+            assert.equal(fetched.notes.at(-1).content, "Chased the recruiter");
+
+            const dueIds = await listIds(call, { follow_up_state: ["overdue", "due"] });
+            assert.ok(!dueIds.includes(created.id), "re-dated record should leave the due list");
+        });
+
+        test("add_note without a date leaves the existing commitment alone", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowNoteKeepCo",
+                    role_title: "Engineer",
+                    next_action_at: "2099-07-08",
+                }),
+            );
+
+            payloadOf(
+                await call("add_note", {
+                    id: created.id,
+                    stage: "interview",
+                    content: "Bumped into them at a meetup",
+                }),
+            );
+
+            const fetched = payloadOf(await call("get_application", { id: created.id }));
+            assert.equal(fetched.next_action_at, "2099-07-08");
+        });
+
+        // The service owns calendar validation so the agent gets its message
+        // rather than a zod regex failure; a rejected write stores no note.
+        test("add_note with a malformed date is rejected whole", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowNoteBadCo",
+                    role_title: "Engineer",
+                }),
+            );
+
+            const message = await call("add_note", {
+                id: created.id,
+                stage: "interview",
+                content: "Spoke to them",
+                next_action_at: "next Thursday",
+            });
+            const errored =
+                message.error !== undefined || message.result?.isError === true;
+            assert.ok(errored, "expected a tool error for a malformed date");
+
+            const fetched = payloadOf(await call("get_application", { id: created.id }));
+            assert.equal(fetched.next_action_at, null);
+            assert.equal(fetched.notes.length, 0, "a rejected write must not store the note");
+        });
+
         test("update_application sets the date and list_applications filters to upcoming (F2)", async () => {
             const call = await mcpSession();
             const created = payloadOf(
