@@ -8,6 +8,13 @@ const { isValidUrl } = require("../lib/validation");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 const { emitChange } = require("../lib/events");
 const { deriveRecord } = require("./migration-backfill");
+const {
+    VALID_FOLLOWUP_STATES,
+    followUpState,
+    daysUntil,
+    toCalendarDate,
+    todayInInstanceZone,
+} = require("../lib/followup");
 
 class ServiceError extends Error {
     constructor(status, message) {
@@ -129,6 +136,40 @@ function getOwnApp(id, userEmail) {
         .get(id, userEmail);
 }
 
+// Decorate a record with its derived follow-up state, so the API, MCP and the
+// board all read one classification instead of each recomputing it. `now` is
+// injectable for tests; callers mapping over rows must not pass the index.
+function withFollowUp(row, now = new Date()) {
+    return {
+        ...row,
+        follow_up_state: followUpState(row.next_action_at, now),
+        follow_up_days: daysUntil(row.next_action_at, now),
+    };
+}
+
+const FOLLOW_UP_DATE_ERROR =
+    "next_action_at must be a calendar date (YYYY-MM-DD)";
+
+// Normalise a follow-up date write to YYYY-MM-DD, or null to clear. '' clears
+// too: multipart forms send empty fields as ''. toCalendarDate only checks the
+// shape, so 2026-13-40 would pass it; the round trip through Date.UTC rejects
+// dates that do not exist without changing the helper contacts share.
+function normaliseFollowUpDate(value) {
+    if (value === null || value === "") return null;
+    const date = typeof value === "string" ? toCalendarDate(value) : null;
+    if (!date) throw new ServiceError(400, FOLLOW_UP_DATE_ERROR);
+    const [y, m, d] = date.split("-").map(Number);
+    const check = new Date(Date.UTC(y, m - 1, d));
+    if (
+        check.getUTCFullYear() !== y ||
+        check.getUTCMonth() !== m - 1 ||
+        check.getUTCDate() !== d
+    ) {
+        throw new ServiceError(400, FOLLOW_UP_DATE_ERROR);
+    }
+    return date;
+}
+
 function attachNotes(rows) {
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return rows;
@@ -157,10 +198,12 @@ function listApplications(
         all,
         updated_since,
         company_name,
+        follow_up_state,
         limit,
         offset,
         includeNotes = true,
         isAdmin = false,
+        now = new Date(),
     } = {},
 ) {
     const showAll = isAdmin && all === "true";
@@ -248,6 +291,27 @@ function listApplications(
         params.push(`%${company_name}%`);
     }
 
+    const followUpStates = parseFollowUpStates(follow_up_state);
+    if (followUpStates.length > 0) {
+        // Compared in SQL rather than filtered after the fetch so the paginated
+        // total counts matching rows, not the page. Today is computed once from
+        // the same `now` the decorator uses, so a request straddling midnight
+        // cannot return a row under `due` that it then labels `overdue`.
+        //
+        // The column is compared bare rather than through date(): every stored
+        // value is already a validated YYYY-MM-DD, which sorts identically as
+        // text, and wrapping the column stops SQLite seeking
+        // idx_applications_next_action -- the index this filter exists to use.
+        const today = todayInInstanceZone(now);
+        const ops = { overdue: "<", due: "=", upcoming: ">" };
+        conditions.push(
+            `a.next_action_at IS NOT NULL AND (${followUpStates
+                .map((s) => `a.next_action_at ${ops[s]} ?`)
+                .join(" OR ")})`,
+        );
+        for (let i = 0; i < followUpStates.length; i++) params.push(today);
+    }
+
     const where =
         conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
 
@@ -269,7 +333,9 @@ function listApplications(
             )
             .all(...params, resolvedLimit, resolvedOffset);
 
-        const items = includeNotes ? attachNotes(rows) : rows;
+        const items = (includeNotes ? attachNotes(rows) : rows).map((r) =>
+            withFollowUp(r, now),
+        );
         return { total, items };
     }
 
@@ -279,7 +345,32 @@ function listApplications(
         )
         .all(...params);
 
-    return includeNotes ? attachNotes(rows) : rows;
+    return (includeNotes ? attachNotes(rows) : rows).map((r) => withFollowUp(r, now));
+}
+
+const FOLLOW_UP_STATE_ERROR = `Invalid follow_up_state: expected one or more of ${VALID_FOLLOWUP_STATES.join(", ")}`;
+
+// Accepts an array or a comma-separated string, so REST and MCP callers share
+// one parse. Empty means no filter; an unknown member is rejected for the same
+// reason as the split filters above.
+function parseFollowUpStates(value) {
+    if (value === undefined || value === null) return [];
+    const raw = Array.isArray(value) ? value : [value];
+    const members = [];
+    for (const item of raw) {
+        if (typeof item !== "string") {
+            throw new ServiceError(400, FOLLOW_UP_STATE_ERROR);
+        }
+        for (const part of item.split(",")) {
+            const s = part.trim();
+            if (!s) continue;
+            if (!VALID_FOLLOWUP_STATES.includes(s)) {
+                throw new ServiceError(400, FOLLOW_UP_STATE_ERROR);
+            }
+            if (!members.includes(s)) members.push(s);
+        }
+    }
+    return members;
 }
 
 function getApplication(userEmail, id, { isAdmin = false } = {}) {
@@ -291,7 +382,10 @@ function getApplication(userEmail, id, { isAdmin = false } = {}) {
     // Required lazily: contacts requires db, and requiring it at module scope
     // would create a cycle through the shared db module during startup.
     const { contactsForApplication } = require("./contacts");
-    return { ...withNotes, contacts: contactsForApplication(row.id) };
+    return withFollowUp({
+        ...withNotes,
+        contacts: contactsForApplication(row.id),
+    });
 }
 
 function createApplication(userEmail, data) {
@@ -362,6 +456,11 @@ function createApplication(userEmail, data) {
         throw new ServiceError(400, "salary_min must not exceed salary_max");
     }
 
+    const nextActionAt =
+        data.next_action_at === undefined
+            ? null
+            : normaliseFollowUpDate(data.next_action_at);
+
     const now = new Date().toISOString();
     const appStatus =
         status && VALID_STATUSES.includes(status) ? status : "interested";
@@ -381,8 +480,8 @@ function createApplication(userEmail, data) {
       salary_min, salary_max, job_location,
       created_at, updated_at,
       interested_at, applied_at, responded_at, interview_at, offer_at, closed_at, user_email,
-      stage, state, close_reason, record_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      stage, state, close_reason, record_type, next_action_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
         )
         .run(
@@ -414,13 +513,14 @@ function createApplication(userEmail, data) {
             triple.state,
             triple.close_reason,
             recordType,
+            nextActionAt,
         );
 
     const created = db
         .prepare("SELECT * FROM applications WHERE id = ?")
         .get(result.lastInsertRowid);
     emitChange(userEmail, "created", created.id);
-    return created;
+    return withFollowUp(created);
 }
 
 function updateApplication(userEmail, id, data) {
@@ -487,6 +587,11 @@ function updateApplication(userEmail, id, data) {
     if (salaryMin != null && salaryMax != null && salaryMin > salaryMax) {
         throw new ServiceError(400, "salary_min must not exceed salary_max");
     }
+
+    const nextActionAt =
+        data.next_action_at === undefined
+            ? undefined
+            : normaliseFollowUpDate(data.next_action_at);
 
     for (const field of fields) {
         if (data[field] !== undefined) {
@@ -666,11 +771,24 @@ function updateApplication(userEmail, id, data) {
         }
     }
 
+    // Pushed after every other field so a write carrying only the date is
+    // recognisable by the update count alone.
+    if (nextActionAt !== undefined) {
+        updates.push("next_action_at = ?");
+        values.push(nextActionAt);
+    }
+    const followUpOnly = nextActionAt !== undefined && updates.length === 1;
+
     if (updates.length === 0)
         throw new ServiceError(400, "No fields to update");
 
-    updates.push("updated_at = ?");
-    values.push(new Date().toISOString());
+    // A date-only write leaves updated_at alone: updated_at drives card
+    // staleness, and scheduling or clearing a follow-up is not activity on the
+    // record. It still emits, so open boards pick the date up.
+    if (!followUpOnly) {
+        updates.push("updated_at = ?");
+        values.push(new Date().toISOString());
+    }
     values.push(id);
     values.push(userEmail);
 
@@ -678,7 +796,9 @@ function updateApplication(userEmail, id, data) {
         `UPDATE applications SET ${updates.join(", ")} WHERE id = ? AND user_email = ?`,
     ).run(...values);
     emitChange(userEmail, "updated", Number(id));
-    return db.prepare("SELECT * FROM applications WHERE id = ?").get(id);
+    return withFollowUp(
+        db.prepare("SELECT * FROM applications WHERE id = ?").get(id),
+    );
 }
 
 function updateStatus(userEmail, id, status) {
@@ -733,7 +853,9 @@ function updateStatus(userEmail, id, status) {
         `UPDATE applications SET ${updates.join(", ")} WHERE id = ? AND user_email = ?`,
     ).run(...values);
     emitChange(userEmail, "updated", Number(id));
-    return db.prepare("SELECT * FROM applications WHERE id = ?").get(id);
+    return withFollowUp(
+        db.prepare("SELECT * FROM applications WHERE id = ?").get(id),
+    );
 }
 
 function deleteApplication(userEmail, id) {
@@ -762,41 +884,6 @@ function deleteApplication(userEmail, id) {
 
     emitChange(userEmail, "deleted", Number(id));
     return { success: true };
-}
-
-function addNote(userEmail, appId, { stage, content }) {
-    const existing = getOwnApp(appId, userEmail);
-    if (!existing) throw new ServiceError(404, "Not found");
-
-    if (!stage || !content)
-        throw new ServiceError(400, "stage and content are required");
-    if (!VALID_STATUSES.includes(stage))
-        throw new ServiceError(400, "Invalid stage");
-    if (content.length > 10000)
-        throw new ServiceError(
-            400,
-            "content exceeds maximum length of 10000 characters",
-        );
-
-    const now = new Date().toISOString();
-    const insertNote = db.transaction(() => {
-        const result = db
-            .prepare(
-                "INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            )
-            .run(appId, stage, content, now, now);
-        db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
-            now,
-            appId,
-        );
-        return result;
-    });
-
-    const result = insertNote();
-    emitChange(userEmail, "updated", Number(appId));
-    return db
-        .prepare("SELECT * FROM stage_notes WHERE id = ?")
-        .get(result.lastInsertRowid);
 }
 
 async function uploadAttachments(userEmail, appId, files) {
@@ -915,13 +1002,14 @@ module.exports = {
     tripleFromStatus,
     getOwnApp,
     attachNotes,
+    withFollowUp,
+    normaliseFollowUpDate,
     listApplications,
     getApplication,
     createApplication,
     updateApplication,
     updateStatus,
     deleteApplication,
-    addNote,
     listAttachments,
     getAttachment,
     uploadAttachments,

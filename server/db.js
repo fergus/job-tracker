@@ -183,6 +183,18 @@ db.exec(
     "CREATE INDEX IF NOT EXISTS idx_applications_user_email_record_type ON applications(user_email, record_type)",
 );
 
+// Migrate: next follow-up date on applications, the same column name and shape
+// contacts use so both classify through lib/followup. Nullable with no default:
+// the date is an explicit commitment, so an old row must not acquire one.
+const followUpCheck = db.prepare("PRAGMA table_info(applications)").all();
+if (!followUpCheck.some((c) => c.name === "next_action_at")) {
+    db.exec("ALTER TABLE applications ADD COLUMN next_action_at TEXT");
+}
+
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_applications_next_action ON applications(user_email, next_action_at)",
+);
+
 // Contacts table (people in the search: recruiters, referrers, hiring managers)
 db.exec(`
   CREATE TABLE IF NOT EXISTS contacts (

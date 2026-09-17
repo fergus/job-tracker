@@ -4,7 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const db = require("../db");
 const svc = require("../services/applications");
-const { getOwnApp, attachNotes } = svc;
+const { getOwnApp, attachNotes, withFollowUp } = svc;
 const { addNote, updateNote, deleteNote } = require("../services/notes");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 const { resolveApp, resolveOwnApp, handleError } = require("./_helpers");
@@ -61,6 +61,8 @@ router.get("/", (req, res) => {
                 company_name: req.query.company_name,
                 all: req.query.all,
                 updated_since: req.query.updated_since,
+                // Comma-separated (or repeated) values; the service splits.
+                follow_up_state: req.query.follow_up_state,
                 isAdmin: req.isAdmin,
             }),
         );
@@ -589,7 +591,7 @@ router.patch("/:id/dates", (req, res) => {
         },
     });
 
-    res.json(attachNotes([row])[0]);
+    res.json(withFollowUp(attachNotes([row])[0]));
 });
 
 // Delete application (owner only — no admin bypass)

@@ -108,5 +108,5 @@ An ordinary outage now walks the ladder (silent → `SYNCED n MIN AGO` → **Ret
 ## Related
 
 - Fixed in v0.19.1 (`4710d8e`); introduced in v0.19.0 (PR #5).
-- Plan: `docs/plans/2026-08-08-001-feat-live-refresh-connection-feedback-plan.md`
+- Plan: `docs/plans/completed/2026-08-08-001-feat-live-refresh-connection-feedback-plan.md`
 - Outstanding items from the same feature: `docs/residual-review-findings/feat-live-refresh-connection-feedback.md`

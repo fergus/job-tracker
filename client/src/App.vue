@@ -210,6 +210,7 @@ import { useToast } from "./composables/useToast";
 import { storageGetBool, storageSet } from "./utils/storage.js";
 import { getErrorMessage } from "./utils/error.js";
 import { useLiveUpdates } from "./composables/useLiveUpdates.js";
+import { useDayRollover } from "./composables/useDayRollover.js";
 import {
     TIER_PENDING,
     TIER_LIVE,
@@ -326,11 +327,6 @@ watch(
         document.body.style.overflow = lock ? "hidden" : "";
     },
 );
-
-function toggleCompact() {
-    compactHeader.value = !compactHeader.value;
-    storageSet(COMPACT_KEY, String(compactHeader.value));
-}
 
 async function loadApplications() {
     applications.value = await fetchApplications(null, showAllUsers.value);
@@ -607,6 +603,9 @@ const freshnessTier = computed(
 const justNowHold = ref(false);
 let justNowTimer = null;
 
+// Handle for the day-rollover detector started in onMounted, stopped there.
+let dayRollover = null;
+
 function holdJustNow() {
     justNowHold.value = true;
     if (justNowTimer !== null) clearTimeout(justNowTimer);
@@ -773,12 +772,18 @@ onMounted(async () => {
     currentUser.value = await fetchMe();
     loadApplications();
     connectLiveUpdates();
+    // Follow-up state is classified server-side against today, so a board
+    // left open past midnight is showing yesterday's classification. Refetch
+    // through the reconnect path so it waits out a drag, drops a response for
+    // a stale scope, and reconciles an open panel.
+    dayRollover = useDayRollover(requestReconnectRefetch);
 });
 
 onUnmounted(() => {
     document.removeEventListener("visibilitychange", refreshOnFocus);
     if (announcementTimer !== null) clearTimeout(announcementTimer);
     liveUpdates.value?.stop();
+    dayRollover?.stop();
     if (justNowTimer !== null) {
         clearTimeout(justNowTimer);
         justNowTimer = null;

@@ -189,13 +189,14 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { computeSegments, durationDays, isRejected, isAccepted, isTerminal } from '../utils/timeline'
+import { computeSegments, durationDays, isRejected, isTerminal } from '../utils/timeline'
 import { storageGetString, storageSet } from '../utils/storage.js'
 import { formatShortDate } from '../utils/date.js'
 import ViewLensToggle from './ViewLensToggle.vue'
 
 const props = defineProps({ applications: Array, showClosed: Boolean, closedCount: Number })
-const emit = defineEmits(['open-detail', 'toggle-show-closed', 'set-view'])
+// The template emits these via $emit; the declaration documents the contract.
+defineEmits(['open-detail', 'toggle-show-closed', 'set-view'])
 
 const SORT_KEY = 'jobtracker_timeline_sort'
 

@@ -1708,6 +1708,260 @@ describe("MCP Server", () => {
         const parsed = JSON.parse(dataLine.slice("data: ".length));
         assert.equal(parsed.result.isError, true);
     });
+
+    describe("application follow-up date tools", () => {
+        const { todayInInstanceZone } = require("../lib/followup");
+
+        // Opens a session and returns a caller that yields the parsed JSON-RPC
+        // message, so each test reads as the agent flow it covers.
+        async function mcpSession() {
+            const init = await mcpReq
+                .post("/")
+                .set("Authorization", `Bearer ${apiKey}`)
+                .set("Accept", "application/json, text/event-stream")
+                .set("Content-Type", "application/json")
+                .send({
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "initialize",
+                    params: {
+                        protocolVersion: "2024-11-05",
+                        capabilities: {},
+                        clientInfo: { name: "test", version: "1.0" },
+                    },
+                });
+            assert.equal(init.status, 200);
+            const sessionId = init.headers["mcp-session-id"];
+            let nextId = 2;
+            return async (name, args) => {
+                const res = await mcpReq
+                    .post("/")
+                    .set("Authorization", `Bearer ${apiKey}`)
+                    .set("Mcp-Session-Id", sessionId)
+                    .set("Accept", "application/json, text/event-stream")
+                    .set("Content-Type", "application/json")
+                    .send({
+                        jsonrpc: "2.0",
+                        id: nextId++,
+                        method: "tools/call",
+                        params: { name, arguments: args },
+                    });
+                assert.equal(res.status, 200);
+                const dataLine = res.text
+                    .trim()
+                    .split("\n")
+                    .find((l) => l.startsWith("data: "));
+                assert.ok(dataLine, "expected SSE data line");
+                return JSON.parse(dataLine.slice("data: ".length));
+            };
+        }
+
+        function payloadOf(message) {
+            assert.ok(message.result, "expected a tool result");
+            assert.notEqual(message.result.isError, true, message.result.content?.[0]?.text);
+            return JSON.parse(message.result.content[0].text);
+        }
+
+        async function listIds(call, args) {
+            const { items } = payloadOf(
+                await call("list_applications", { ...args, limit: 200 }),
+            );
+            return items.map((a) => a.id);
+        }
+
+        test("create_application stores next_action_at", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowCreateCo",
+                    role_title: "Engineer",
+                    next_action_at: "2099-03-04",
+                }),
+            );
+            assert.equal(created.next_action_at, "2099-03-04");
+            assert.equal(created.follow_up_state, "upcoming");
+        });
+
+        // The flow AGENTS.md names: logging a chase is when you know the next
+        // one, so it is one call rather than a note plus a separate re-date.
+        test("add_note logs the chase and re-dates it in one call", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowNoteCo",
+                    role_title: "Engineer",
+                    next_action_at: todayInInstanceZone(),
+                }),
+            );
+            assert.ok((await listIds(call, { follow_up_state: ["overdue", "due"] })).includes(created.id));
+
+            payloadOf(
+                await call("add_note", {
+                    id: created.id,
+                    stage: "interview",
+                    content: "Chased the recruiter",
+                    next_action_at: "2099-05-06",
+                }),
+            );
+
+            const fetched = payloadOf(await call("get_application", { id: created.id }));
+            assert.equal(fetched.next_action_at, "2099-05-06");
+            assert.equal(fetched.follow_up_state, "upcoming");
+            assert.equal(fetched.notes.at(-1).content, "Chased the recruiter");
+
+            const dueIds = await listIds(call, { follow_up_state: ["overdue", "due"] });
+            assert.ok(!dueIds.includes(created.id), "re-dated record should leave the due list");
+        });
+
+        test("add_note without a date leaves the existing commitment alone", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowNoteKeepCo",
+                    role_title: "Engineer",
+                    next_action_at: "2099-07-08",
+                }),
+            );
+
+            payloadOf(
+                await call("add_note", {
+                    id: created.id,
+                    stage: "interview",
+                    content: "Bumped into them at a meetup",
+                }),
+            );
+
+            const fetched = payloadOf(await call("get_application", { id: created.id }));
+            assert.equal(fetched.next_action_at, "2099-07-08");
+        });
+
+        // The service owns calendar validation so the agent gets its message
+        // rather than a zod regex failure; a rejected write stores no note.
+        test("add_note with a malformed date is rejected whole", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowNoteBadCo",
+                    role_title: "Engineer",
+                }),
+            );
+
+            const message = await call("add_note", {
+                id: created.id,
+                stage: "interview",
+                content: "Spoke to them",
+                next_action_at: "next Thursday",
+            });
+            const errored =
+                message.error !== undefined || message.result?.isError === true;
+            assert.ok(errored, "expected a tool error for a malformed date");
+
+            const fetched = payloadOf(await call("get_application", { id: created.id }));
+            assert.equal(fetched.next_action_at, null);
+            assert.equal(fetched.notes.length, 0, "a rejected write must not store the note");
+        });
+
+        test("update_application sets the date and list_applications filters to upcoming (F2)", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowRedateCo",
+                    role_title: "Engineer",
+                    next_action_at: todayInInstanceZone(),
+                }),
+            );
+            assert.ok((await listIds(call, { follow_up_state: ["overdue", "due"] })).includes(created.id));
+
+            const updated = payloadOf(
+                await call("update_application", {
+                    id: created.id,
+                    next_action_at: "2099-05-06",
+                }),
+            );
+            assert.equal(updated.next_action_at, "2099-05-06");
+
+            const dueIds = await listIds(call, { follow_up_state: ["overdue", "due"] });
+            assert.ok(!dueIds.includes(created.id), "re-dated record should leave the due list");
+
+            const { items } = payloadOf(
+                await call("list_applications", {
+                    follow_up_state: ["upcoming"],
+                    limit: 200,
+                }),
+            );
+            const row = items.find((a) => a.id === created.id);
+            assert.ok(row, "re-dated record should appear under upcoming");
+            assert.equal(row.follow_up_state, "upcoming");
+            assert.equal(row.next_action_at, "2099-05-06");
+            for (const item of items) assert.equal(item.follow_up_state, "upcoming");
+        });
+
+        test("update_application with next_action_at null clears it and drops it from the due filter", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowClearCo",
+                    role_title: "Engineer",
+                    next_action_at: todayInInstanceZone(),
+                }),
+            );
+            assert.ok((await listIds(call, { follow_up_state: ["due"] })).includes(created.id));
+
+            const cleared = payloadOf(
+                await call("update_application", { id: created.id, next_action_at: null }),
+            );
+            assert.equal(cleared.next_action_at, null);
+            assert.equal(cleared.follow_up_state, null);
+            assert.ok(!(await listIds(call, { follow_up_state: ["due"] })).includes(created.id));
+        });
+
+        test("list_applications sparse fields return the derived follow_up_state", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowFieldsCo",
+                    role_title: "Engineer",
+                    next_action_at: "2000-01-01",
+                }),
+            );
+            const { items } = payloadOf(
+                await call("list_applications", {
+                    fields: ["id", "follow_up_state"],
+                    follow_up_state: ["overdue"],
+                    limit: 200,
+                }),
+            );
+            const row = items.find((a) => a.id === created.id);
+            assert.deepEqual(row, { id: created.id, follow_up_state: "overdue" });
+        });
+
+        test("list_applications rejects an unknown follow_up_state member", async () => {
+            const call = await mcpSession();
+            const message = await call("list_applications", {
+                follow_up_state: ["soon"],
+            });
+            // Either a JSON-RPC invalid-params error or an isError tool result is
+            // acceptable; an unfiltered or empty list is not.
+            const rejected =
+                Boolean(message.error) || message.result?.isError === true;
+            assert.ok(rejected, `expected a rejection, got ${JSON.stringify(message)}`);
+        });
+
+        test("get_application returns next_action_at, follow_up_state and follow_up_days", async () => {
+            const call = await mcpSession();
+            const created = payloadOf(
+                await call("create_application", {
+                    company_name: "FollowGetCo",
+                    role_title: "Engineer",
+                    next_action_at: todayInInstanceZone(),
+                }),
+            );
+            const app = payloadOf(await call("get_application", { id: created.id }));
+            assert.equal(app.next_action_at, todayInInstanceZone());
+            assert.equal(app.follow_up_state, "due");
+            assert.equal(app.follow_up_days, 0);
+        });
+    });
 });
 
 // ---------------------------------------------------------------------------
