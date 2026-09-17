@@ -343,6 +343,8 @@ function listApplications(
     return (includeNotes ? attachNotes(rows) : rows).map((r) => withFollowUp(r, now));
 }
 
+const FOLLOW_UP_STATE_ERROR = `Invalid follow_up_state: expected one or more of ${VALID_FOLLOWUP_STATES.join(", ")}`;
+
 // Accepts an array or a comma-separated string, so REST and MCP callers share
 // one parse. Empty means no filter; an unknown member is rejected for the same
 // reason as the split filters above.
@@ -352,19 +354,13 @@ function parseFollowUpStates(value) {
     const members = [];
     for (const item of raw) {
         if (typeof item !== "string") {
-            throw new ServiceError(
-                400,
-                `Invalid follow_up_state: expected one or more of ${VALID_FOLLOWUP_STATES.join(", ")}`,
-            );
+            throw new ServiceError(400, FOLLOW_UP_STATE_ERROR);
         }
         for (const part of item.split(",")) {
             const s = part.trim();
             if (!s) continue;
             if (!VALID_FOLLOWUP_STATES.includes(s)) {
-                throw new ServiceError(
-                    400,
-                    `Invalid follow_up_state: expected one or more of ${VALID_FOLLOWUP_STATES.join(", ")}`,
-                );
+                throw new ServiceError(400, FOLLOW_UP_STATE_ERROR);
             }
             if (!members.includes(s)) members.push(s);
         }
