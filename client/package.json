@@ -22,6 +22,7 @@
         "vuedraggable": "^4.1.0"
     },
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
         "@playwright/test": "^1.63.0",
         "@tailwindcss/vite": "^4.3.3",
         "@vitejs/plugin-vue": "^6.0.8",

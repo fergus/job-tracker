@@ -328,11 +328,6 @@ watch(
     },
 );
 
-function toggleCompact() {
-    compactHeader.value = !compactHeader.value;
-    storageSet(COMPACT_KEY, String(compactHeader.value));
-}
-
 async function loadApplications() {
     applications.value = await fetchApplications(null, showAllUsers.value);
 }

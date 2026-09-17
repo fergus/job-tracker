@@ -1,11 +1,16 @@
-// Minimal lint gate: catch identifiers that are used but never declared.
+// Lint gate for the client.
 //
-// This exists because an undeclared `dayRollover` in App.vue shipped green --
-// <script setup> compiles to a strict-mode module, so the assignment threw at
-// runtime while vite build, the unit tests and the e2e suite all passed. No
-// style rules are enabled here on purpose: the client has never been linted,
-// and a gate that fails on pre-existing formatting would be turned off rather
-// than fixed.
+// no-undef is the rule this gate was added for: an undeclared `dayRollover` in
+// App.vue shipped green, because <script setup> compiles to a strict-mode
+// module, so the assignment threw at runtime while vite build, the unit tests
+// and the e2e suite all passed.
+//
+// The recommended sets are enabled on top of it. They were measured first: on
+// the codebase as it stood they flagged eight unused variables and nothing
+// else, and those were cleared rather than silenced. Still no stylistic rules
+// -- formatting is not what this gate is for.
+import js from '@eslint/js'
+import pluginVue from 'eslint-plugin-vue'
 import globals from 'globals'
 import vueParser from 'vue-eslint-parser'
 
@@ -13,6 +18,8 @@ export default [
   {
     ignores: ['dist/**', 'test-results/**', 'playwright-report/**', 'public/**'],
   },
+  js.configs.recommended,
+  ...pluginVue.configs['flat/essential'],
   {
     files: ['**/*.js', '**/*.vue'],
     languageOptions: {

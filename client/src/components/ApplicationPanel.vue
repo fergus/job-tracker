@@ -868,7 +868,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import {
   createApplication, updateApplication, updateStatus, deleteApplication,
   updateDates, createNote, updateNote, deleteNote,
@@ -1287,7 +1287,7 @@ async function onExtractJd() {
   fetchingJd.value = true
   fetchError.value = ''
   try {
-    const result = await extractJd(props.panelApp.id)
+    await extractJd(props.panelApp.id)
     toast.success('Details extracted from job description')
     emit('saved')
   } catch (err) {
@@ -1480,7 +1480,7 @@ function humanizeAction(action) {
   return map[action] || action.replace(/_/g, ' ')
 }
 
-function onDragEnter(event) {
+function onDragEnter() {
   dragDepth.value++
   if (dragDepth.value === 1) {
     isDragOver.value = true
@@ -1491,7 +1491,7 @@ function onDragOver(event) {
   event.preventDefault()
 }
 
-function onDragLeave(event) {
+function onDragLeave() {
   dragDepth.value--
   if (dragDepth.value <= 0) {
     dragDepth.value = 0

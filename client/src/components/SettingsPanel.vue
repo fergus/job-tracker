@@ -720,7 +720,7 @@ async function loadKeys() {
   keysLoadError.value = null
   try {
     keys.value = await listApiKeys()
-  } catch (err) {
+  } catch {
     keysLoadError.value = 'Failed to load API keys. Please try again.'
     keys.value = []
   } finally {
