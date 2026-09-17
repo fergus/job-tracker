@@ -297,11 +297,16 @@ function listApplications(
         // total counts matching rows, not the page. Today is computed once from
         // the same `now` the decorator uses, so a request straddling midnight
         // cannot return a row under `due` that it then labels `overdue`.
+        //
+        // The column is compared bare rather than through date(): every stored
+        // value is already a validated YYYY-MM-DD, which sorts identically as
+        // text, and wrapping the column stops SQLite seeking
+        // idx_applications_next_action -- the index this filter exists to use.
         const today = todayInInstanceZone(now);
         const ops = { overdue: "<", due: "=", upcoming: ">" };
         conditions.push(
             `a.next_action_at IS NOT NULL AND (${followUpStates
-                .map((s) => `date(a.next_action_at) ${ops[s]} ?`)
+                .map((s) => `a.next_action_at ${ops[s]} ?`)
                 .join(" OR ")})`,
         );
         for (let i = 0; i < followUpStates.length; i++) params.push(today);

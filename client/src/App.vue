@@ -608,6 +608,9 @@ const freshnessTier = computed(
 const justNowHold = ref(false);
 let justNowTimer = null;
 
+// Handle for the day-rollover detector started in onMounted, stopped there.
+let dayRollover = null;
+
 function holdJustNow() {
     justNowHold.value = true;
     if (justNowTimer !== null) clearTimeout(justNowTimer);
