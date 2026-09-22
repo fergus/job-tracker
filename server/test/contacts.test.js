@@ -461,3 +461,288 @@ describe("MCP exposes the contact capabilities the API already has", () => {
         assert.equal(patched.body.name, "Patchable");
     });
 });
+
+describe("U4 an interaction can be corrected or withdrawn", () => {
+    const svc = require("../services/contacts");
+    const db = require("../db");
+
+    function contactWithNote(email = OWNER, note = {}) {
+        const contact = svc.createContact(email, { name: "Dana Reyes" });
+        const after = svc.addContactNote(email, contact.id, {
+            content: "Intro call",
+            occurred_at: "2026-09-10",
+            ...note,
+        });
+        return { contact: after, note: after.interactions[0] };
+    }
+
+    test("re-dating the only interaction forward advances last contact", () => {
+        // Covers AE1.
+        const { contact, note } = contactWithNote();
+        assert.equal(contact.last_contacted_at, "2026-09-10");
+
+        const after = svc.updateContactNote(OWNER, contact.id, note.id, {
+            occurred_at: "2026-09-14",
+        });
+        assert.equal(after.last_contacted_at, "2026-09-14");
+        assert.equal(after.interactions[0].occurred_at, "2026-09-14");
+    });
+
+    test("re-dating the only interaction backward leaves last contact alone", () => {
+        // Covers AE2. The contact may show a date no visible note accounts
+        // for -- intended: freshness only ever advances.
+        const { contact, note } = contactWithNote();
+
+        const after = svc.updateContactNote(OWNER, contact.id, note.id, {
+            occurred_at: "2026-09-03",
+        });
+        assert.equal(after.last_contacted_at, "2026-09-10");
+        assert.equal(after.interactions[0].occurred_at, "2026-09-03");
+    });
+
+    test("deleting the only interaction hides it and leaves last contact alone", () => {
+        // Covers AE3.
+        const { contact, note } = contactWithNote();
+
+        const after = svc.deleteContactNote(OWNER, contact.id, note.id);
+        assert.deepEqual(after.interactions, []);
+        assert.equal(after.last_contacted_at, "2026-09-10");
+
+        // The row survives the withdrawal.
+        const row = require("../db")
+            .prepare("SELECT content, hidden_at FROM contact_notes WHERE id = ?")
+            .get(note.id);
+        assert.equal(row.content, "Intro call");
+        assert.ok(row.hidden_at, "hidden_at is stamped, the row is not destroyed");
+    });
+
+    test("editing the text alone leaves the dates and the next action alone", () => {
+        const { contact, note } = contactWithNote(OWNER, {
+            next_action_at: "2026-10-01",
+            next_action: "Send the deck",
+        });
+
+        const after = svc.updateContactNote(OWNER, contact.id, note.id, {
+            content: "Intro call, corrected",
+        });
+        assert.equal(after.interactions[0].content, "Intro call, corrected");
+        assert.equal(after.interactions[0].occurred_at, "2026-09-10");
+        assert.equal(after.last_contacted_at, "2026-09-10");
+        assert.equal(after.next_action_at, "2026-10-01");
+        assert.equal(after.next_action, "Send the deck");
+    });
+
+    test("an edited interaction records that it was edited", () => {
+        const { contact, note } = contactWithNote();
+        assert.equal(note.updated_at, null, "a fresh note is not marked edited");
+
+        const after = svc.updateContactNote(OWNER, contact.id, note.id, {
+            content: "Corrected",
+        });
+        assert.ok(after.interactions[0].updated_at, "updated_at is stamped");
+        assert.ok(after.interactions[0].created_at);
+    });
+
+    test("refuses content over the limit, a malformed date and an empty patch", () => {
+        const { contact, note } = contactWithNote();
+
+        for (const patch of [
+            { content: "x".repeat(10001) },
+            { occurred_at: "not-a-date" },
+            { content: "   " },
+            {},
+        ]) {
+            assert.throws(
+                () => svc.updateContactNote(OWNER, contact.id, note.id, patch),
+                (err) => err.status === 400,
+                JSON.stringify(patch),
+            );
+        }
+    });
+
+    test("a hidden interaction cannot be edited or deleted again", () => {
+        const { contact, note } = contactWithNote();
+        svc.deleteContactNote(OWNER, contact.id, note.id);
+
+        assert.throws(
+            () =>
+                svc.updateContactNote(OWNER, contact.id, note.id, {
+                    content: "Back from the dead",
+                }),
+            (err) => err.status === 404,
+        );
+        assert.throws(
+            () => svc.deleteContactNote(OWNER, contact.id, note.id),
+            (err) => err.status === 404,
+        );
+    });
+
+    test("another user's interaction is not found, rather than forbidden", () => {
+        // Covers AE6. A 403 would confirm the note exists.
+        const { contact, note } = contactWithNote(OWNER);
+
+        assert.throws(
+            () => svc.updateContactNote(OTHER, contact.id, note.id, { content: "No" }),
+            (err) => err.status === 404,
+        );
+        assert.throws(
+            () => svc.deleteContactNote(OTHER, contact.id, note.id),
+            (err) => err.status === 404,
+        );
+        // Admins read other users' data; they do not write it.
+        assert.throws(
+            () => svc.deleteContactNote(ADMIN, contact.id, note.id),
+            (err) => err.status === 404,
+        );
+    });
+
+    test("deleting an older interaction leaves last contact alone", () => {
+        const { contact } = contactWithNote();
+        const withBoth = svc.addContactNote(OWNER, contact.id, {
+            content: "Follow-up call",
+            occurred_at: "2026-09-18",
+        });
+        assert.equal(withBoth.last_contacted_at, "2026-09-18");
+
+        const older = withBoth.interactions.find(
+            (n) => n.occurred_at === "2026-09-10",
+        );
+        const after = svc.deleteContactNote(OWNER, contact.id, older.id);
+        assert.equal(after.last_contacted_at, "2026-09-18");
+        assert.equal(after.interactions.length, 1);
+        assert.equal(after.interactions[0].occurred_at, "2026-09-18");
+    });
+
+    // A contact has no change-event stream, so its updated_at is the only
+    // signal a polling client has that the log moved underneath it. Both
+    // writes have to leave that signal even when nothing else about the
+    // contact changes.
+    test("withdrawing an interaction marks the contact as changed", () => {
+        const { contact, note } = contactWithNote();
+        // Stamped back deliberately: the setup writes bump updated_at in the
+        // same millisecond the assertion would compare against.
+        const before = "2026-01-01T00:00:00.000Z";
+        db.prepare("UPDATE contacts SET updated_at = ? WHERE id = ?").run(
+            before,
+            contact.id,
+        );
+
+        svc.deleteContactNote(OWNER, contact.id, note.id);
+
+        const after = db
+            .prepare("SELECT updated_at FROM contacts WHERE id = ?")
+            .get(contact.id).updated_at;
+        assert.ok(after > before, "hiding a note must bump the contact");
+    });
+
+    test("correcting an interaction's text alone marks the contact as changed", () => {
+        const { contact, note } = contactWithNote();
+        const before = "2026-01-01T00:00:00.000Z";
+        db.prepare("UPDATE contacts SET updated_at = ? WHERE id = ?").run(
+            before,
+            contact.id,
+        );
+
+        svc.updateContactNote(OWNER, contact.id, note.id, {
+            content: "Intro call, corrected",
+        });
+
+        const after = db
+            .prepare("SELECT updated_at FROM contacts WHERE id = ?")
+            .get(contact.id).updated_at;
+        assert.ok(after > before, "editing a note must bump the contact");
+    });
+});
+
+describe("U5 interaction edit and delete over REST", () => {
+    async function noteOverHttp(email = OWNER, body = {}) {
+        const contact = await createContact(email, { name: "Ravi Patel" });
+        const res = await as(email)(
+            req.post(`/api/contacts/${contact.body.id}/notes`),
+        ).send({ content: "Intro call", occurred_at: "2026-09-10", ...body });
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        return { contactId: contact.body.id, note: res.body.interactions[0] };
+    }
+
+    test("editing an interaction returns the updated contact", async () => {
+        const { contactId, note } = await noteOverHttp();
+
+        const res = await as(OWNER)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}`),
+        ).send({ content: "Intro call, corrected" });
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.equal(res.body.id, contactId);
+        assert.equal(res.body.interactions[0].content, "Intro call, corrected");
+        assert.equal(res.body.interactions[0].occurred_at, "2026-09-10");
+    });
+
+    test("deleting an interaction removes it from a later read", async () => {
+        const { contactId, note } = await noteOverHttp();
+
+        const res = await as(OWNER)(
+            req.delete(`/api/contacts/${contactId}/notes/${note.id}`),
+        );
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.deepEqual(res.body.interactions, []);
+
+        const read = await as(OWNER)(req.get(`/api/contacts/${contactId}`));
+        assert.equal(read.status, 200);
+        assert.deepEqual(read.body.interactions, []);
+    });
+
+    test("another user's interaction is not found on either route", async () => {
+        const { contactId, note } = await noteOverHttp(OWNER);
+
+        const edit = await as(OTHER)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}`),
+        ).send({ content: "No" });
+        assert.equal(edit.status, 404);
+
+        const del = await as(OTHER)(
+            req.delete(`/api/contacts/${contactId}/notes/${note.id}`),
+        );
+        assert.equal(del.status, 404);
+    });
+
+    test("an admin viewing another user's data still cannot edit or delete", async () => {
+        const { contactId, note } = await noteOverHttp(OWNER);
+
+        const edit = await as(ADMIN)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}?all=true`),
+        ).send({ content: "Admin edit" });
+        assert.equal(edit.status, 404);
+
+        const del = await as(ADMIN)(
+            req.delete(`/api/contacts/${contactId}/notes/${note.id}?all=true`),
+        );
+        assert.equal(del.status, 404);
+    });
+
+    test("a malformed date is rejected and an empty patch is refused", async () => {
+        const { contactId, note } = await noteOverHttp();
+
+        const bad = await as(OWNER)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}`),
+        ).send({ occurred_at: "not-a-date" });
+        assert.equal(bad.status, 400);
+
+        const empty = await as(OWNER)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}`),
+        ).send({});
+        assert.equal(empty.status, 400);
+    });
+
+    test("an unknown note id is not found on either route", async () => {
+        const { contactId } = await noteOverHttp();
+
+        const edit = await as(OWNER)(
+            req.put(`/api/contacts/${contactId}/notes/999999`),
+        ).send({ content: "Ghost" });
+        assert.equal(edit.status, 404);
+
+        const del = await as(OWNER)(
+            req.delete(`/api/contacts/${contactId}/notes/999999`),
+        );
+        assert.equal(del.status, 404);
+    });
+});

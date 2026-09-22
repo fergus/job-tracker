@@ -209,6 +209,110 @@ describe("U1 schema migration", () => {
     });
 });
 
+describe("note hiding and edit columns", () => {
+    // The pre-plan shape of the two note tables, as they stood before notes
+    // could be hidden. contact_notes is declared without its foreign key so the
+    // seed does not have to reproduce the contacts DDL db.js owns.
+    const PRE_HIDE_NOTES_SCHEMA = `
+      CREATE TABLE contact_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        contact_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `;
+
+    test("adds the hidden column to both note tables on an empty database", () => {
+        const dbPath = makeDbPath("note-hide-empty");
+        bootStartup(dbPath);
+
+        const db = new Database(dbPath, { readonly: true });
+        assert.ok(
+            columnsOf(db, "stage_notes").includes("hidden_at"),
+            "stage_notes is missing hidden_at",
+        );
+        assert.ok(
+            columnsOf(db, "contact_notes").includes("hidden_at"),
+            "contact_notes is missing hidden_at",
+        );
+        db.close();
+    });
+
+    test("adds updated_at to contact_notes so an edit is distinguishable", () => {
+        const dbPath = makeDbPath("note-edit-empty");
+        bootStartup(dbPath);
+
+        const db = new Database(dbPath, { readonly: true });
+        assert.ok(
+            columnsOf(db, "contact_notes").includes("updated_at"),
+            "contact_notes is missing updated_at",
+        );
+        db.close();
+    });
+
+    test("leaves notes written before the migration visible", () => {
+        const dbPath = makeDbPath("note-hide-pre");
+        const seed = new Database(dbPath);
+        seed.exec(PRE_PLAN_SCHEMA);
+        seed.exec(PRE_HIDE_NOTES_SCHEMA);
+        seed.prepare(
+            `INSERT INTO applications
+             (company_name, role_title, status, created_at, updated_at, user_email)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+        ).run(
+            "Acme Corp",
+            "Engineer",
+            "applied",
+            "2026-01-01T00:00:00.000Z",
+            "2026-01-01T00:00:00.000Z",
+            "dev@localhost",
+        );
+        seed.prepare(
+            `INSERT INTO stage_notes (application_id, stage, content, created_at)
+             VALUES (1, 'applied', 'older stage note', '2026-01-01T00:00:00.000Z')`,
+        ).run();
+        seed.prepare(
+            `INSERT INTO contact_notes (contact_id, content, occurred_at, created_at)
+             VALUES (1, 'older interaction', '2026-01-01', '2026-01-01T00:00:00.000Z')`,
+        ).run();
+        seed.close();
+
+        bootStartup(dbPath);
+
+        const db = new Database(dbPath, { readonly: true });
+        const stageNote = db.prepare("SELECT * FROM stage_notes WHERE id = 1").get();
+        assert.equal(stageNote.content, "older stage note");
+        assert.equal(stageNote.hidden_at, null, "an old stage note must not arrive hidden");
+
+        const interaction = db.prepare("SELECT * FROM contact_notes WHERE id = 1").get();
+        assert.equal(interaction.content, "older interaction");
+        assert.equal(interaction.hidden_at, null, "an old interaction must not arrive hidden");
+        assert.equal(interaction.updated_at, null, "an unedited interaction has no edit stamp");
+        db.close();
+    });
+
+    test("is idempotent across repeated startups", () => {
+        const dbPath = makeDbPath("note-hide-twice");
+        bootStartup(dbPath);
+        bootStartup(dbPath);
+
+        const db = new Database(dbPath, { readonly: true });
+        for (const [table, col] of [
+            ["stage_notes", "hidden_at"],
+            ["contact_notes", "hidden_at"],
+            ["contact_notes", "updated_at"],
+        ]) {
+            assert.equal(
+                columnsOf(db, table).filter((c) => c === col).length,
+                1,
+                `${table}.${col} was added more than once`,
+            );
+        }
+        db.close();
+    });
+});
+
 describe("U3 backfill gating and apply", () => {
     // Seeds one record per derivation rule so the apply can be checked end to end.
     function seedFixture(dbPath) {

@@ -14,6 +14,7 @@ const db = require("./db");
 const svc = require("./services/applications");
 const notesSvc = require("./services/notes");
 const contactsSvc = require("./services/contacts");
+const { visibleStageNotes } = require("./services/stage-notes");
 const { resolveApiKey } = require("./lib/apiKeySecret");
 const { uploadsDir } = require("./lib/files");
 const { extractStructuredJD } = require("./services/extraction");
@@ -84,6 +85,19 @@ function createMcpServer() {
                     details = {};
                 } else if (name === "fetch_job_description") {
                     details = {};
+                } else if (name === "update_note" || name === "delete_note") {
+                    // The note id is the only thing that identifies which note
+                    // was corrected or withdrawn; a delete hides the row, so
+                    // the audit trail is what says a note ever went away.
+                    details = { note_id: args.note_id };
+                } else if (
+                    name === "update_contact_note" ||
+                    name === "delete_contact_note"
+                ) {
+                    details = {
+                        contact_id: args.contact_id,
+                        note_id: args.note_id,
+                    };
                 } else if (name === "update_application") {
                     details = {
                         fields: Object.keys(args).filter((k) => k !== "id"),
@@ -576,6 +590,90 @@ function createMcpServer() {
     );
 
     server.tool(
+        "update_note",
+        "Correct a stage note already written to an application. Replaces the note's content wholesale, and optionally re-files it under a different stage when it was logged against the wrong one. This is NOT a patch: content is required on every call, so re-filing a note under a different stage means reading it back first and resending its text unchanged. (update_contact_note, for interactions, is a true patch -- the two differ.) Use this rather than delete_note plus add_note when the note is merely wrong -- a deleted note cannot be brought back.",
+        {
+            id: z.number().int().positive().describe("Application ID"),
+            note_id: z.number().int().positive().describe("Stage note ID"),
+            content: z
+                .string()
+                .min(1)
+                .max(10000)
+                .describe("The note's new content. Replaces the old text entirely."),
+            stage: z
+                .enum([
+                    "interested",
+                    "applied",
+                    "responded",
+                    "interview",
+                    "offer",
+                    "accepted",
+                    "rejected",
+                ])
+                .optional()
+                .describe(
+                    "Re-file the note under this stage. Omit to leave the stage alone.",
+                ),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = notesSvc.updateNote(userEmail, args.id, args.note_id, {
+                    content: args.content,
+                    stage: args.stage,
+                });
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "delete_note",
+        "Withdraw a stage note from an application. This HIDES the note: it stops appearing anywhere in the product and cannot be read back, and there is NO undo -- nothing in this API brings a hidden note back. Treat it as final. If the note is wrong rather than unwanted, call update_note instead.",
+        {
+            id: z.number().int().positive().describe("Application ID"),
+            note_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Stage note ID to hide. This cannot be undone."),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = notesSvc.deleteNote(
+                    userEmail,
+                    args.id,
+                    args.note_id,
+                );
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
         "list_attachments",
         "List attachments for a job application (filename, size, type — no binary content).",
         {
@@ -720,11 +818,7 @@ function createMcpServer() {
                         isError: true,
                     };
                 }
-                const notes = db
-                    .prepare(
-                        "SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
-                    )
-                    .all(args.application_id);
+                const notes = visibleStageNotes(args.application_id);
                 const attachments = db
                     .prepare(
                         "SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?",
@@ -792,11 +886,7 @@ function createMcpServer() {
                     };
                 }
 
-                const notes = db
-                    .prepare(
-                        "SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
-                    )
-                    .all(args.application_id);
+                const notes = visibleStageNotes(args.application_id);
                 const attachments = db
                     .prepare(
                         "SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?",
@@ -1533,6 +1623,95 @@ function createMcpServer() {
         },
     );
 
+    server.tool(
+        "update_contact_note",
+        "Correct an interaction already logged against a contact -- what it said, when it happened, or both. Patch semantics: an omitted field is left alone, and at least one of content or occurred_at must be given. Re-dating an interaction backwards will NOT move the contact's last_contacted_at backwards: freshness only ever advances, so withdrawing or re-dating evidence of contact cannot make a relationship look staler than it already looked. The next-action pair is never touched here -- move a commitment with update_contact or add_contact_note.",
+        {
+            contact_id: z.number().int().positive().describe("Contact ID"),
+            note_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Interaction (contact note) ID"),
+            content: z
+                .string()
+                .min(1)
+                .max(10000)
+                .optional()
+                .describe(
+                    "What happened, corrected. Replaces the old text entirely. Omit to leave it alone.",
+                ),
+            // Kept a plain string like the other calendar dates: the service
+            // validates it and its 400 reads better than a zod regex failure.
+            occurred_at: z
+                .string()
+                .optional()
+                .describe(
+                    "Calendar date the interaction actually happened (YYYY-MM-DD). Omit to leave it alone. Moving it earlier does not rewind last_contacted_at.",
+                ),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.updateContactNote(
+                    userEmail,
+                    args.contact_id,
+                    args.note_id,
+                    { content: args.content, occurred_at: args.occurred_at },
+                );
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "delete_contact_note",
+        "Withdraw an interaction from a contact's log. This HIDES the interaction: it stops appearing anywhere in the product and cannot be read back, and there is NO undo -- nothing in this API brings a hidden note back. Treat it as final. The contact's last_contacted_at is left exactly where it is, so removing the evidence of contact does not rewind the relationship's freshness. If the interaction is wrong rather than unwanted, call update_contact_note instead. Returns the refreshed contact.",
+        {
+            contact_id: z.number().int().positive().describe("Contact ID"),
+            note_id: z
+                .number()
+                .int()
+                .positive()
+                .describe(
+                    "Interaction (contact note) ID to hide. This cannot be undone.",
+                ),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = contactsSvc.deleteContactNote(
+                    userEmail,
+                    args.contact_id,
+                    args.note_id,
+                );
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
     return server;
 }
 
@@ -1630,4 +1809,4 @@ function startMcpServer(port) {
     return httpServer;
 }
 
-module.exports = { startMcpServer, toolError };
+module.exports = { startMcpServer, createMcpServer, toolError };

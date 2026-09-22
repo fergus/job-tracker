@@ -7,6 +7,7 @@ const {
     normaliseFollowUpDate,
 } = require("./applications");
 const { emitChange } = require("../lib/events");
+const { visibleStageNote } = require("./stage-notes");
 
 function addNote(userEmail, appId, { stage, content, next_action_at }) {
     const existing = getOwnApp(appId, userEmail);
@@ -63,11 +64,7 @@ function updateNote(userEmail, appId, noteId, { content, stage }) {
     const existing = getOwnApp(appId, userEmail);
     if (!existing) throw new ServiceError(404, "Not found");
 
-    const note = db
-        .prepare(
-            "SELECT * FROM stage_notes WHERE id = ? AND application_id = ?",
-        )
-        .get(noteId, appId);
+    const note = visibleStageNote(noteId, appId);
     if (!note) throw new ServiceError(404, "Note not found");
 
     if (!content) throw new ServiceError(400, "content is required");
@@ -107,19 +104,27 @@ function deleteNote(userEmail, appId, noteId) {
     const existing = getOwnApp(appId, userEmail);
     if (!existing) throw new ServiceError(404, "Not found");
 
-    const note = db
-        .prepare(
-            "SELECT * FROM stage_notes WHERE id = ? AND application_id = ?",
-        )
-        .get(noteId, appId);
+    const note = visibleStageNote(noteId, appId);
     if (!note) throw new ServiceError(404, "Note not found");
 
+    // Hidden, never destroyed: a withdrawn note still has to be able to answer
+    // what was recorded at the time. Nothing brings it back -- the accessor
+    // above is the only way in, and it never returns a hidden row.
+    //
+    // Both writes go in one transaction. Hiding the note without bumping the
+    // parent would leave a polling client serving the withdrawn note until the
+    // next unrelated write, so the two facts have to land together.
     const now = new Date().toISOString();
-    db.prepare("DELETE FROM stage_notes WHERE id = ?").run(noteId);
-    db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
-        now,
-        appId,
-    );
+    db.transaction(() => {
+        db.prepare("UPDATE stage_notes SET hidden_at = ? WHERE id = ?").run(
+            now,
+            noteId,
+        );
+        db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
+            now,
+            appId,
+        );
+    })();
 
     emitChange(userEmail, "updated", Number(appId));
     return { success: true };

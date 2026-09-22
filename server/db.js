@@ -82,10 +82,15 @@ if (!appCols.some((c) => c.name === "interested_at")) {
     );
 }
 
-// Migrate: add updated_at column to stage_notes if missing
+// Migrate: add updated_at and hidden_at columns to stage_notes if missing.
+// hidden_at is when the note was withdrawn, not whether it was: a timestamp
+// costs no more than a flag and records when the user changed their mind.
+// Deleting a note stamps this column instead of removing the row.
 const stageNotesCols = db.prepare("PRAGMA table_info(stage_notes)").all();
-if (!stageNotesCols.some((c) => c.name === "updated_at")) {
-    db.exec("ALTER TABLE stage_notes ADD COLUMN updated_at TEXT");
+for (const col of ["updated_at", "hidden_at"]) {
+    if (!stageNotesCols.some((c) => c.name === col)) {
+        db.exec(`ALTER TABLE stage_notes ADD COLUMN ${col} TEXT`);
+    }
 }
 
 // Migrate: add salary_min, salary_max, job_location columns if missing
@@ -253,6 +258,16 @@ db.exec(`
 db.exec(
     "CREATE INDEX IF NOT EXISTS idx_contact_notes_contact ON contact_notes(contact_id, occurred_at DESC)",
 );
+
+// Migrate: an interaction can be corrected or withdrawn after it is logged.
+// `updated_at` separates "edited since" from `created_at`; `hidden_at` is what
+// a delete stamps, so the record of what was said survives the withdrawal.
+const contactNotesCols = db.prepare("PRAGMA table_info(contact_notes)").all();
+for (const col of ["updated_at", "hidden_at"]) {
+    if (!contactNotesCols.some((c) => c.name === col)) {
+        db.exec(`ALTER TABLE contact_notes ADD COLUMN ${col} TEXT`);
+    }
+}
 
 // Migrate: next-touch tracking on contacts. Nullable with no defaults -- a
 // contact with no commitment is the normal steady state, not a gap.

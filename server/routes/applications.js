@@ -6,6 +6,7 @@ const db = require("../db");
 const svc = require("../services/applications");
 const { getOwnApp, attachNotes, withFollowUp } = svc;
 const { addNote, updateNote, deleteNote } = require("../services/notes");
+const { visibleStageNotes } = require("../services/stage-notes");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 const { resolveApp, resolveOwnApp, handleError } = require("./_helpers");
 const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
@@ -113,11 +114,7 @@ router.get("/:id/context", (req, res) => {
         });
         if (!existing) return res.status(404).json({ error: "Not found" });
 
-        const notes = db
-            .prepare(
-                "SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
-            )
-            .all(req.params.id);
+        const notes = visibleStageNotes(req.params.id);
         const attachments = db
             .prepare(
                 "SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?",
@@ -795,11 +792,7 @@ router.post("/:id/generate", async (req, res) => {
         }
 
         // Build context payload (same as GET /:id/context)
-        const notes = db
-            .prepare(
-                "SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
-            )
-            .all(req.params.id);
+        const notes = visibleStageNotes(req.params.id);
         const attachments = db
             .prepare(
                 "SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?",

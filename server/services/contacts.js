@@ -13,6 +13,7 @@ const {
     toCalendarDate,
     todayInInstanceZone,
 } = require("../lib/followup");
+const { visibleStageNotes } = require("./stage-notes");
 
 class ServiceError extends Error {
     constructor(status, message) {
@@ -59,12 +60,16 @@ function validateDateFields(data) {
     return null;
 }
 
+// A withdrawn interaction is hidden, never destroyed, so every read of the log
+// -- and every write that has to resolve one -- goes through this clause.
+const VISIBLE_NOTE = "hidden_at IS NULL";
+
 // The interactions logged against a contact, most recent first.
 function notesForContact(contactId) {
     return db
         .prepare(
-            `SELECT id, content, occurred_at, created_at
-             FROM contact_notes WHERE contact_id = ?
+            `SELECT id, content, occurred_at, created_at, updated_at
+             FROM contact_notes WHERE contact_id = ? AND ${VISIBLE_NOTE}
              ORDER BY occurred_at DESC, id DESC`,
         )
         .all(contactId);
@@ -347,11 +352,20 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
     const lengthError = validateInputLengths({ ...data, name }, EDITABLE_FIELDS);
     if (lengthError) throw new ServiceError(400, lengthError);
 
-    const notes = db
+    // Two reads of the same table, deliberately. The backup exists to make the
+    // conversion reversible, so it captures every row as it stood -- hidden
+    // ones included, and carrying hidden_at with them, because restoring by
+    // hand is the only recovery this product has and a restore that silently
+    // un-hides a withdrawn note would undo the user's decision to withdraw it.
+    // The prose carried into the contact is an ordinary read, so a withdrawn
+    // note stays withdrawn.
+    const backedUpNotes = db
         .prepare(
-            "SELECT stage, content, created_at FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
+            `SELECT id, stage, content, created_at, updated_at, hidden_at
+             FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC`,
         )
         .all(applicationId);
+    const notes = visibleStageNotes(applicationId);
 
     // Everything that cascades off the application row has to go into the
     // backup, or the conversion is not actually reversible. Attachments matter
@@ -385,7 +399,7 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
             "applications",
             JSON.stringify({
                 application,
-                stage_notes: notes,
+                stage_notes: backedUpNotes,
                 attachments,
                 contact_links: links,
             }),
@@ -530,6 +544,120 @@ function addContactNote(
     return getContact(userEmail, contactId);
 }
 
+// Resolve the interaction a write names. A hidden note is not found for writes
+// either: withdrawing a note makes it inert, so operating on one fails exactly
+// the way operating on someone else's does. Ownership is checked through the
+// contact, and the miss is a 404 rather than a 403 -- a 403 would confirm the
+// note exists to someone with no business knowing.
+function getOwnNote(noteId, contactId, userEmail) {
+    return db
+        .prepare(
+            `SELECT n.* FROM contact_notes n
+             JOIN contacts c ON c.id = n.contact_id
+             WHERE n.id = ? AND n.contact_id = ? AND c.user_email = ?
+               AND n.${VISIBLE_NOTE}`,
+        )
+        .get(noteId, contactId, userEmail);
+}
+
+// Correct an interaction: what it said, when it happened, or both. Patch
+// semantics, matching updateContact -- an omitted field stands. The next-action
+// pair is deliberately not touched here: it is a commitment, and only a write
+// that names it may move it.
+function updateContactNote(userEmail, contactId, noteId, { content, occurred_at } = {}) {
+    const note = getOwnNote(noteId, contactId, userEmail);
+    if (!note) throw new ServiceError(404, "Not found");
+
+    const updates = [];
+    const values = [];
+
+    if (content !== undefined) {
+        const body = content && String(content).trim();
+        if (!body) throw new ServiceError(400, "content is required");
+        if (body.length > LIMITS.content) {
+            throw new ServiceError(
+                400,
+                `content exceeds maximum length of ${LIMITS.content} characters`,
+            );
+        }
+        updates.push("content = ?");
+        values.push(body);
+    }
+
+    let when = null;
+    if (occurred_at !== undefined && occurred_at !== null && occurred_at !== "") {
+        when = toCalendarDate(occurred_at);
+        if (!when) {
+            throw new ServiceError(
+                400,
+                "occurred_at must be a calendar date (YYYY-MM-DD)",
+            );
+        }
+        updates.push("occurred_at = ?");
+        values.push(when);
+    }
+
+    if (updates.length === 0) throw new ServiceError(400, "No fields to update");
+
+    db.transaction(() => {
+        const now = new Date().toISOString();
+        db.prepare(
+            `UPDATE contact_notes SET ${updates.join(", ")}, updated_at = ? WHERE id = ?`,
+        ).run(...values, now, noteId);
+
+        // Correcting the log is a change to the contact. A contact has no
+        // change-event stream, so its updated_at is the only signal a polling
+        // client gets that what it holds is stale.
+        db.prepare("UPDATE contacts SET updated_at = ? WHERE id = ?").run(
+            now,
+            contactId,
+        );
+
+        // A comparison, NOT a recomputation. Deriving last_contacted_at from
+        // MAX(occurred_at) over the surviving log would be the more honest
+        // reading of the field, and it is rejected on purpose: no write may
+        // make a relationship look staler than it already looked. Re-dating a
+        // note backwards therefore leaves a contact whose last-contacted date
+        // no visible note accounts for. That is the intended trade, not a bug.
+        if (when) {
+            const current = toCalendarDate(
+                getOwnContact(contactId, userEmail).last_contacted_at,
+            );
+            if (!current || when > current) {
+                db.prepare(
+                    "UPDATE contacts SET last_contacted_at = ?, updated_at = ? WHERE id = ?",
+                ).run(when, now, contactId);
+            }
+        }
+    })();
+
+    return getContact(userEmail, contactId);
+}
+
+// Withdraw an interaction. The row survives with hidden_at stamped, and
+// last_contacted_at is left exactly where it is: freshness only advances, so
+// removing the evidence of contact cannot rewind the date it produced. The
+// contact is still marked as changed, because the log a client holds is now
+// out of date even though the derived fields are not.
+function deleteContactNote(userEmail, contactId, noteId) {
+    const note = getOwnNote(noteId, contactId, userEmail);
+    if (!note) throw new ServiceError(404, "Not found");
+
+    db.transaction(() => {
+        const now = new Date().toISOString();
+        db.prepare("UPDATE contact_notes SET hidden_at = ? WHERE id = ?").run(
+            now,
+            noteId,
+        );
+        db.prepare("UPDATE contacts SET updated_at = ? WHERE id = ?").run(
+            now,
+            contactId,
+        );
+    })();
+
+    return getContact(userEmail, contactId);
+}
+
 module.exports = {
     ServiceError,
     LIMITS,
@@ -545,4 +673,6 @@ module.exports = {
     linksForContact,
     notesForContact,
     addContactNote,
+    updateContactNote,
+    deleteContactNote,
 };
