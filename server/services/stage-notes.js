@@ -20,6 +20,17 @@ function visibleStageNotes(applicationId) {
         .all(applicationId);
 }
 
+// One note, scoped to its application. Writes resolve notes through here too:
+// a hidden note must fail a write exactly as someone else's note does, so
+// nothing can edit or re-delete what has already been withdrawn.
+function visibleStageNote(noteId, applicationId) {
+    return db
+        .prepare(
+            `SELECT * FROM stage_notes WHERE id = ? AND application_id = ? AND ${VISIBLE}`,
+        )
+        .get(noteId, applicationId);
+}
+
 // The many-application shape the applications list needs. Returns a flat list
 // in the same order a single-application read would give within each app.
 function visibleStageNotesForApplications(applicationIds) {
@@ -32,4 +43,8 @@ function visibleStageNotesForApplications(applicationIds) {
         .all(...applicationIds);
 }
 
-module.exports = { visibleStageNotes, visibleStageNotesForApplications };
+module.exports = {
+    visibleStageNote,
+    visibleStageNotes,
+    visibleStageNotesForApplications,
+};

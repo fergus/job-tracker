@@ -11,12 +11,14 @@ const assert = require("node:assert/strict");
 require("../../app");
 const db = require("../../db");
 const { addNote, updateNote, deleteNote } = require("../../services/notes");
+const { visibleStageNotes } = require("../../services/stage-notes");
 const {
     ServiceError,
     createApplication,
 } = require("../../services/applications");
 
 const TEST_EMAIL = "notes-test@example.com";
+const OTHER_EMAIL = "notes-other@example.com";
 
 function makeApp() {
     return createApplication(TEST_EMAIL, {
@@ -252,7 +254,9 @@ describe("services/notes", () => {
     });
 
     describe("deleteNote", () => {
-        test("deletes note and updates application", () => {
+        // A delete hides the note; what it said has to survive so the record of
+        // the relationship stays honest.
+        test("hides the note but keeps the row", () => {
             const app = makeApp();
             const note = addNote(TEST_EMAIL, app.id, {
                 stage: "interview",
@@ -261,12 +265,105 @@ describe("services/notes", () => {
             const result = deleteNote(TEST_EMAIL, app.id, note.id);
             assert.deepEqual(result, { success: true });
 
-            const remaining = db
-                .prepare(
-                    "SELECT COUNT(*) as count FROM stage_notes WHERE application_id = ?",
-                )
-                .get(app.id);
-            assert.equal(remaining.count, 0);
+            const row = db
+                .prepare("SELECT * FROM stage_notes WHERE id = ?")
+                .get(note.id);
+            assert.ok(row, "row survives the delete");
+            assert.equal(row.content, "To delete");
+            assert.ok(row.hidden_at, "hidden_at is stamped");
+        });
+
+        test("a deleted note is absent from the application's notes", () => {
+            const app = makeApp();
+            const kept = addNote(TEST_EMAIL, app.id, {
+                stage: "interview",
+                content: "Kept",
+            });
+            const gone = addNote(TEST_EMAIL, app.id, {
+                stage: "interview",
+                content: "To delete",
+            });
+            deleteNote(TEST_EMAIL, app.id, gone.id);
+
+            const visible = visibleStageNotes(app.id);
+            assert.deepEqual(
+                visible.map((n) => n.id),
+                [kept.id],
+            );
+        });
+
+        test("bumps the parent application's updated_at", () => {
+            const app = makeApp();
+            const note = addNote(TEST_EMAIL, app.id, {
+                stage: "interview",
+                content: "To delete",
+            });
+            const before = db
+                .prepare("SELECT updated_at FROM applications WHERE id = ?")
+                .get(app.id).updated_at;
+
+            deleteNote(TEST_EMAIL, app.id, note.id);
+
+            const after = db
+                .prepare("SELECT updated_at FROM applications WHERE id = ?")
+                .get(app.id).updated_at;
+            assert.ok(after >= before);
+        });
+
+        // A hidden note is not found for writes either, so a second delete
+        // fails exactly as a delete of someone else's note would.
+        test("deleting an already-deleted note is not found", () => {
+            const app = makeApp();
+            const note = addNote(TEST_EMAIL, app.id, {
+                stage: "interview",
+                content: "To delete",
+            });
+            deleteNote(TEST_EMAIL, app.id, note.id);
+
+            assert.throws(
+                () => deleteNote(TEST_EMAIL, app.id, note.id),
+                (err) =>
+                    err instanceof ServiceError &&
+                    err.status === 404 &&
+                    err.message.includes("Note not found"),
+            );
+        });
+
+        test("editing a deleted note is not found", () => {
+            const app = makeApp();
+            const note = addNote(TEST_EMAIL, app.id, {
+                stage: "interview",
+                content: "To delete",
+            });
+            deleteNote(TEST_EMAIL, app.id, note.id);
+
+            assert.throws(
+                () => updateNote(TEST_EMAIL, app.id, note.id, { content: "x" }),
+                (err) =>
+                    err instanceof ServiceError &&
+                    err.status === 404 &&
+                    err.message.includes("Note not found"),
+            );
+        });
+
+        // AE6: the failure must not reveal that someone else's note exists, so
+        // it is a 404 rather than a 403.
+        test("deleting another user's note is not found, not forbidden", () => {
+            const app = makeApp();
+            const note = addNote(TEST_EMAIL, app.id, {
+                stage: "interview",
+                content: "Private",
+            });
+
+            assert.throws(
+                () => deleteNote(OTHER_EMAIL, app.id, note.id),
+                (err) => err instanceof ServiceError && err.status === 404,
+            );
+
+            const row = db
+                .prepare("SELECT hidden_at FROM stage_notes WHERE id = ?")
+                .get(note.id);
+            assert.equal(row.hidden_at, null);
         });
 
         test("returns 404 for unknown app", () => {
