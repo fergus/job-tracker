@@ -8,6 +8,7 @@ const { isValidUrl } = require("../lib/validation");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 const { emitChange } = require("../lib/events");
 const { deriveRecord } = require("./migration-backfill");
+const { visibleStageNotesForApplications } = require("./stage-notes");
 const {
     VALID_FOLLOWUP_STATES,
     followUpState,
@@ -173,12 +174,7 @@ function normaliseFollowUpDate(value) {
 function attachNotes(rows) {
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return rows;
-    const placeholders = ids.map(() => "?").join(",");
-    const notes = db
-        .prepare(
-            `SELECT * FROM stage_notes WHERE application_id IN (${placeholders}) ORDER BY created_at ASC`,
-        )
-        .all(...ids);
+    const notes = visibleStageNotesForApplications(ids);
     const notesByApp = {};
     for (const n of notes) {
         (notesByApp[n.application_id] ||= []).push(n);

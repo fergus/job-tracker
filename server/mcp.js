@@ -14,6 +14,7 @@ const db = require("./db");
 const svc = require("./services/applications");
 const notesSvc = require("./services/notes");
 const contactsSvc = require("./services/contacts");
+const { visibleStageNotes } = require("./services/stage-notes");
 const { resolveApiKey } = require("./lib/apiKeySecret");
 const { uploadsDir } = require("./lib/files");
 const { extractStructuredJD } = require("./services/extraction");
@@ -720,11 +721,7 @@ function createMcpServer() {
                         isError: true,
                     };
                 }
-                const notes = db
-                    .prepare(
-                        "SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
-                    )
-                    .all(args.application_id);
+                const notes = visibleStageNotes(args.application_id);
                 const attachments = db
                     .prepare(
                         "SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?",
@@ -792,11 +789,7 @@ function createMcpServer() {
                     };
                 }
 
-                const notes = db
-                    .prepare(
-                        "SELECT * FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
-                    )
-                    .all(args.application_id);
+                const notes = visibleStageNotes(args.application_id);
                 const attachments = db
                     .prepare(
                         "SELECT id, original_filename, stored_filename, file_size, mime_type, extracted_text, created_at FROM attachments WHERE application_id = ?",

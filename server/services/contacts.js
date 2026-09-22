@@ -13,6 +13,7 @@ const {
     toCalendarDate,
     todayInInstanceZone,
 } = require("../lib/followup");
+const { visibleStageNotes } = require("./stage-notes");
 
 class ServiceError extends Error {
     constructor(status, message) {
@@ -347,11 +348,16 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
     const lengthError = validateInputLengths({ ...data, name }, EDITABLE_FIELDS);
     if (lengthError) throw new ServiceError(400, lengthError);
 
-    const notes = db
+    // Two reads of the same table, deliberately. The backup exists to make the
+    // conversion reversible, so it captures every row as it stood, hidden ones
+    // included. The prose carried into the contact is an ordinary read, so a
+    // withdrawn note stays withdrawn.
+    const backedUpNotes = db
         .prepare(
             "SELECT stage, content, created_at FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
         )
         .all(applicationId);
+    const notes = visibleStageNotes(applicationId);
 
     // Everything that cascades off the application row has to go into the
     // backup, or the conversion is not actually reversible. Attachments matter
@@ -385,7 +391,7 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
             "applications",
             JSON.stringify({
                 application,
-                stage_notes: notes,
+                stage_notes: backedUpNotes,
                 attachments,
                 contact_links: links,
             }),
