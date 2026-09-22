@@ -353,12 +353,16 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
     if (lengthError) throw new ServiceError(400, lengthError);
 
     // Two reads of the same table, deliberately. The backup exists to make the
-    // conversion reversible, so it captures every row as it stood, hidden ones
-    // included. The prose carried into the contact is an ordinary read, so a
-    // withdrawn note stays withdrawn.
+    // conversion reversible, so it captures every row as it stood -- hidden
+    // ones included, and carrying hidden_at with them, because restoring by
+    // hand is the only recovery this product has and a restore that silently
+    // un-hides a withdrawn note would undo the user's decision to withdraw it.
+    // The prose carried into the contact is an ordinary read, so a withdrawn
+    // note stays withdrawn.
     const backedUpNotes = db
         .prepare(
-            "SELECT stage, content, created_at FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC",
+            `SELECT id, stage, content, created_at, updated_at, hidden_at
+             FROM stage_notes WHERE application_id = ? ORDER BY created_at ASC`,
         )
         .all(applicationId);
     const notes = visibleStageNotes(applicationId);

@@ -110,15 +110,21 @@ function deleteNote(userEmail, appId, noteId) {
     // Hidden, never destroyed: a withdrawn note still has to be able to answer
     // what was recorded at the time. Nothing brings it back -- the accessor
     // above is the only way in, and it never returns a hidden row.
+    //
+    // Both writes go in one transaction. Hiding the note without bumping the
+    // parent would leave a polling client serving the withdrawn note until the
+    // next unrelated write, so the two facts have to land together.
     const now = new Date().toISOString();
-    db.prepare("UPDATE stage_notes SET hidden_at = ? WHERE id = ?").run(
-        now,
-        noteId,
-    );
-    db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
-        now,
-        appId,
-    );
+    db.transaction(() => {
+        db.prepare("UPDATE stage_notes SET hidden_at = ? WHERE id = ?").run(
+            now,
+            noteId,
+        );
+        db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
+            now,
+            appId,
+        );
+    })();
 
     emitChange(userEmail, "updated", Number(appId));
     return { success: true };

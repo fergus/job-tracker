@@ -199,6 +199,39 @@ describe("mcp note edit/delete tools", () => {
         assert.equal(after.last_contacted_at, "2026-09-10");
     });
 
+    // The context builder is a plain synchronous read, so it can be driven
+    // here with no transport -- which makes this the real proof that a
+    // withdrawn note cannot reach an agent, rather than an assertion about
+    // what the source file does or does not contain.
+    test("a hidden note is absent from the assembled agent context", async () => {
+        const app = createApplication(TEST_EMAIL, {
+            company_name: "Context Co",
+            role_title: "Engineer",
+        });
+        notesSvc.addNote(TEST_EMAIL, app.id, {
+            stage: "applied",
+            content: "still standing",
+        });
+        const withdrawn = notesSvc.addNote(TEST_EMAIL, app.id, {
+            stage: "applied",
+            content: "withdrawn before the agent read it",
+        });
+        notesSvc.deleteNote(TEST_EMAIL, app.id, withdrawn.id);
+
+        const context = parseResult(
+            await registered.get_application_context.handler(
+                { application_id: app.id },
+                authed(),
+            ),
+        );
+        const serialised = JSON.stringify(context);
+        assert.match(serialised, /still standing/);
+        assert.ok(
+            !/withdrawn before the agent read it/.test(serialised),
+            "a withdrawn note must not reach an agent through get_application_context",
+        );
+    });
+
     test("another user's note is not reachable", async () => {
         const app = createApplication(TEST_EMAIL, {
             company_name: "Beta",

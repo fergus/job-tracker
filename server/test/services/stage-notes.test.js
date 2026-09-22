@@ -118,26 +118,43 @@ describe("hidden stage notes are absent from every read path", () => {
         );
     });
 
-    // The remaining three read paths -- document generation and the two MCP
-    // context builders -- cannot be driven from here: generation calls out to a
-    // model that needs an API key, and MCP has no in-process transport. The
-    // fan-in is the assertion instead. Nothing outside the accessor and the
-    // schema selects from stage_notes, so a hidden note has no route to any of
-    // them, including no route to the model.
-    test("document generation and the MCP builders read only through the accessor", () => {
+    // Document generation is the one read path that cannot be driven from here:
+    // it calls out to a model that needs an API key. So the fan-in itself is
+    // the assertion, and it has to be a sweep rather than a list of the files
+    // that happen to read the table today -- a named list goes green while a
+    // new reader added anywhere else leaks withdrawn notes. Every server file
+    // that mentions stage_notes must be one of the four allowed to.
+    test("nothing outside the accessor reads stage notes", () => {
         const root = path.join(__dirname, "..", "..");
-        const readers = [
-            "mcp.js",
-            "routes/applications.js",
-            "services/applications.js",
-        ];
-        for (const file of readers) {
-            const source = fs.readFileSync(path.join(root, file), "utf8");
-            assert.ok(
-                !/SELECT[\s\S]{0,120}FROM stage_notes/.test(source),
-                `${file} still reads stage_notes directly`,
-            );
-        }
+        const allowed = new Set([
+            "db.js", // the schema and its migrations
+            "services/stage-notes.js", // the accessor itself
+            "services/notes.js", // writes, then re-reads the row it just wrote by id
+            "services/contacts.js", // the deliberate conversion backup, which keeps hidden rows
+        ]);
+
+        const offenders = [];
+        (function walk(dir) {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                if (entry.name === "node_modules" || entry.name === "test") continue;
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(full);
+                } else if (entry.name.endsWith(".js")) {
+                    const rel = path.relative(root, full);
+                    if (allowed.has(rel)) continue;
+                    if (/stage_notes/.test(fs.readFileSync(full, "utf8"))) {
+                        offenders.push(rel);
+                    }
+                }
+            }
+        })(root);
+
+        assert.deepEqual(
+            offenders,
+            [],
+            "these files reach stage_notes without going through the visible-notes accessor",
+        );
     });
 
     test("conversion carries visible note prose only", async () => {
@@ -173,6 +190,13 @@ describe("hidden stage notes are absent from every read path", () => {
             parsed.stage_notes.map((n) => n.content),
             ["backed up even though hidden"],
             "the backup exists to make the conversion recoverable, so it keeps every row",
+        );
+        // Restoring by hand is the only recovery there is, so the backup has to
+        // carry the withdrawal too. A restore that un-hid a withdrawn note
+        // would quietly reverse the user's decision to withdraw it.
+        assert.ok(
+            parsed.stage_notes[0].hidden_at,
+            "the backup must record that the note was withdrawn, not just what it said",
         );
     });
 });

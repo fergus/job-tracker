@@ -591,7 +591,7 @@ function createMcpServer() {
 
     server.tool(
         "update_note",
-        "Correct a stage note already written to an application. Replaces the note's content wholesale, and optionally re-files it under a different stage when it was logged against the wrong one. Use this rather than delete_note plus add_note when the note is merely wrong -- a deleted note cannot be brought back.",
+        "Correct a stage note already written to an application. Replaces the note's content wholesale, and optionally re-files it under a different stage when it was logged against the wrong one. This is NOT a patch: content is required on every call, so re-filing a note under a different stage means reading it back first and resending its text unchanged. (update_contact_note, for interactions, is a true patch -- the two differ.) Use this rather than delete_note plus add_note when the note is merely wrong -- a deleted note cannot be brought back.",
         {
             id: z.number().int().positive().describe("Application ID"),
             note_id: z.number().int().positive().describe("Stage note ID"),
