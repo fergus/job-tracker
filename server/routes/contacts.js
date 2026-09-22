@@ -105,6 +105,35 @@ router.post("/:id/notes", (req, res) => {
     }
 });
 
+router.put("/:id/notes/:noteId", (req, res) => {
+    try {
+        res.json(
+            svc.updateContactNote(
+                req.userEmail,
+                req.params.id,
+                req.params.noteId,
+                req.body,
+            ),
+        );
+    } catch (e) {
+        handleError(res, e);
+    }
+});
+
+router.delete("/:id/notes/:noteId", (req, res) => {
+    try {
+        res.json(
+            svc.deleteContactNote(
+                req.userEmail,
+                req.params.id,
+                req.params.noteId,
+            ),
+        );
+    } catch (e) {
+        handleError(res, e);
+    }
+});
+
 router.post("/:id/links", (req, res) => {
     try {
         res.status(201).json(

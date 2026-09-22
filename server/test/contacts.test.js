@@ -653,3 +653,96 @@ describe("U4 an interaction can be corrected or withdrawn", () => {
         assert.ok(after > before, "editing a note must bump the contact");
     });
 });
+
+describe("U5 interaction edit and delete over REST", () => {
+    async function noteOverHttp(email = OWNER, body = {}) {
+        const contact = await createContact(email, { name: "Ravi Patel" });
+        const res = await as(email)(
+            req.post(`/api/contacts/${contact.body.id}/notes`),
+        ).send({ content: "Intro call", occurred_at: "2026-09-10", ...body });
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        return { contactId: contact.body.id, note: res.body.interactions[0] };
+    }
+
+    test("editing an interaction returns the updated contact", async () => {
+        const { contactId, note } = await noteOverHttp();
+
+        const res = await as(OWNER)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}`),
+        ).send({ content: "Intro call, corrected" });
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.equal(res.body.id, contactId);
+        assert.equal(res.body.interactions[0].content, "Intro call, corrected");
+        assert.equal(res.body.interactions[0].occurred_at, "2026-09-10");
+    });
+
+    test("deleting an interaction removes it from a later read", async () => {
+        const { contactId, note } = await noteOverHttp();
+
+        const res = await as(OWNER)(
+            req.delete(`/api/contacts/${contactId}/notes/${note.id}`),
+        );
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.deepEqual(res.body.interactions, []);
+
+        const read = await as(OWNER)(req.get(`/api/contacts/${contactId}`));
+        assert.equal(read.status, 200);
+        assert.deepEqual(read.body.interactions, []);
+    });
+
+    test("another user's interaction is not found on either route", async () => {
+        const { contactId, note } = await noteOverHttp(OWNER);
+
+        const edit = await as(OTHER)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}`),
+        ).send({ content: "No" });
+        assert.equal(edit.status, 404);
+
+        const del = await as(OTHER)(
+            req.delete(`/api/contacts/${contactId}/notes/${note.id}`),
+        );
+        assert.equal(del.status, 404);
+    });
+
+    test("an admin viewing another user's data still cannot edit or delete", async () => {
+        const { contactId, note } = await noteOverHttp(OWNER);
+
+        const edit = await as(ADMIN)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}?all=true`),
+        ).send({ content: "Admin edit" });
+        assert.equal(edit.status, 404);
+
+        const del = await as(ADMIN)(
+            req.delete(`/api/contacts/${contactId}/notes/${note.id}?all=true`),
+        );
+        assert.equal(del.status, 404);
+    });
+
+    test("a malformed date is rejected and an empty patch is refused", async () => {
+        const { contactId, note } = await noteOverHttp();
+
+        const bad = await as(OWNER)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}`),
+        ).send({ occurred_at: "not-a-date" });
+        assert.equal(bad.status, 400);
+
+        const empty = await as(OWNER)(
+            req.put(`/api/contacts/${contactId}/notes/${note.id}`),
+        ).send({});
+        assert.equal(empty.status, 400);
+    });
+
+    test("an unknown note id is not found on either route", async () => {
+        const { contactId } = await noteOverHttp();
+
+        const edit = await as(OWNER)(
+            req.put(`/api/contacts/${contactId}/notes/999999`),
+        ).send({ content: "Ghost" });
+        assert.equal(edit.status, 404);
+
+        const del = await as(OWNER)(
+            req.delete(`/api/contacts/${contactId}/notes/999999`),
+        );
+        assert.equal(del.status, 404);
+    });
+});
