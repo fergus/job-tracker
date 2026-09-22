@@ -622,7 +622,7 @@ function updateContactNote(userEmail, contactId, noteId, { content, occurred_at 
             if (!current || when > current) {
                 db.prepare(
                     "UPDATE contacts SET last_contacted_at = ?, updated_at = ? WHERE id = ?",
-                ).run(when, new Date().toISOString(), contactId);
+                ).run(when, now, contactId);
             }
         }
     })();

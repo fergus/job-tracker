@@ -36,13 +36,10 @@ async function createApp(overrides = {}) {
 // No writer produces a hidden row until U3, so the read paths are proved
 // against directly seeded rows. `at` orders notes deterministically.
 function seedNote(appId, { content, hidden = false, at = "2026-01-01T00:00:00.000Z" }) {
-    const result = db
-        .prepare(
-            `INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at, hidden_at)
-             VALUES (?, 'applied', ?, ?, ?, ?)`,
-        )
-        .run(appId, content, at, at, hidden ? "2026-02-01T00:00:00.000Z" : null);
-    return Number(result.lastInsertRowid);
+    db.prepare(
+        `INSERT INTO stage_notes (application_id, stage, content, created_at, updated_at, hidden_at)
+         VALUES (?, 'applied', ?, ?, ?, ?)`,
+    ).run(appId, content, at, at, hidden ? "2026-02-01T00:00:00.000Z" : null);
 }
 
 describe("visible stage notes accessor", () => {
@@ -121,31 +118,19 @@ describe("hidden stage notes are absent from every read path", () => {
         );
     });
 
-    test("the context used for document generation, so it cannot reach the model", async () => {
-        const created = await createApp();
-        seedNote(created.id, { content: "generation visible" });
-        seedNote(created.id, { content: "generation withdrawn", hidden: true });
-
-        // The generate route assembles its context before calling out, and the
-        // call fails without an API key. Reading the route's source for the
-        // query it issues is what proves the note cannot reach the model; this
-        // asserts the route builds on the accessor rather than its own SELECT.
-        const source = fs.readFileSync(
-            path.join(__dirname, "..", "..", "routes", "applications.js"),
-            "utf8",
-        );
-        assert.ok(
-            !/FROM stage_notes/.test(source),
-            "routes/applications.js must read stage notes through the accessor",
-        );
-    });
-
-    test("every source read path goes through the accessor", async () => {
-        // The two MCP context builders have no in-process transport to drive,
-        // so the fan-in itself is the assertion: outside the accessor and the
-        // schema, nothing selects from stage_notes.
+    // The remaining three read paths -- document generation and the two MCP
+    // context builders -- cannot be driven from here: generation calls out to a
+    // model that needs an API key, and MCP has no in-process transport. The
+    // fan-in is the assertion instead. Nothing outside the accessor and the
+    // schema selects from stage_notes, so a hidden note has no route to any of
+    // them, including no route to the model.
+    test("document generation and the MCP builders read only through the accessor", () => {
         const root = path.join(__dirname, "..", "..");
-        const readers = ["mcp.js", "routes/applications.js", "services/applications.js"];
+        const readers = [
+            "mcp.js",
+            "routes/applications.js",
+            "services/applications.js",
+        ];
         for (const file of readers) {
             const source = fs.readFileSync(path.join(root, file), "utf8");
             assert.ok(
