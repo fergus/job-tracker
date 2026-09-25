@@ -1,12 +1,13 @@
-# Upgrade openai 7.15.0 → 7.19.0 (minor, server + client)
+# Upgrade openai 7.15.0 → 7.23.0 (minor, server + client)
 
 - **Priority:** p3
 - **Created:** 2026-09-19
+- **Updated:** 2026-09-26 (target moved 7.19.0 → 7.23.0)
 - **Category:** npm dependency (server + client)
 
 ## Problem
 
-`openai` is pinned at `^7.15.0` in **both** `server/` and `client/`. Latest is `7.19.0` (minor bump — same major). Minor bumps are not auto-applied by the weekly dependency check.
+`openai` is pinned at `^7.15.0` in **both** `server/` and `client/`. Latest is `7.23.0` (minor bump — same major). Minor bumps are not auto-applied by the weekly dependency check.
 
 ## Current
 
@@ -14,18 +15,18 @@
 
 ## Target
 
-`openai@7.19.0`
+`openai@7.23.0`
 
 ## Proposed Fix
 
 ```bash
-cd /home/fstevens/code/job-tracker/server && npm install openai@7.19.0
-cd /home/fstevens/code/job-tracker/client && npm install openai@7.19.0
+cd /home/fstevens/code/job-tracker/server && npm install openai@7.23.0
+cd /home/fstevens/code/job-tracker/client && npm install openai@7.23.0
 ```
 
 ## Acceptance Criteria
 
-- [ ] `server/package.json` and `client/package.json` reference `^7.19.0`
+- [ ] `server/package.json` and `client/package.json` reference `^7.23.0`
 - [ ] Server tests pass (`cd server && npm test`)
 - [ ] Client builds clean (`npm run build:client` from repo root)
 - [ ] AI-assisted features (document generation / job-description extraction) still work — the SDK is used for chat completions, so verify a smoke call or the relevant tests
