@@ -1,0 +1,25 @@
+# Production overlay for the deployed instance.
+#
+# Select it explicitly:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# It is deliberately NOT named docker-compose.override.yml. Compose auto-loads
+# that filename, which would make a plain "docker compose up" in a development
+# tree run the published image instead of building the working tree.
+#
+# Because an explicit -f suppresses the automatic override merge, no
+# docker-compose.override.yml should remain in the deployment directory -- it
+# would be silently ignored rather than merged.
+services:
+  oauth2-proxy:
+    restart: unless-stopped
+
+  job-tracker:
+    restart: unless-stopped
+    # Run the image CI publishes on a v* tag rather than building from source.
+    # !reset drops the base file's "build: ." -- without it Compose merges the
+    # two keys and rebuilds from source on every up, silently ignoring the
+    # published image. Requires Compose 2.24+.
+    build: !reset null
+    image: ghcr.io/fergus/job-tracker:latest

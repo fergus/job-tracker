@@ -269,6 +269,47 @@ npm run version:patch   # bumps root, client, server package.json
 # create GitHub release: gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."
 ```
 
+### Production deployment
+
+The deployed instance runs from a git checkout on the Docker host and serves the
+published image rather than building from source. Nothing deploys it
+automatically — there is no deploy job in `build.yml`, so this is a manual pull:
+
+```bash
+cd ~/job-tracker
+git pull
+docker compose pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+Everything that differs from a development checkout lives in
+`docker-compose.prod.yml`: the restart policy, and the swap from `build: .` to
+the published image.
+
+Two things about that file are easy to get wrong.
+
+**It must be passed with `-f`, and it is not called `docker-compose.override.yml`
+on purpose.** Compose auto-loads the override filename, so committing it under
+that name would make every developer's plain `docker compose up` run the
+published image instead of building their working tree. Naming it `.prod.yml`
+keeps the default behaviour honest — at the cost of having to remember the flags.
+
+**An explicit `-f` suppresses the automatic override merge.** Once you pass
+`-f`, Compose uses exactly the files you named, so any
+`docker-compose.override.yml` sitting in the deployment directory is silently
+ignored rather than merged. There should not be one there; if one appears,
+it is doing nothing.
+
+`build: !reset null` is the part that is easy to miss. The base file declares
+`build: .`, and an overlay that only adds `image:` leaves **both** keys set —
+Compose then rebuilds from source on every `up` and ignores the published image
+entirely. `!reset` requires Compose 2.24+.
+
+Never hand-edit `docker-compose.yml` on the host to achieve any of this. Doing
+so is what once let the deployment checkout drift 314 commits behind `main`
+while carrying uncommitted changes nobody could see: the edits were correct and
+necessary, which is exactly why they survived and made `git pull` unsafe.
+
 ---
 
 ## MCP Server
