@@ -483,3 +483,103 @@ describe("filtering the list by follow-up state (U2)", () => {
         assert.equal(overdue[0].follow_up_state, "overdue");
     });
 });
+
+describe("the next-step text (Today queue U1)", () => {
+    test("update sets next_action and leaves the date alone", async () => {
+        const a = await mkApp({ next_action_at: "2026-08-20" });
+        const res = await as(req.put(`/api/applications/${a.id}`)).send({
+            next_action: "Chase the panel date",
+        });
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.equal(res.body.next_action, "Chase the panel date");
+        assert.equal(res.body.next_action_at, "2026-08-20");
+    });
+
+    test("null and '' both clear it", async () => {
+        const a = await mkApp({ next_action: "Send portfolio" });
+        assert.equal(rawRow(a.id).next_action, "Send portfolio");
+        await as(req.put(`/api/applications/${a.id}`)).send({ next_action: null });
+        assert.equal(rawRow(a.id).next_action, null);
+        await as(req.put(`/api/applications/${a.id}`)).send({ next_action: "x" });
+        await as(req.put(`/api/applications/${a.id}`)).send({ next_action: "" });
+        assert.equal(rawRow(a.id).next_action, null);
+    });
+
+    test("over 500 characters is rejected", async () => {
+        const a = await mkApp();
+        const res = await as(req.put(`/api/applications/${a.id}`)).send({
+            next_action: "x".repeat(501),
+        });
+        assert.equal(res.status, 400);
+        assert.match(res.body.error, /next_action/);
+    });
+
+    test("a non-string is rejected", async () => {
+        const a = await mkApp();
+        const res = await as(req.put(`/api/applications/${a.id}`)).send({
+            next_action: 42,
+        });
+        assert.equal(res.status, 400);
+        assert.match(res.body.error, /next_action/);
+    });
+
+    test("a text-only write leaves updated_at alone", async () => {
+        const a = await mkApp();
+        const before = rawRow(a.id).updated_at;
+        await tick();
+        await as(req.put(`/api/applications/${a.id}`)).send({
+            next_action: "Reword",
+            next_action_at: shiftDays(2),
+        });
+        assert.equal(rawRow(a.id).updated_at, before);
+    });
+
+    test("text written with another field bumps updated_at", async () => {
+        const a = await mkApp();
+        const before = rawRow(a.id).updated_at;
+        await tick();
+        await as(req.put(`/api/applications/${a.id}`)).send({
+            next_action: "Reword",
+            job_location: "Sydney",
+        });
+        assert.notEqual(rawRow(a.id).updated_at, before);
+    });
+
+    test("add_note sets, leaves and clears it alongside the date", async () => {
+        const a = await mkApp({ next_action: "Old" });
+        const set = await as(req.post(`/api/applications/${a.id}/notes`)).send({
+            stage: "applied",
+            content: "Called",
+            next_action: "Send references",
+        });
+        assert.equal(set.status, 201, JSON.stringify(set.body));
+        assert.equal(rawRow(a.id).next_action, "Send references");
+
+        await as(req.post(`/api/applications/${a.id}/notes`)).send({
+            stage: "applied",
+            content: "No change to the step",
+        });
+        assert.equal(rawRow(a.id).next_action, "Send references");
+
+        await as(req.post(`/api/applications/${a.id}/notes`)).send({
+            stage: "applied",
+            content: "Done",
+            next_action: null,
+        });
+        assert.equal(rawRow(a.id).next_action, null);
+    });
+
+    test("add_note with an over-length step writes no note", async () => {
+        const a = await mkApp();
+        const res = await as(req.post(`/api/applications/${a.id}/notes`)).send({
+            stage: "applied",
+            content: "Should not land",
+            next_action: "x".repeat(501),
+        });
+        assert.equal(res.status, 400);
+        const notes = db
+            .prepare("SELECT COUNT(*) AS n FROM stage_notes WHERE application_id = ?")
+            .get(a.id);
+        assert.equal(notes.n, 0);
+    });
+});

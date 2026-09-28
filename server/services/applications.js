@@ -171,6 +171,25 @@ function normaliseFollowUpDate(value) {
     return date;
 }
 
+const NEXT_ACTION_MAX = 500;
+
+// Normalise a next-step wording write: null or '' clears, anything else must be
+// a string within the limit. Kept apart from LIMITS because a non-string has to
+// be refused outright, and validateInputLengths only measures strings.
+function normaliseNextAction(value) {
+    if (value === null || value === "") return null;
+    if (typeof value !== "string") {
+        throw new ServiceError(400, "next_action must be a string or null");
+    }
+    if (value.length > NEXT_ACTION_MAX) {
+        throw new ServiceError(
+            400,
+            `next_action exceeds maximum length of ${NEXT_ACTION_MAX} characters`,
+        );
+    }
+    return value;
+}
+
 function attachNotes(rows) {
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return rows;
@@ -456,6 +475,10 @@ function createApplication(userEmail, data) {
         data.next_action_at === undefined
             ? null
             : normaliseFollowUpDate(data.next_action_at);
+    const nextAction =
+        data.next_action === undefined
+            ? null
+            : normaliseNextAction(data.next_action);
 
     const now = new Date().toISOString();
     const appStatus =
@@ -476,8 +499,8 @@ function createApplication(userEmail, data) {
       salary_min, salary_max, job_location,
       created_at, updated_at,
       interested_at, applied_at, responded_at, interview_at, offer_at, closed_at, user_email,
-      stage, state, close_reason, record_type, next_action_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      stage, state, close_reason, record_type, next_action_at, next_action)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
         )
         .run(
@@ -510,6 +533,7 @@ function createApplication(userEmail, data) {
             triple.close_reason,
             recordType,
             nextActionAt,
+            nextAction,
         );
 
     const created = db
@@ -588,6 +612,10 @@ function updateApplication(userEmail, id, data) {
         data.next_action_at === undefined
             ? undefined
             : normaliseFollowUpDate(data.next_action_at);
+    const nextAction =
+        data.next_action === undefined
+            ? undefined
+            : normaliseNextAction(data.next_action);
 
     for (const field of fields) {
         if (data[field] !== undefined) {
@@ -767,20 +795,25 @@ function updateApplication(userEmail, id, data) {
         }
     }
 
-    // Pushed after every other field so a write carrying only the date is
-    // recognisable by the update count alone.
+    // Pushed after every other field so a write carrying only the follow-up
+    // (date, wording, or both) is recognisable by the update count alone.
+    const otherUpdates = updates.length;
     if (nextActionAt !== undefined) {
         updates.push("next_action_at = ?");
         values.push(nextActionAt);
     }
-    const followUpOnly = nextActionAt !== undefined && updates.length === 1;
+    if (nextAction !== undefined) {
+        updates.push("next_action = ?");
+        values.push(nextAction);
+    }
+    const followUpOnly = otherUpdates === 0 && updates.length > 0;
 
     if (updates.length === 0)
         throw new ServiceError(400, "No fields to update");
 
-    // A date-only write leaves updated_at alone: updated_at drives card
-    // staleness, and scheduling or clearing a follow-up is not activity on the
-    // record. It still emits, so open boards pick the date up.
+    // A follow-up-only write leaves updated_at alone: updated_at drives card
+    // staleness, and scheduling, rewording or clearing a follow-up is not
+    // activity on the record. It still emits, so open boards pick the date up.
     if (!followUpOnly) {
         updates.push("updated_at = ?");
         values.push(new Date().toISOString());
@@ -1000,6 +1033,7 @@ module.exports = {
     attachNotes,
     withFollowUp,
     normaliseFollowUpDate,
+    normaliseNextAction,
     listApplications,
     getApplication,
     createApplication,

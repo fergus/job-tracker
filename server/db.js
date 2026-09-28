@@ -195,6 +195,12 @@ const followUpCheck = db.prepare("PRAGMA table_info(applications)").all();
 if (!followUpCheck.some((c) => c.name === "next_action_at")) {
     db.exec("ALTER TABLE applications ADD COLUMN next_action_at TEXT");
 }
+// What the follow-up is, beside when. Free text, nullable, independent of the
+// date -- the same pair contacts carry, so an application row can say what is
+// owed and not just that something is.
+if (!followUpCheck.some((c) => c.name === "next_action")) {
+    db.exec("ALTER TABLE applications ADD COLUMN next_action TEXT");
+}
 
 db.exec(
     "CREATE INDEX IF NOT EXISTS idx_applications_next_action ON applications(user_email, next_action_at)",
