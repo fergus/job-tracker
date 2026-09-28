@@ -523,7 +523,36 @@
                     <p
                       v-if="panelApp.follow_up_state"
                       :class="['text-xs mt-0.5', followUpTone(panelApp.follow_up_state)]"
-                    >{{ followUpProse(panelApp.follow_up_state, panelApp.follow_up_days, null) }}</p>
+                    >{{ followUpProse(panelApp.follow_up_state, panelApp.follow_up_days, panelApp.next_action || null) }}</p>
+                  </div>
+                  <!-- What the follow-up is. Independent of the date, the same
+                       pair a contact carries. Hidden once closed: closing
+                       clears the step, and Today lists open records only. -->
+                  <div v-if="panelApp.state !== 'closed'" class="col-span-2">
+                    <label for="panel-next-step" class="text-xs text-ink-3 uppercase tracking-wide">Next step</label>
+                    <div class="flex items-center gap-1">
+                      <input
+                        id="panel-next-step"
+                        type="text"
+                        maxlength="500"
+                        v-model="nextStepDraft"
+                        placeholder="e.g. chase the panel date"
+                        @blur="saveNextStep"
+                        @keydown.enter.prevent="$event.target.blur()"
+                        @keydown.escape="cancelNextStep($event)"
+                        class="w-full text-sm border border-line bg-raised rounded px-2 py-1 text-ink focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                      <button
+                        v-if="panelApp.next_action"
+                        type="button"
+                        @mousedown.prevent="clearNextStep"
+                        class="p-1 rounded text-ink-3 hover:text-danger flex items-center justify-center shrink-0 min-h-[44px] min-w-[44px]"
+                        title="Clear next step"
+                        aria-label="Clear next step"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1370,6 +1399,38 @@ async function saveFollowUp(value) {
   } catch (err) {
     toast.error('Error updating follow-up date: ' + getErrorMessage(err))
   }
+}
+
+// The next-step wording is edited in place and saved on blur. The draft
+// follows the record whenever the panel is reconciled from the server, so a
+// refresh or an agent's write replaces a stale draft rather than keeping it.
+const nextStepDraft = ref(props.panelApp?.next_action || '')
+watch(
+  () => props.panelApp?.next_action,
+  (value) => { nextStepDraft.value = value || '' },
+)
+
+function cancelNextStep(event) {
+  nextStepDraft.value = props.panelApp?.next_action || ''
+  event.target.blur()
+}
+
+// Sent alone, like the date: a follow-up-only write leaves updated_at alone.
+async function saveNextStep() {
+  const value = nextStepDraft.value.trim()
+  if (value === (props.panelApp?.next_action || '')) return
+  try {
+    await updateApplication(props.panelApp.id, { next_action: value || null })
+    emit('saved')
+  } catch (err) {
+    nextStepDraft.value = props.panelApp?.next_action || ''
+    toast.error('Error updating next step: ' + getErrorMessage(err))
+  }
+}
+
+function clearNextStep() {
+  nextStepDraft.value = ''
+  saveNextStep()
 }
 
 const miniSegments = computed(() => {
