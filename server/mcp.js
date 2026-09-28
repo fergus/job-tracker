@@ -120,7 +120,7 @@ function createMcpServer() {
 
     server.tool(
         "list_applications",
-        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead). The legacy `status` field is derived from those and kept only for compatibility -- filter on state and record_type instead, since status collapses every non-acceptance close onto 'rejected'. Each record carries next_action_at (the follow-up date) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
+        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead). The legacy `status` field is derived from those and kept only for compatibility -- filter on state and record_type instead, since status collapses every non-acceptance close onto 'rejected'. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
         {
             status: z
                 .enum([
@@ -180,7 +180,7 @@ function createMcpServer() {
                 .array(z.string())
                 .optional()
                 .describe(
-                    "Limit which fields are returned per record. Omit to return all fields. Suggested summary preset: [\"id\",\"company_name\",\"role_title\",\"status\",\"job_location\",\"job_posting_url\",\"salary_min\",\"salary_max\",\"interested_at\",\"applied_at\",\"closed_at\",\"updated_at\",\"next_action_at\",\"follow_up_state\"]",
+                    "Limit which fields are returned per record. Omit to return all fields. Suggested summary preset: [\"id\",\"company_name\",\"role_title\",\"status\",\"job_location\",\"job_posting_url\",\"salary_min\",\"salary_max\",\"interested_at\",\"applied_at\",\"closed_at\",\"updated_at\",\"next_action_at\",\"next_action\",\"follow_up_state\"]",
                 ),
             limit: z
                 .number()
@@ -351,6 +351,14 @@ function createMcpServer() {
                 .describe(
                     "Calendar date to follow up on this record (YYYY-MM-DD). Drives follow_up_state and the follow_up_state filter on list_applications.",
                 ),
+            next_action: z
+                .string()
+                .max(500)
+                .optional()
+                .nullable()
+                .describe(
+                    "What the next step is, in a few words (e.g. 'Chase the panel date'). Pairs with next_action_at; each half is set independently. Closing the record clears both.",
+                ),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -471,6 +479,14 @@ function createMcpServer() {
                 .describe(
                     "Calendar date to follow up on this record (YYYY-MM-DD), or null to clear it. Set it to when you should chase again, e.g. after add_note. A date-only change does not bump updated_at.",
                 ),
+            next_action: z
+                .string()
+                .max(500)
+                .optional()
+                .nullable()
+                .describe(
+                    "What the next step is, in a few words, or null to clear it. Independent of next_action_at. A write carrying only next_action/next_action_at does not bump updated_at. Closing the record (state closed, or update_status to accepted/rejected) clears both halves.",
+                ),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -561,6 +577,14 @@ function createMcpServer() {
                 .describe(
                     "Calendar date to follow up on this record (YYYY-MM-DD), or null to clear it. Omit to leave the existing follow-up date alone.",
                 ),
+            next_action: z
+                .string()
+                .max(500)
+                .optional()
+                .nullable()
+                .describe(
+                    "What the next step is, or null to clear it. Omit to leave the existing wording alone.",
+                ),
         },
         async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
@@ -577,6 +601,7 @@ function createMcpServer() {
                     stage: args.stage,
                     content: args.content,
                     next_action_at: args.next_action_at,
+                    next_action: args.next_action,
                 });
                 return {
                     content: [
