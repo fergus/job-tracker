@@ -23,6 +23,13 @@ db.exec(`
   )
 `);
 
+// Migrate: per-user settings. Nullable, so a user who never chose reads back
+// the default (services/settings.js) rather than a stored value.
+const userCols = db.prepare("PRAGMA table_info(users)").all();
+if (!userCols.some((c) => c.name === "clear_next_step_on_close")) {
+    db.exec("ALTER TABLE users ADD COLUMN clear_next_step_on_close INTEGER");
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS applications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

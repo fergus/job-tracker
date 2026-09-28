@@ -357,7 +357,7 @@ function createMcpServer() {
                 .optional()
                 .nullable()
                 .describe(
-                    "What the next step is, in a few words (e.g. 'Chase the panel date'). Pairs with next_action_at; each half is set independently. Closing the record clears both.",
+                    "What the next step is, in a few words (e.g. 'Chase the panel date'). Pairs with next_action_at; each half is set independently. Closing the record clears both unless the user has turned that off in Settings.",
                 ),
         },
         async (args, extra) => {
@@ -485,7 +485,7 @@ function createMcpServer() {
                 .optional()
                 .nullable()
                 .describe(
-                    "What the next step is, in a few words, or null to clear it. Independent of next_action_at. A write carrying only next_action/next_action_at does not bump updated_at. Closing the record (state closed, or update_status to accepted/rejected) clears both halves.",
+                    "What the next step is, in a few words, or null to clear it. Independent of next_action_at. A write carrying only next_action/next_action_at does not bump updated_at. Closing the record (state closed, or update_status to accepted/rejected) clears both halves unless the user has turned that off in Settings.",
                 ),
         },
         async (args, extra) => {

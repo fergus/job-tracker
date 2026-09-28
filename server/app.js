@@ -9,6 +9,7 @@ const applicationsRouter = require('./routes/applications');
 const keysRouter = require('./routes/keys');
 const contactsRouter = require('./routes/contacts');
 const todayRouter = require('./routes/today');
+const settingsRouter = require('./routes/settings');
 const profileRouter = require('./routes/profile');
 const uploadsRouter = require('./routes/uploads');
 const eventsRouter = require('./routes/events');
@@ -76,6 +77,7 @@ app.use('/api/keys', keysRouter);
 app.use('/api/contacts', contactsRouter);
 app.use('/api/today', todayRouter);
 app.use('/api', profileRouter);
+app.use('/api', settingsRouter);
 app.use('/api/events', eventsRouter);
 
 // OAuth discovery endpoint — MCP clients may probe this before connecting.

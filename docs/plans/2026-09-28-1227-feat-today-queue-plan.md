@@ -39,6 +39,7 @@ The server already holds the answer in one place. `server/lib/followup.js` is th
 - **Today is home; Pipeline and People are secondary.** Governs R12. (session-settled: user-directed — chosen over a third peer section, a rail beside the board, and a strip above the board, compared as rough sketches: the daily view is for working through what's owed, the board is for review.)
 - **Rows offer open and snooze only.** Governs R9, R10. (session-settled: user-approved — chosen over adding a silent "done" or an inline log-and-reschedule: the record and contact panels stay the single path for writing history.)
 - **Closing an application clears its next step.** Governs R14. (session-settled: user-directed — chosen over hiding closed records while keeping the step stored, after the conflict was raised that the board's Undo toast and a later reopen will not restore the step, and that this differs from the rule that a status change never discards a contact's commitment.)
+- **Clearing on close is a per-user setting, default on.** Governs R14. (session-settled: user-directed — chosen over a fixed clear-on-close rule, after the PR surfaced that a deliberate six-month re-check date on a closed record never shows on Today: the setting lets each user keep steps on closed records instead.)
 - **The server builds and orders the list; the client only renders it.** Governs R4. (session-settled: user-approved — chosen over the client merging two reads and over making the next step its own record: it keeps classification and ordering in one place, so the screen matches what the API and the agent see across midnight.)
 - **MCP gets parity, not a Today tool.** Governs R16. (session-settled: user-approved — chosen over a merged Today read for agents: keeps AGENTS.md's "no separate follow-ups tool" rule; the agent's existing sweep of applications and contacts gains the new text.)
 
@@ -68,7 +69,7 @@ The server already holds the answer in one place. `server/lib/followup.js` is th
 **The application next step**
 
 - R13. An application or lead can carry free-text next-step wording alongside its next-step date. It is set, edited and cleared in the application panel, and the two halves change independently, as they do for people.
-- R14. Closing an application, by any path (board, panel, API or MCP), clears both its next-step date and its text. Reopening does not restore them.
+- R14. Closing an application, by any path (board, panel, API or MCP), clears both its next-step date and its text, and reopening does not restore them. This is the default; each user can turn it off in Settings, in which case the step stays on the closed record (still hidden from Today) and returns on reopen.
 - R15. Today stays correct across midnight while the app is open, and reflects changes made elsewhere, including agent writes, at least when the user returns to the tab or the live connection recovers.
 
 **Agents**

@@ -1,5 +1,6 @@
 "use strict";
 const db = require("../db");
+const { clearsNextStepOnClose } = require("./settings");
 const fs = require("fs");
 const path = require("path");
 const { extractText } = require("./extraction");
@@ -807,11 +808,13 @@ function updateApplication(userEmail, id, data) {
         }
     }
 
-    // Closing ends the commitment: a closed record owes nothing, so both halves
-    // of its next step go, whatever this write also sent for them. Forced here
+    // Closing ends the commitment by default: a closed record owes nothing, so
+    // both halves of its next step go, whatever this write also sent for them.
+    // A user can turn this off in settings, and the step then stays on the
+    // closed record (Today still hides it) and comes back on reopen. Forced here
     // rather than pushed as a second assignment, so each column is set once.
-    // Reopening restores nothing -- the step was discarded, not hidden.
-    if (closesRecord) {
+    // When it is cleared, reopening restores nothing: the step was discarded.
+    if (closesRecord && clearsNextStepOnClose(userEmail)) {
         nextActionAt = null;
         nextAction = null;
     }
@@ -881,9 +884,10 @@ function updateStatus(userEmail, id, status) {
     const triple = tripleFromStatus(status, currentStage);
     updates.push("stage = ?", "state = ?", "close_reason = ?");
     values.push(triple.stage, triple.state, triple.close_reason);
-    if (triple.state === "closed") {
+    if (triple.state === "closed" && clearsNextStepOnClose(userEmail)) {
         // A terminal status closes the record, and closing ends its next step
-        // (the same rule updateApplication applies to a split-field close).
+        // unless the user turned that off (the same rule updateApplication
+        // applies to a split-field close).
         updates.push("next_action_at = ?", "next_action = ?");
         values.push(null, null);
     }
