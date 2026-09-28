@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { gotoPipeline } from './helpers.js'
 
 async function seedApp(request, company) {
   return request
@@ -27,7 +28,7 @@ async function serverDateInDays(request, appId, n) {
 }
 
 async function openPanel(page, company) {
-  await page.goto('/')
+  await gotoPipeline(page)
   await page.getByText(company).first().click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
@@ -176,7 +177,7 @@ test('the board card says how late an overdue follow-up is', async ({ page, requ
   const yesterday = await serverDateInDays(request, app.id, -1)
   await request.put(`/api/applications/${app.id}`, { data: { next_action_at: yesterday } })
 
-  await page.goto('/')
+  await gotoPipeline(page)
   const card = boardCard(page, 'FollowLateCo')
   await expect(card.getByText('1d overdue', { exact: true })).toBeVisible()
   await expect(card.locator('[title="Overdue by 1 day"]')).toHaveClass(/text-danger/)
@@ -186,7 +187,13 @@ test('the next step is written in the panel and read back in its prose (AE2)', a
   page,
   request,
 }) => {
-  const app = await seedApp(request, 'NextStepCo')
+  // Seeded past Interested: the drag specs aim at that column's box, and every
+  // extra card there moves their target.
+  const app = await request
+    .post('/api/applications', {
+      data: { company_name: 'NextStepCo', role_title: 'Engineer', status: 'applied' },
+    })
+    .then((r) => r.json())
   const target = await serverDateInDays(request, app.id, 2)
   await request.put(`/api/applications/${app.id}`, { data: { next_action_at: target } })
 

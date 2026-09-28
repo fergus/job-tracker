@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { gotoPipeline } from './helpers.js'
 
 // Sortable decides where a card lands from the dragover events it sees along
 // the way, so the pointer is walked to the target in steps. A single jump only
@@ -33,7 +34,7 @@ test('dragging offer card to closed column closes it without claiming a rejectio
     data: { company_name: 'OfferCorp', role_title: 'Engineer', status: 'offer' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
 
   // Verify the card starts in the Offer column
   await expect(page.getByText('OfferCorp').first()).toBeVisible()
@@ -62,7 +63,7 @@ test('dragging rejected card from closed to active column changes status', async
     data: { company_name: 'DragOutCorp', role_title: 'Engineer', status: 'rejected' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
 
   // Verify the card starts in the Closed column
   await expect(page.getByText('DragOutCorp').first()).toBeVisible()
@@ -88,7 +89,7 @@ test('dragging an accepted card into Rejected records a rejection, not a no-op',
     data: { company_name: 'AcceptedCorp', role_title: 'Engineer', status: 'accepted' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
   await expect(page.getByText('AcceptedCorp').first()).toBeVisible()
 
   const acceptedCard = page.getByText('AcceptedCorp').first()
@@ -113,7 +114,7 @@ test('dragging an open card into Accepted records an acceptance, not a rejection
     data: { company_name: 'AcceptMeCorp', role_title: 'Engineer', status: 'offer' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
   await expect(page.getByText('AcceptMeCorp').first()).toBeVisible()
 
   const openCard = page.getByText('AcceptMeCorp').first()

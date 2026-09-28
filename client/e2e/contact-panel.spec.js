@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { gotoPipeline } from './helpers.js'
 
 // Open the contact drawer from the record it is linked to, which is the only
 // route into it: there is no contacts list view.
@@ -15,7 +16,7 @@ async function openContactPanel(page, request, { company, person }) {
     data: { application_id: app.id },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
   await page.getByText(company).first().click()
   await page.getByRole('button', { name: `Open ${person}` }).click()
   await expect(page.getByRole('dialog', { name: `Contact: ${person}` })).toBeVisible()
@@ -70,7 +71,7 @@ test('the record panel flags which linked people are owed a touch', async ({
     })
   }
 
-  await page.goto('/')
+  await gotoPipeline(page)
   await page.getByText('ChipCo').first().click()
 
   await expect(page.getByText(/\d+d overdue/)).toBeVisible()
@@ -123,7 +124,7 @@ test('clearing the commitment removes it rather than blanking the display', asyn
     data: { application_id: app.id },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
   await page.getByText('ClearCo').first().click()
   await page.getByRole('button', { name: 'Open Ada Vance' }).click()
 

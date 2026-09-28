@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { gotoPipeline } from './helpers.js'
 
 test('closed column shows terminal applications', async ({ page, request }) => {
   await request.post('/api/applications', {
@@ -11,7 +12,7 @@ test('closed column shows terminal applications', async ({ page, request }) => {
     data: { company_name: 'KanbanAccepted', role_title: 'Engineer', status: 'accepted' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
 
   // Terminal apps should be visible in the closed column (desktop view is first in DOM)
   await expect(page.getByText('KanbanRejected').first()).toBeVisible()
@@ -43,7 +44,7 @@ test('no show-older button when all closed apps are recent', async ({ page, requ
     data: { company_name: 'KanbanRecentClosed', role_title: 'Engineer', status: 'rejected' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
 
   await expect(page.getByText('KanbanRecentClosed').first()).toBeVisible()
 
@@ -56,7 +57,7 @@ test('panel auto-closes when hiding closed column with terminal app open', async
     data: { company_name: 'PanelRejected', role_title: 'Engineer', status: 'rejected' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
 
   // Open the rejected card's detail panel
   await page.getByRole('button', { name: 'PanelRejected Engineer' }).click()
@@ -84,7 +85,7 @@ test('show-older toggle expands and collapses older closed apps', async ({ page,
     data: { closed_at: '2026-01-01T00:00:00.000Z' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
 
   // Wait for the closed column to render
   await expect(page.getByRole('button', { name: /Show \d+ older/ })).toBeVisible()
@@ -109,7 +110,7 @@ test('accepted cards render at full weight, rejected cards are quieted', async (
     data: { company_name: 'BoldAccepted', role_title: 'Engineer', status: 'accepted' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
 
   // Rejected card should have quiet text colour (text-ink-3 on company name)
   const rejectedCard = page.getByRole('button', { name: 'QuietRejected Engineer' })
