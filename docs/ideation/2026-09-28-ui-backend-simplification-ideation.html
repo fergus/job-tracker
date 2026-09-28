@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: UI and Backend Simplification</title>
+<style>
+:root {
+  --bg: #fbfaf8; --panel: #ffffff; --sunken: #f1efeb; --ink: #1b1a17; --ink-2: #45423c; --ink-3: #6b675f;
+  --line: #e2ded6; --accent: #b4481c; --accent-soft: #fbe9df; --accent-text: #8a3512;
+  --ok: #2f6b3a; --ok-soft: #e3f1e5; --cut: #7a1f1f; --cut-soft: #f7e3e3;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151412; --panel: #1d1c19; --sunken: #26241f; --ink: #f1eee8; --ink-2: #cfcac0; --ink-3: #a29d92;
+    --line: #36332d; --accent: #f08a5d; --accent-soft: #3a2419; --accent-text: #f6b08f;
+    --ok: #8fd19b; --ok-soft: #1f3123; --cut: #fca5a5; --cut-soft: #3a1f1f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151412; --panel: #1d1c19; --sunken: #26241f; --ink: #f1eee8; --ink-2: #cfcac0; --ink-3: #a29d92;
+  --line: #36332d; --accent: #f08a5d; --accent-soft: #3a2419; --accent-text: #f6b08f;
+  --ok: #8fd19b; --ok-soft: #1f3123; --cut: #fca5a5; --cut-soft: #3a1f1f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--sans); }
+main { max-width: 900px; margin-inline: auto; padding: 32px 16px 64px; }
+p, li, dd { max-width: 72ch; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0.2em 0 0.4em; letter-spacing: -0.01em; }
+h2 { font-size: 1.35rem; margin: 2.4em 0 0.6em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.12rem; margin: 0 0 0.4em; }
+.eyebrow { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 0.85rem; color: var(--ink-2); margin: 0; }
+.meta div { display: flex; gap: 6px; } .meta dt { color: var(--ink-3); } .meta dd { margin: 0; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--sunken); padding: 1px 5px; border-radius: 4px; }
+strong { color: inherit; }
+a { color: var(--accent-text); }
+.lede { font-size: 1.05rem; color: var(--ink-2); }
+.callout { background: var(--accent-soft); border-radius: 10px; padding: 14px 18px; margin: 18px 0; }
+.callout .eyebrow { color: var(--accent-text); }
+.callout p { margin: 0.3em 0 0; color: var(--ink); }
+ul.jump { columns: 2; column-gap: 28px; padding-left: 1.2em; font-size: 0.92rem; }
+@media (max-width: 640px) { ul.jump { columns: 1; } }
+article.idea { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin: 18px 0; }
+.idea-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.chip { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--sunken); color: var(--ink-2); border: 1px solid var(--line); }
+.chip.id { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
+dl.fields { margin: 0; }
+dl.fields dt { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; margin-top: 12px; }
+dl.fields dd { margin: 2px 0 0; }
+figure { margin: 16px 0 4px; background: var(--sunken); border-radius: 10px; padding: 14px; overflow-x: auto; }
+figcaption { font-size: 0.8rem; color: var(--ink-3); margin-top: 8px; }
+svg { display: block; max-width: 100%; height: auto; }
+svg text { font-family: var(--sans); fill: var(--ink); }
+svg .muted { fill: var(--ink-3); }
+svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+svg .hot { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+svg .ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.2; }
+svg .arrow { stroke: var(--ink-3); stroke-width: 1.4; fill: none; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+td:first-child { font-family: var(--mono); color: var(--ink-3); white-space: nowrap; }
+.table-wrap { overflow-x: auto; }
+footer.composition-signal { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <p class="eyebrow">Ideation</p>
+  <h1>Ideation: UI and Backend Simplification</h1>
+  <dl class="meta">
+    <div><dt>date</dt><dd><time datetime="2026-09-28">2026-09-28</time></dd></div>
+    <div><dt>topic</dt><dd>ui-backend-simplification</dd></div>
+    <div><dt>mode</dt><dd>repo-grounded</dd></div>
+  </dl>
+  <dl class="meta" style="margin-top:6px">
+    <div><dt>focus</dt><dd>Top-to-bottom review for simplification; the Applications and People views do not show what action is needed next; what can CRMs teach the UI model?</dd></div>
+  </dl>
+</header>
+
+<p class="lede">The app has one follow-up model on the server and three places in the UI where you have to go looking for it. Most of the complexity found here comes from that split. The survivors below mostly converge on one move: make "what do I owe, and when" the primary object, and let the pipeline and the people list sit behind it.</p>
+
+<div class="callout">
+  <p class="eyebrow">Reopens a prior decision</p>
+  <p>The 2026-09-08 People view requirements settled D2, "people only, not a mixed queue". Ideas 1 and 2 reverse that on purpose. The server already treats contact and application follow-ups as one model (<code>server/lib/followup.js</code>). Only the UI keeps them apart.</p>
+</div>
+
+<section id="grounding">
+<h2>Grounding Context</h2>
+<p class="eyebrow">Codebase Context</p>
+<ul>
+  <li><strong>Shape.</strong> Vue 3 SPA with all state in <code>App.vue</code> (792 lines) and no store. Express + SQLite backend. An MCP server (<code>server/mcp.js</code>, 1812 lines, 28 tools) shares the services layer. Scale is about 76 applications, 115 leads and 10-30 contacts. Every account has one user, with an admin read-only view across users.</li>
+  <li><strong>Three places to find the next action.</strong> Board cards carry one "signal" slot (<code>client/src/utils/cardSignal.js</code>). It shows a follow-up date if one exists, otherwise a staleness guess from <code>updated_at</code>. The People section groups contacts Overdue / Today / Upcoming / No commitment (<code>contactGroups.js</code>). Timeline is a third lens. No single view answers "what do I do today".</li>
+  <li><strong>The follow-up model is asymmetric.</strong> Contacts carry <code>next_action_at</code> <em>and</em> <code>next_action</code> text (<code>server/db.js:275</code>). Applications carry only the date (<code>server/db.js:195</code>). An application can say <em>when</em> something is owed but not <em>what</em>.</li>
+  <li><strong>Leads fill the board.</strong> The board builds its columns from legacy <code>status</code> (<code>KanbanBoard.vue:305-311</code>) and never reads <code>record_type</code>, so the 115 leads all land in Interested alongside real work.</li>
+  <li><strong>The status split is half-finished.</strong> <code>stage</code>/<code>state</code>/<code>close_reason</code>/<code>record_type</code> are authoritative, but every write still also writes <code>status</code>. Queries <code>COALESCE</code> back to <code>status</code> for rows the backfill has not reached (<code>services/applications.js:235-269</code>). The backfill still runs in report mode, and the client still keys the board on <code>status</code>.</li>
+  <li><strong>Sync machinery.</strong> A five-tier freshness state machine (<code>utils/freshness.js</code>, 289 lines), <code>FreshnessBar</code> + <code>FreshnessSlot</code>, a refetch queue gated on drag, a just-now hold, and day-rollover refetches handle applications. Contacts are left off the event stream (KTD8) and instead refresh from six hand-wired triggers in <code>App.vue</code>. A 2026-08-10 solution doc records a bug in which the tier ladder was never reached in the most common real failure.</li>
+  <li><strong>History lives in three streams.</strong> Stage notes, contact interactions and the agent audit log. The record panel (<code>ApplicationPanel.vue</code>, 1651 lines) shows them in separate sections: Notes, Linked contacts, Activity.</li>
+  <li><strong>Constraints carried in.</strong> AGENTS.md bans hero metrics. The 2026-08-16 ideation found that personal CRMs are usually dropped once upkeep becomes a chore, and that patterns built for large contact lists are anti-patterns at this size. Follow-up classification must stay server-side.</li>
+</ul>
+<p class="eyebrow">External context (prior art, from known product patterns)</p>
+<ul>
+  <li><strong>Pipedrive, activity-based selling.</strong> Every open deal should have a scheduled next activity. A deal without one gets a warning, and marking an activity done prompts you to schedule the next.</li>
+  <li><strong>Close CRM Inbox / HubSpot task queues.</strong> The home screen is a queue of owed actions (calls, emails, tasks) across every record, worked top-down. The pipeline is where you <em>review</em>. The queue is where you <em>work</em>.</li>
+  <li><strong>Salesforce / HubSpot Leads vs Deals.</strong> Unqualified prospects live in a separate lead list and only enter the pipeline once they are qualified.</li>
+  <li><strong>Help desks (Zendesk "Pending", Front "Waiting").</strong> A ticket's state records whose move it is. Tickets waiting on the customer drop out of your work queue until they reply or a timer fires.</li>
+  <li><strong>CRM record pages.</strong> One chronological activity timeline per record, with notes, emails, calls and system events interleaved. Associations to people and companies sit in a sidebar.</li>
+</ul>
+</section>
+
+<section id="axes">
+<h2>Topic Axes</h2>
+<ol>
+  <li>Next-action surface: what you see when you open the app</li>
+  <li>Record and pipeline model: what a record is, and what "open" means</li>
+  <li>Activity and history: how interactions are logged and read back</li>
+  <li>Client state and sync: how the browser stays current</li>
+  <li>Server layering and legacy: services, schema, migrations</li>
+</ol>
+</section>
+
+<section id="ranked-ideas">
+<h2>Ranked Ideas</h2>
+<ul class="jump">
+  <li><a href="#i1">1. A Today queue as the home screen</a></li>
+  <li><a href="#i2">2. Every open record has a next step: what, when, whose move</a></li>
+  <li><a href="#i3">3. Done asks "what next?"</a></li>
+  <li><a href="#i4">4. Leads leave the board</a></li>
+  <li><a href="#i5">5. Finish the status split</a></li>
+  <li><a href="#i6">6. One sync path, two freshness states</a></li>
+  <li><a href="#i7">7. The record page is one activity timeline</a></li>
+</ul>
+
+<article class="idea" id="i1">
+  <div class="idea-head"><span class="chip id">1</span><h3>A Today queue as the home screen</h3></div>
+  <div class="chips"><span class="chip">Next-action surface</span><span class="chip">Confidence 80%</span><span class="chip">Complexity Medium</span></div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Replace the Applications/People section toggle with a default <strong>Today</strong> view. It is one list of everything owed, from applications and people together, grouped Overdue / Today / This week, and each row states the action in prose ("Chase Acme recruiter about the panel date"). Pipeline (the board) and People (a plain directory) stay as secondary views you go to for review or lookup. Timeline either folds into the pipeline view or goes. The rows reuse the People view's existing snooze interaction.</dd>
+    <dt>Basis</dt>
+    <dd><code>direct:</code> the server already has one follow-up model for both entities. AGENTS.md: "One follow-up model, shared ... Contacts and applications both consume it; neither adds a second". MCP already does "the morning sweep" as one <code>list_applications</code> call with <code>follow_up_state: ["overdue","due"]</code>. <code>external:</code> the Close CRM Inbox and HubSpot task queue pattern, where you work from the queue and review in the pipeline.</dd>
+    <dt>Rationale</dt>
+    <dd>You said the current views are poor for working out what to do next. That is structural: the answer is split across card signal slots, a separate People section and a Timeline, so you have to assemble it yourself. The server already computes the answer, and this view just shows it in one place. It also removes a top-level concept (section vs lens) from <code>App.vue</code>.</dd>
+    <dt>Downsides</dt>
+    <dd>Reverses D2 of the 2026-09-08 requirements. It needs a list endpoint that merges both entities, or the client merging two server-ordered lists, which risks the client re-sorting that KTD1 forbids. A merged server endpoint is the cleaner route. An empty queue has to feel like progress and not like nothing is happening.</dd>
+  </dl>
+  <figure>
+    <svg viewBox="0 0 760 210" role="img" aria-labelledby="f1t">
+      <title id="f1t">Before: three views to scan. After: one queue with pipeline and people behind it.</title>
+      <text x="10" y="18" class="muted" font-size="12" font-weight="600">BEFORE: you assemble the answer</text>
+      <rect class="box" x="10" y="30" width="110" height="40" rx="6"/><text x="65" y="55" font-size="12" text-anchor="middle">Board signal slot</text>
+      <rect class="box" x="10" y="80" width="110" height="40" rx="6"/><text x="65" y="105" font-size="12" text-anchor="middle">People groups</text>
+      <rect class="box" x="10" y="130" width="110" height="40" rx="6"/><text x="65" y="155" font-size="12" text-anchor="middle">Timeline</text>
+      <path class="arrow" d="M124 50 L200 100 M124 100 L200 100 M124 150 L200 100"/>
+      <rect class="hot" x="204" y="80" width="120" height="40" rx="6"/><text x="264" y="105" font-size="12" text-anchor="middle">your head</text>
+      <line x1="380" y1="10" x2="380" y2="200" stroke="var(--line)"/>
+      <text x="400" y="18" class="muted" font-size="12" font-weight="600">AFTER: the server's answer, shown once</text>
+      <rect class="ok" x="400" y="30" width="200" height="140" rx="8"/>
+      <text x="416" y="54" font-size="13" font-weight="700">Today</text>
+      <text x="416" y="78" font-size="11">Overdue · chase Acme panel date</text>
+      <text x="416" y="98" font-size="11">Overdue · reply to Sam (referrer)</text>
+      <text x="416" y="118" font-size="11">Today · send portfolio to Beta</text>
+      <text x="416" y="138" font-size="11">This week · 2 more</text>
+      <rect class="box" x="620" y="40" width="130" height="36" rx="6"/><text x="685" y="63" font-size="12" text-anchor="middle">Pipeline (review)</text>
+      <rect class="box" x="620" y="116" width="130" height="36" rx="6"/><text x="685" y="139" font-size="12" text-anchor="middle">People (lookup)</text>
+      <path class="arrow" d="M604 70 L616 60 M604 130 L616 134"/>
+    </svg>
+    <figcaption>Illustrative. The queue is the working surface; pipeline and people become reference views.</figcaption>
+  </figure>
+</article>
+
+<article class="idea" id="i2">
+  <div class="idea-head"><span class="chip id">2</span><h3>Every open record has a next step: what, when, whose move</h3></div>
+  <div class="chips"><span class="chip">Record and pipeline model</span><span class="chip">Confidence 75%</span><span class="chip">Complexity Low-Medium</span></div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Add <code>next_action</code> text to applications so they match contacts. Then treat "open record with no next step" as the one condition worth surfacing, instead of the <code>updated_at</code> staleness guess on board cards. A next step can be <em>my move</em> ("send the take-home by Fri") or <em>their move</em> ("waiting on the recruiter; chase if nothing by the 3rd"). A their-move step stays out of the Today queue until its chase date. The card's signal slot then has exactly two things to show: the next step, or "no next step".</dd>
+    <dt>Basis</dt>
+    <dd><code>direct:</code> <code>server/db.js:275</code> adds <code>next_action</code> to contacts. Applications get only <code>next_action_at</code> (<code>server/db.js:195</code>). <code>cardSignal.js</code> falls back to <code>stalenessSignal</code>, which guesses from <code>updated_at</code> and legacy <code>status</code>. AGENTS.md notes that a date-only write does not bump <code>updated_at</code>, so the guess and the real commitment can disagree. <code>external:</code> the Pipedrive rule that every open deal has a scheduled activity, and help-desk "pending" state for waiting on the other side.</dd>
+    <dt>Rationale</dt>
+    <dd>Most of a job search is waiting. A Kanban stage says how far something got, but not whose move it is, and that is the question behind "what action is needed next". One small schema addition turns the card, the queue and MCP into answers to the same question, and deletes a heuristic.</dd>
+    <dt>Downsides</dt>
+    <dd>The documented risk is abandonment when upkeep becomes a chore. A required next step on every record could become exactly that chore. Keep it a prompt, not a gate (see idea 3), and let "no next step" be a quiet state rather than an alarm. "Whose move" can be modelled as the wording of the step and not a new enum. Decide that in the brainstorm.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i3">
+  <div class="idea-head"><span class="chip id">3</span><h3>Done asks "what next?"</h3></div>
+  <div class="chips"><span class="chip">Activity and history</span><span class="chip">Confidence 70%</span><span class="chip">Complexity Low</span></div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Marking a queue row done opens one small inline prompt: a note field (optional) and the next step with quick dates (+3d, +1w, pick). Skipping is allowed. Logging the interaction and re-committing become one gesture, from the queue, the record page or the board.</dd>
+    <dt>Basis</dt>
+    <dd><code>direct:</code> the backend already made this one call. Commit e829d69 is "let add_note set the follow-up date, and unify the two writers", and AGENTS.md says of <code>add_contact_note</code> that "the moment you log a call is the moment you know when to chase next". The browser UI does not use it: contact snooze goes through <code>updateContact</code>, and application notes and follow-up dates are edited in separate panel sections. <code>external:</code> Pipedrive and HubSpot prompt for a follow-up activity when one is completed.</dd>
+    <dt>Rationale</dt>
+    <dd>This is what keeps idea 2 cheap to maintain. Next steps stay current because recording what happened asks for the next one, with no separate upkeep pass. It targets the abandonment risk directly.</dd>
+    <dt>Downsides</dt>
+    <dd>A prompt on every completion can feel like nagging. It needs a one-key dismiss, and "no next step" has to be a legitimate outcome, for example when the record should close.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i4">
+  <div class="idea-head"><span class="chip id">4</span><h3>Leads leave the board</h3></div>
+  <div class="chips"><span class="chip">Record and pipeline model</span><span class="chip">Confidence 75%</span><span class="chip">Complexity Low</span></div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Show only <code>record_type = 'application'</code> on the pipeline board. Leads go to a plain triage list sorted by date added, with two actions per row: <em>Apply</em> (promote) or <em>Pass</em> (close as <code>not_pursued</code>). The board's first column becomes a real stage, not a backlog.</dd>
+    <dt>Basis</dt>
+    <dd><code>direct:</code> <code>KanbanBoard.vue:305-311</code> builds columns from <code>a.status</code> and never reads <code>record_type</code>. With 115 leads and 76 applications, most of what the board shows is leads, all in Interested. <code>App.vue</code> already says leads distort the pipeline: "counting them as pipeline is what made every conversion rate wrong". <code>external:</code> the Salesforce/HubSpot split between leads and deals.</dd>
+    <dt>Rationale</dt>
+    <dd>The board becomes readable at a glance, which is the stated design goal ("forward motion is the hero"). The data model already makes this distinction, so this is mostly a filter plus a small list view.</dd>
+    <dt>Downsides</dt>
+    <dd>Adds a view, although it is simpler than the column it replaces. Leads you intend to apply to soon need a way to show up in Today. A next step on a lead (idea 2) covers that.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i5">
+  <div class="idea-head"><span class="chip id">5</span><h3>Finish the status split</h3></div>
+  <div class="chips"><span class="chip">Server layering and legacy</span><span class="chip">Confidence 85%</span><span class="chip">Complexity Medium</span></div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Run <code>SCHEMA_BACKFILL=apply</code> in production, then remove the <code>COALESCE(..., status)</code> fallbacks. Move the board and <code>cardSignal</code> onto <code>stage</code>/<code>state</code>, and stop dual-writing <code>status</code>: make it a read-only derived field in responses for MCP compatibility, or drop it with a version note. Fold the two <code>ServiceError</code> classes into one while touching this.</dd>
+    <dt>Basis</dt>
+    <dd><code>direct:</code> <code>services/applications.js:235-269</code> has three <code>COALESCE</code> fallbacks "for rows the backfill has not reached". AGENTS.md: "The status split backfill runs on startup in report mode and writes nothing". The client board keys on <code>status</code> although AGENTS.md says "never [filter] on <code>status</code>". <code>mcp.js</code> <code>toolError</code> checks two <code>ServiceError</code> classes because "The contacts service defines its own".</dd>
+    <dt>Rationale</dt>
+    <dd>Two sources of truth for one fact cost something on every write path and in every query, and the migration is mostly done. It is also the prerequisite that makes ideas 2 and 4 clean, because both key on <code>state</code> and <code>record_type</code>.</dd>
+    <dt>Downsides</dt>
+    <dd>Touches production data. It needs a backup and a report-mode dry run you have reviewed first. External MCP clients that read <code>status</code> may break if it is dropped rather than derived.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i6">
+  <div class="idea-head"><span class="chip id">6</span><h3>One sync path, two freshness states</h3></div>
+  <div class="chips"><span class="chip">Client state and sync</span><span class="chip">Confidence 65%</span><span class="chip">Complexity Medium</span></div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Move record data out of <code>App.vue</code> into one small store composable with a single <code>invalidate(entity, id?)</code>. Put contacts on the existing change stream, so the six hand-wired contact refresh triggers and the separate applications refetch queue collapse into one path. Reduce the five-tier freshness ladder to two states: <em>live</em>, or <em>not live, with a Reload</em>.</dd>
+    <dt>Basis</dt>
+    <dd><code>direct:</code> <code>App.vue</code>: "Six triggers can call this, so it carries the same discipline the applications refetch already has". It keeps separate sequence tokens, scope checks, a drag-gated refetch queue, a just-now hold, and a day-rollover refetch. Contacts are excluded from the stream ("not on the change event stream (KTD8)"). <code>freshness.js</code> is 289 lines for tiers pending/live/degraded/stale/terminal. The 2026-08-10 solution doc records that "the entire tier ladder ... was unreachable in the most common real failure". <code>reasoned:</code> this is a mostly single-user app with a few hundred rows. The stream exists so that MCP agent writes appear, and a second-by-second degrade/stale distinction gives that user little they can act on.</dd>
+    <dt>Rationale</dt>
+    <dd>This is where most of the incidental complexity in <code>App.vue</code> sits, and it grows each time an entity is added (contacts already needed a parallel copy). A single store also gives the Today queue (idea 1) one place to read merged data from.</dd>
+    <dt>Downsides</dt>
+    <dd>The freshness tiers came from a deliberate plan (2026-08-08), and some of their accessibility wording is careful work. Collapsing them discards it. The drag-safety gate is still needed while the board supports drag.</dd>
+  </dl>
+  <figure>
+    <svg viewBox="0 0 760 170" role="img" aria-labelledby="f6t">
+      <title id="f6t">Before: two refresh paths with separate guards. After: one store, one invalidation path.</title>
+      <text x="10" y="18" class="muted" font-size="12" font-weight="600">BEFORE</text>
+      <rect class="box" x="10" y="30" width="150" height="34" rx="6"/><text x="85" y="52" font-size="11" text-anchor="middle">SSE + refetch queue</text>
+      <rect class="box" x="10" y="74" width="150" height="34" rx="6"/><text x="85" y="96" font-size="11" text-anchor="middle">6 contact triggers</text>
+      <rect class="box" x="10" y="118" width="150" height="34" rx="6"/><text x="85" y="140" font-size="11" text-anchor="middle">5-tier freshness</text>
+      <path class="arrow" d="M164 47 L220 47 M164 91 L220 91"/>
+      <rect class="hot" x="224" y="30" width="120" height="34" rx="6"/><text x="284" y="52" font-size="11" text-anchor="middle">applications ref</text>
+      <rect class="hot" x="224" y="74" width="120" height="34" rx="6"/><text x="284" y="96" font-size="11" text-anchor="middle">contacts ref</text>
+      <line x1="380" y1="10" x2="380" y2="160" stroke="var(--line)"/>
+      <text x="400" y="18" class="muted" font-size="12" font-weight="600">AFTER</text>
+      <rect class="box" x="400" y="52" width="130" height="34" rx="6"/><text x="465" y="74" font-size="11" text-anchor="middle">SSE: any entity</text>
+      <path class="arrow" d="M534 69 L580 69"/>
+      <rect class="ok" x="584" y="46" width="160" height="46" rx="6"/><text x="664" y="66" font-size="12" text-anchor="middle" font-weight="600">store</text><text x="664" y="82" font-size="11" text-anchor="middle">invalidate(entity, id)</text>
+      <rect class="box" x="584" y="110" width="160" height="34" rx="6"/><text x="664" y="132" font-size="11" text-anchor="middle">live | not live + Reload</text>
+    </svg>
+    <figcaption>Illustrative. Three pieces of machinery become one store and one binary indicator.</figcaption>
+  </figure>
+</article>
+
+<article class="idea" id="i7">
+  <div class="idea-head"><span class="chip id">7</span><h3>The record page is one activity timeline</h3></div>
+  <div class="chips"><span class="chip">Activity and history</span><span class="chip">Confidence 60%</span><span class="chip">Complexity Medium-High</span></div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Reshape the 1651-line <code>ApplicationPanel</code> around a CRM record layout. At the top: the next step, with Done/Snooze. Below it: one chronological feed that merges stage notes, interactions with linked people, stage changes and agent actions. Details, JD, documents and attachments move to secondary tabs. On the backend, consider one notes table keyed by subject (application or contact) in place of <code>stage_notes</code> + <code>contact_notes</code>. They already share the hide-not-delete, <code>updated_at</code> and <code>hidden_at</code> semantics.</dd>
+    <dt>Basis</dt>
+    <dd><code>direct:</code> the panel outline shows separate Notes (<code>ApplicationPanel.vue:86</code>), Linked contacts (<code>:407</code>), Activity/audit (<code>:668</code>) and Dates grid (<code>:456</code>) sections. AGENTS.md describes the two note tables with the same hide semantics and two different edit shapes (<code>update_note</code> replaces while <code>update_contact_note</code> patches), which "will bite an agent that assumes they do". <code>external:</code> HubSpot/Salesforce record pages with a single activity timeline.</dd>
+    <dt>Rationale</dt>
+    <dd>Opening a record to decide what to do next currently means reading three sections and reconstructing the order yourself. One feed answers "what happened last", and the next step sits directly above it. A merged notes table would also remove the two tool shapes that differ for no domain reason.</dd>
+    <dt>Downsides</dt>
+    <dd>The largest change here. The table merge is a real migration with backup and MCP compatibility concerns, and could be deferred while the UI feed ships first as a read-side merge. Ranked last because ideas 1-3 capture most of the value of "what next" without it.</dd>
+  </dl>
+</article>
+</section>
+
+<section id="rejections">
+<h2>Rejection Summary</h2>
+<p>30 raw candidates were generated across six lenses. Ten merged into the survivors above and 13 were cut. Critique was done in this session, not by a separate fresh-context verifier, so the verdicts below have not been independently checked.</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Idea</th><th>Reason Rejected</th></tr></thead>
+  <tbody>
+    <tr><td>R1</td><td>Replace the event stream with polling</td><td>MCP agent writes arriving live is a real, stated use. Idea 6 gets most of the simplification and keeps the stream.</td></tr>
+    <tr><td>R2</td><td>One zod schema per entity drives REST and MCP</td><td>Basis unverified. Validation already lives in services, and I did not confirm the MCP schemas duplicate route validation rather than describe tool arguments.</td></tr>
+    <tr><td>R3</td><td>Weekly review walk-through mode</td><td>Good ritual, but it is a new surface on top of a model that does not exist yet. Revisit after ideas 1-2.</td></tr>
+    <tr><td>R4</td><td>Superhuman-style keyboard triage</td><td>A queue of 5-15 items a day does not justify a keyboard grammar. Below the ambition floor at this scale.</td></tr>
+    <tr><td>R5</td><td>Auto-propose closing long-waiting records as lapsed</td><td>It is an automated nudge, which the "no nudge" stance of 09-08 D7 rejects. Idea 2's "no next step" state surfaces the same records quietly.</td></tr>
+    <tr><td>R6</td><td>Remove drag-to-close and its refetch gate</td><td>Dragging a card forward is the design brief's "small victory". Removing it trades the product's signature interaction for a smaller <code>App.vue</code>.</td></tr>
+    <tr><td>R7</td><td>Company/account entity grouping apps and contacts</td><td>Expands scope. At 10-30 contacts the employer string is enough, and the 08-16 run cut a similar derivation.</td></tr>
+    <tr><td>R8</td><td>Drop the admin all-users view</td><td><code>showAllUsers</code> does thread through <code>App.vue</code>, but removing a multi-user feature is a product decision, not a simplification. Raise it separately if the admin view goes unused.</td></tr>
+    <tr><td>R9</td><td>Thin the route files</td><td>Too generic. No specific duplication identified.</td></tr>
+    <tr><td>R10</td><td>Re-centralise follow-up wording</td><td>Already done (<code>utils/followUp.js</code> shared by card and People).</td></tr>
+    <tr><td>R11</td><td>Derive stage dates only from transitions; drop the manual date grid</td><td>Manual correction of real-world dates is a legitimate need, and the grid is small.</td></tr>
+    <tr><td>R12</td><td>Persist the lens toggle</td><td>Trivial and superseded if Today becomes home.</td></tr>
+    <tr><td>R13</td><td>Closed records only in an archive</td><td>The show-closed toggle already covers this. Marginal.</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Merged into survivors: retire Timeline and People-as-directory (into 1); staleness replaced by "no next step" and ball-in-court (into 2); pinned next step on the record (into 3/7); two-state freshness and one client store (into 6); merged note tables and panel split into tabs (into 7); drop legacy status from the API and merge the ServiceErrors (into 5).</p>
+</section>
+
+<footer class="composition-signal">Composed <time datetime="2026-09-28">2026-09-28</time> by ce-ideate from the user prompt, grounded in the job-tracker repo at <code>63d072d</code> and <code>docs/ideation/2026-09-08-contacts-follow-up-view-requirements.md</code>.</footer>
+</main>
+</body>
+</html>
