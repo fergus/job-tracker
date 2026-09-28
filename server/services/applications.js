@@ -111,6 +111,14 @@ function statusFromTriple({ stage, state, close_reason }) {
     return stage || "interested";
 }
 
+// A row's state and record type as SQL, falling back to the legacy status for
+// rows the split backfill has not reached. Filtering on the bare columns would
+// return nothing before the apply runs -- which is the default deployed state.
+// Shared so every reader of "open" or "lead" agrees on the fallback. Both
+// expect the applications table aliased as `a`.
+const EFFECTIVE_STATE_SQL = `COALESCE(a.state, CASE WHEN a.status IN ('accepted','rejected') THEN 'closed' ELSE 'open' END)`;
+const EFFECTIVE_RECORD_TYPE_SQL = `COALESCE(a.record_type, CASE WHEN a.status IN ('applied','responded','interview','offer','accepted') THEN 'application' ELSE 'lead' END)`;
+
 const LIMITS = {
     company_name: 200,
     role_title: 200,
@@ -255,7 +263,7 @@ function listApplications(
         // Filtering on the bare column would return nothing at all before the
         // apply runs -- which is the default deployed state.
         conditions.push(
-            `COALESCE(a.state, CASE WHEN a.status IN ('accepted','rejected') THEN 'closed' ELSE 'open' END) = ?`,
+            `${EFFECTIVE_STATE_SQL} = ?`,
         );
         params.push(state);
     }
@@ -285,7 +293,7 @@ function listApplications(
         // table for record_type=application -- the inflated count this change
         // exists to fix -- and nothing at all for lead.
         conditions.push(
-            `COALESCE(a.record_type, CASE WHEN a.status IN ('applied','responded','interview','offer','accepted') THEN 'application' ELSE 'lead' END) = ?`,
+            `${EFFECTIVE_RECORD_TYPE_SQL} = ?`,
         );
         params.push(record_type);
     }
@@ -1053,6 +1061,8 @@ module.exports = {
     withFollowUp,
     normaliseFollowUpDate,
     normaliseNextAction,
+    EFFECTIVE_STATE_SQL,
+    EFFECTIVE_RECORD_TYPE_SQL,
     listApplications,
     getApplication,
     createApplication,

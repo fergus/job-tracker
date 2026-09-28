@@ -28,7 +28,7 @@ const LABELS = {
  * @returns {Array<{key: string, label: string, items: Array}>}
  */
 export function groupToday(items) {
-  const buckets = { overdue: [], due: [], upcoming: [] }
+  const buckets = Object.fromEntries(TODAY_GROUP_ORDER.map((key) => [key, []]))
   for (const item of items ?? []) {
     buckets[item.follow_up_state]?.push(item)
   }
@@ -43,4 +43,13 @@ export function groupToday(items) {
 export function kindLabel(item) {
   if (item.kind === 'contact') return 'Person'
   return item.record_type === 'lead' ? 'Lead' : 'Role'
+}
+
+/**
+ * A row's identity across kinds: an application and a contact can share an id.
+ * The shell marks an in-flight snooze with it and the view matches against it,
+ * so both must build it here.
+ */
+export function todayItemKey(item) {
+  return `${item.kind}-${item.id}`
 }

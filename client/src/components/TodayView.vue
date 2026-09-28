@@ -71,7 +71,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { groupToday, kindLabel } from '../utils/todayGroups.js'
+import { groupToday, kindLabel, todayItemKey as rowKey } from '../utils/todayGroups.js'
 import { followUpProse, followUpTone } from '../utils/followUp.js'
 import SnoozeControl from './SnoozeControl.vue'
 
@@ -92,10 +92,6 @@ const props = defineProps({
 defineEmits(['open', 'snooze'])
 
 const groups = computed(() => groupToday(props.items))
-
-function rowKey(item) {
-  return `${item.kind}-${item.id}`
-}
 
 // A step with no wording still says what it is: a follow-up.
 function owedLine(item) {

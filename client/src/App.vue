@@ -246,6 +246,7 @@ import KanbanBoard from "./components/KanbanBoard.vue";
 import SectionNav from "./components/SectionNav.vue";
 import PeopleView from "./components/PeopleView.vue";
 import TodayView from "./components/TodayView.vue";
+import { todayItemKey } from "./utils/todayGroups.js";
 import TimelineView from "./components/TimelineView.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import ToastContainer from "./components/ToastContainer.vue";
@@ -422,7 +423,7 @@ function handleTodayOpen(item) {
 const snoozingTodayKey = ref(null);
 async function handleTodaySnooze(item, date) {
     if (snoozingTodayKey.value !== null) return;
-    snoozingTodayKey.value = `${item.kind}-${item.id}`;
+    snoozingTodayKey.value = todayItemKey(item);
     let written = false;
     try {
         if (item.kind === "contact") {

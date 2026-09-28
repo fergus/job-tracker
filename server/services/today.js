@@ -13,6 +13,10 @@ const {
     followUpState,
     daysUntil,
 } = require("../lib/followup");
+const {
+    EFFECTIVE_STATE_SQL,
+    EFFECTIVE_RECORD_TYPE_SQL,
+} = require("./applications");
 
 const WINDOW_DAYS = 7;
 
@@ -52,17 +56,16 @@ function listToday(userEmail, { all, isAdmin = false } = {}, now = new Date()) {
     const contactScope = showAll ? "" : "AND c.user_email = ?";
     const scopeParams = showAll ? [] : [userEmail];
 
-    // Open only. The state column falls back to the legacy status for rows the
-    // backfill has not reached, the same rule listApplications filters with.
+    // Open only, with the same legacy fallback listApplications filters with.
     const applications = db
         .prepare(
             `SELECT a.id, a.company_name AS title, a.role_title AS subtitle,
-                    COALESCE(a.record_type, CASE WHEN a.status IN ('applied','responded','interview','offer','accepted') THEN 'application' ELSE 'lead' END) AS record_type,
+                    ${EFFECTIVE_RECORD_TYPE_SQL} AS record_type,
                     a.next_action, a.next_action_at, a.user_email
              FROM applications a
              WHERE a.next_action_at IS NOT NULL
                AND date(a.next_action_at) <= ?
-               AND COALESCE(a.state, CASE WHEN a.status IN ('accepted','rejected') THEN 'closed' ELSE 'open' END) = 'open'
+               AND ${EFFECTIVE_STATE_SQL} = 'open'
                ${appScope}`,
         )
         .all(bound, ...scopeParams)

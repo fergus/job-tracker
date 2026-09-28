@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { groupToday, kindLabel, TODAY_GROUP_ORDER } from './todayGroups.js'
+import { groupToday, kindLabel, todayItemKey, TODAY_GROUP_ORDER } from './todayGroups.js'
 
 const item = (title, state, kind = 'application') => ({
   kind,
@@ -68,5 +68,11 @@ describe('kindLabel', () => {
     assert.equal(kindLabel({ kind: 'contact' }), 'Person')
     assert.equal(kindLabel({ kind: 'application', record_type: 'lead' }), 'Lead')
     assert.equal(kindLabel({ kind: 'application', record_type: 'application' }), 'Role')
+  })
+})
+
+describe('todayItemKey', () => {
+  test('keeps an application and a contact with the same id apart', () => {
+    assert.notEqual(todayItemKey({ kind: 'application', id: 3 }), todayItemKey({ kind: 'contact', id: 3 }))
   })
 })
