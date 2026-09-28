@@ -445,6 +445,38 @@
             </ul>
           </section>
 
+          <!-- Follow-ups section. Saved on toggle, apart from the profile's
+               save-on-footer flow: it is one switch, not a form. -->
+          <section>
+            <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-3">Follow-ups</h3>
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p id="clear-on-close-label" class="text-sm font-medium text-ink">Clear the next step when a record closes</p>
+                <p id="clear-on-close-desc" class="text-xs text-ink-3 mt-0.5">
+                  On: closing a role or lead drops its next step, and reopening does not bring it back.
+                  Off: the step is kept on the closed record and returns if you reopen it. Closed records never appear on Today either way.
+                </p>
+                <p v-if="settingsError" role="status" class="text-xs text-danger mt-1">{{ settingsError }}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="clearNextStepOnClose"
+                aria-labelledby="clear-on-close-label"
+                aria-describedby="clear-on-close-desc"
+                :disabled="settingsLoading || settingsSaving"
+                @click="toggleClearOnClose"
+                class="shrink-0 relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                :class="clearNextStepOnClose ? 'bg-accent' : 'bg-line-2'"
+              >
+                <span
+                  class="inline-block h-5 w-5 rounded-full bg-panel shadow-xs transition-transform"
+                  :class="clearNextStepOnClose ? 'translate-x-5' : 'translate-x-0.5'"
+                ></span>
+              </button>
+            </div>
+          </section>
+
           <!-- Data Scope section (admins only) -->
           <section v-if="props.currentUser?.isAdmin">
             <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-3">Data Scope</h3>
@@ -543,7 +575,7 @@
 
 <script setup>
 import { ref, onMounted, watch, nextTick, onUnmounted } from 'vue'
-import { generateApiKey, listApiKeys, revokeApiKey, fetchProfile, updateProfile } from '../api'
+import { generateApiKey, listApiKeys, revokeApiKey, fetchProfile, updateProfile, fetchSettings, updateSettings } from '../api'
 import { formatTimeAgo } from '../utils/date.js'
 import { getErrorMessage } from '../utils/error.js'
 
@@ -694,6 +726,43 @@ watch(profile, () => {
   }
 }, { deep: true, flush: 'post' })
 
+// ── Follow-up settings ──────────────────────────────────────────────
+
+// Starts at the server's default so the switch reads truthfully while loading.
+const clearNextStepOnClose = ref(true)
+const settingsLoading = ref(true)
+const settingsSaving = ref(false)
+const settingsError = ref('')
+
+async function loadSettings() {
+  settingsLoading.value = true
+  try {
+    const data = await fetchSettings()
+    clearNextStepOnClose.value = data.clear_next_step_on_close
+    settingsError.value = ''
+  } catch (err) {
+    settingsError.value = 'Could not load this setting — ' + getErrorMessage(err)
+  } finally {
+    settingsLoading.value = false
+  }
+}
+
+// The switch shows the server's answer, not the click: on failure it stays
+// where it was and says why.
+async function toggleClearOnClose() {
+  if (settingsLoading.value || settingsSaving.value) return
+  settingsSaving.value = true
+  try {
+    const data = await updateSettings({ clear_next_step_on_close: !clearNextStepOnClose.value })
+    clearNextStepOnClose.value = data.clear_next_step_on_close
+    settingsError.value = ''
+  } catch (err) {
+    settingsError.value = 'Could not save this setting — ' + getErrorMessage(err)
+  } finally {
+    settingsSaving.value = false
+  }
+}
+
 onMounted(() => {
   panelRoot.value?.focus()
   requestAnimationFrame(() => {
@@ -701,6 +770,7 @@ onMounted(() => {
   })
   loadKeys()
   loadProfile()
+  loadSettings()
 })
 
 onUnmounted(() => {
