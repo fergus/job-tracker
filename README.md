@@ -17,7 +17,7 @@ mkdir job-tracker && cd job-tracker
 cp .env.example .env
 ```
 
-Download the [`docker-compose.yml`](docker-compose.yml) and [`.env.example`](.env.example) files, or clone the repo.
+Download the [`docker-compose.yml`](docker-compose.yml), [`docker-compose.prod.yml`](docker-compose.prod.yml) and [`.env.example`](.env.example) files, or clone the repo.
 
 **2. Set up PocketID:**
 
@@ -36,19 +36,16 @@ COOKIE_SECRET=   # generate with: openssl rand -base64 32 | tr -- '+/' '-_'
 LISTEN_PORT=3000
 ```
 
-**4. Update `docker-compose.yml`** to use the pre-built image:
-
-```yaml
-services:
-  job-tracker:
-    image: ghcr.io/fergus/job-tracker:latest
-```
-
-**5. Start:**
+**4. Start**, adding the production overlay so the stack runs the pre-built
+image instead of building from source:
 
 ```bash
-docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
+
+`docker-compose.prod.yml` is committed and carries the restart policy and the
+published image. Do not edit `docker-compose.yml` to achieve this — keeping the
+tracked file clean is what makes `git pull` safe later.
 
 Open your `PUBLIC_URL` in a browser. You'll be redirected to PocketID to log in.
 
@@ -57,8 +54,9 @@ Open your `PUBLIC_URL` in a browser. You'll be redirected to PocketID to log in.
 Pull the latest image and restart:
 
 ```bash
+git pull
 docker compose pull
-docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 Your data is safe — updates only replace the container, not the volume-mounted data directories.

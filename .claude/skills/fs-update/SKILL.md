@@ -5,6 +5,8 @@ description: Check all dependencies for updates, surface everything for human re
 
 # Dependency Update
 
+Last reviewed: 2026-09-28 on Claude Opus 5.5.
+
 Check all dependencies across the project, surface every finding for human review with safety metadata, then apply approved changes in a single batch. **No update is applied without explicit approval.**
 
 ## Safety Principle
@@ -135,44 +137,52 @@ For GitHub Actions version bumps, edit the `uses:` line in the workflow YAML.
 
 For Docker image bumps, edit the `FROM` line in `Dockerfile` or the `image:` line in `docker-compose.yml`.
 
-For the Impeccable skill (if approved):
+For the Impeccable skill (if approved), clone upstream and diff it against
+the local copy before touching anything:
+
 ```bash
+root="$(git rev-parse --show-toplevel)"
 cd /tmp && rm -rf impeccable && git clone --depth 1 https://github.com/pbakaus/impeccable.git
-cp -r /tmp/impeccable/.claude/skills/* /home/fstevens/code/job-tracker/.claude/skills/
-node .claude/skills/impeccable/scripts/cleanup-deprecated.mjs
+cd "$root"
+diff -rq /tmp/impeccable/.claude/skills/impeccable .claude/skills/impeccable
 ```
-Then remove any `<post-update-cleanup>` section from `.claude/skills/impeccable/SKILL.md`.
+
+Read every changed file under `scripts/` before copying - that code runs
+locally, so it gets the same supply-chain scrutiny as an npm bump. Then
+replace the directory whole, so files deleted upstream are deleted here:
+
+```bash
+rm -rf .claude/skills/impeccable
+cp -r /tmp/impeccable/.claude/skills/impeccable .claude/skills/
+.claude/skills/impeccable/scripts/impeccable doctor
+```
+
+The update is done when `SKILL.md` frontmatter shows the new version and
+`doctor` reports no skill drift (project findings such as a legacy
+PRODUCT.md are separate follow-ups, not failures). Remove any
+`<post-update-cleanup>` section from `.claude/skills/impeccable/SKILL.md`.
 
 Track everything that was applied for the final summary.
 
 ### 6. Create todos for skipped items
 
-For any finding the user chose to skip, create a todo file following this format:
+For any finding the user chose to skip, create a todo. Read
+`.claude/skills/fs-todos/SKILL.md` for the naming, numbering, priority and file
+layout, then fill the body with the dependency detail:
 
-**Filename**: `<NNN>-pending-<priority>-<short-slug>.md`
-- `NNN` — three-digit number, one higher than the current highest `issue_id` in the `todos/` directory
-- `priority` — `p2` for CVEs, `p3` for minor/major/Docker/Actions bumps
-- `short-slug` — kebab-case description
-
-**Content**:
 ```markdown
----
-status: pending
-priority: p3
-issue_id: "NNN"
-tags: [dependencies]
-dependencies: []
----
+# Upgrade <package> <current> to <latest> (<major|minor|patch|Docker|Actions>, <client|server|both>)
 
-# <Title>
+- **Priority:** <p2 for CVEs, p3 otherwise>
+- **Created:** YYYY-MM-DD
+- **Category:** npm dependency (<client|server|both>)
 
-## Problem Statement
-<Why this upgrade matters or what risk it carries>
+## Problem
+<Why this upgrade matters or what risk it carries. Name the CVE if there is one.>
 
-## Findings
+## Current
 - Current version: X.Y.Z
 - Latest version: A.B.C
-- Upgrade type: major / minor / Docker / Actions
 - Safety: <publisher verified? / update age at time of check>
 
 ## Proposed Solutions
@@ -184,8 +194,6 @@ Run `npm install <package>@latest` (or equivalent), verify build passes, then re
 - [ ] Package upgraded to vA.B.C
 - [ ] Build passes with no regressions
 ```
-
-Use `tags: [dependencies, security]` for CVEs.
 
 ### 7. Commit
 

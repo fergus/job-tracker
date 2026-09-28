@@ -52,9 +52,12 @@ npm_outdated_cached() {
   echo "$output"
 }
 
-echo "=== PENDING TODOS ==="
-# Pending todos are in todos/ root and do NOT have '-complete-' in the filename
-ls todos/*.md 2>/dev/null | grep -v -- '-complete-' | xargs -n1 basename 2>/dev/null || echo "(none)"
+echo "=== OPEN TODOS ==="
+# Open todos are the files in todos/ root; done ones are moved to
+# todos/complete/. Filename markers are unreliable - see
+# .claude/skills/fs-todos/SKILL.md. A '-complete-' file left in the root is
+# reported here on purpose, as a cleanup item.
+ls todos/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null || echo "(none)"
 
 echo ""
 echo "=== IDEATION ==="
