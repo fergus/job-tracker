@@ -583,3 +583,96 @@ describe("the next-step text (Today queue U1)", () => {
         assert.equal(notes.n, 0);
     });
 });
+
+describe("closing clears the next step (Today queue U3)", () => {
+    const STEP = { next_action_at: "2026-08-20", next_action: "Chase" };
+
+    function assertCleared(id) {
+        const row = rawRow(id);
+        assert.equal(row.next_action_at, null);
+        assert.equal(row.next_action, null);
+    }
+
+    test("PUT state closed clears both halves (AE3)", async () => {
+        const a = await mkApp(STEP);
+        const res = await as(req.put(`/api/applications/${a.id}`)).send({
+            state: "closed",
+            close_reason: "rejected",
+        });
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assert.equal(res.body.next_action_at, null);
+        assert.equal(res.body.follow_up_state, null);
+        assertCleared(a.id);
+    });
+
+    test("PATCH status rejected clears both halves", async () => {
+        const a = await mkApp(STEP);
+        const res = await as(req.patch(`/api/applications/${a.id}/status`)).send({
+            status: "rejected",
+        });
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assertCleared(a.id);
+    });
+
+    test("PATCH status accepted clears both halves", async () => {
+        const a = await mkApp(STEP);
+        await as(req.patch(`/api/applications/${a.id}/status`)).send({ status: "accepted" });
+        assertCleared(a.id);
+    });
+
+    test("reopening does not restore the step (AE3)", async () => {
+        const a = await mkApp(STEP);
+        await as(req.put(`/api/applications/${a.id}`)).send({
+            state: "closed",
+            close_reason: "unresolved",
+        });
+        await as(req.put(`/api/applications/${a.id}`)).send({ state: "open" });
+        assertCleared(a.id);
+
+        const b = await mkApp(STEP);
+        await as(req.patch(`/api/applications/${b.id}/status`)).send({ status: "rejected" });
+        await as(req.patch(`/api/applications/${b.id}/status`)).send({ status: "applied" });
+        assertCleared(b.id);
+    });
+
+    test("a write that closes and sends a date still ends cleared", async () => {
+        const a = await mkApp(STEP);
+        const res = await as(req.put(`/api/applications/${a.id}`)).send({
+            state: "closed",
+            close_reason: "withdrawn",
+            next_action_at: shiftDays(3),
+            next_action: "Should not survive",
+        });
+        assert.equal(res.status, 200, JSON.stringify(res.body));
+        assertCleared(a.id);
+    });
+
+    test("a close counts as activity even when it also carries follow-up fields", async () => {
+        const a = await mkApp(STEP);
+        const before = rawRow(a.id).updated_at;
+        await tick();
+        await as(req.put(`/api/applications/${a.id}`)).send({
+            state: "closed",
+            close_reason: "lapsed",
+            next_action_at: shiftDays(3),
+        });
+        assert.notEqual(rawRow(a.id).updated_at, before);
+    });
+
+    test("an active stage move leaves the step alone", async () => {
+        const a = await mkApp(STEP);
+        await as(req.patch(`/api/applications/${a.id}/status`)).send({ status: "interview" });
+        assert.equal(rawRow(a.id).next_action, "Chase");
+        assert.equal(rawRow(a.id).next_action_at, "2026-08-20");
+    });
+
+    test("editing the close reason on a closed record keeps it cleared", async () => {
+        const a = await mkApp(STEP);
+        await as(req.put(`/api/applications/${a.id}`)).send({
+            state: "closed",
+            close_reason: "rejected",
+        });
+        await as(req.put(`/api/applications/${a.id}`)).send({ close_reason: "role_closed" });
+        assertCleared(a.id);
+    });
+});

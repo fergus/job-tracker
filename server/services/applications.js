@@ -608,11 +608,13 @@ function updateApplication(userEmail, id, data) {
         throw new ServiceError(400, "salary_min must not exceed salary_max");
     }
 
-    const nextActionAt =
+    // Validated even on a close, which then discards them: a malformed value is
+    // still an error the caller should hear about.
+    let nextActionAt =
         data.next_action_at === undefined
             ? undefined
             : normaliseFollowUpDate(data.next_action_at);
-    const nextAction =
+    let nextAction =
         data.next_action === undefined
             ? undefined
             : normaliseNextAction(data.next_action);
@@ -669,6 +671,7 @@ function updateApplication(userEmail, id, data) {
         data.stage !== undefined ||
         data.state !== undefined ||
         data.close_reason !== undefined;
+    let closesRecord = false;
 
     if (touchesSplit) {
         // A row the backfill has not reached carries its facts only in the
@@ -718,6 +721,7 @@ function updateApplication(userEmail, id, data) {
             state: nextState,
             close_reason: nextCloseReason,
         };
+        closesRecord = nextState === "closed";
         updates.push("stage = ?", "state = ?", "close_reason = ?", "status = ?");
         values.push(
             nextStage,
@@ -795,6 +799,15 @@ function updateApplication(userEmail, id, data) {
         }
     }
 
+    // Closing ends the commitment: a closed record owes nothing, so both halves
+    // of its next step go, whatever this write also sent for them. Forced here
+    // rather than pushed as a second assignment, so each column is set once.
+    // Reopening restores nothing -- the step was discarded, not hidden.
+    if (closesRecord) {
+        nextActionAt = null;
+        nextAction = null;
+    }
+
     // Pushed after every other field so a write carrying only the follow-up
     // (date, wording, or both) is recognisable by the update count alone.
     const otherUpdates = updates.length;
@@ -860,6 +873,12 @@ function updateStatus(userEmail, id, status) {
     const triple = tripleFromStatus(status, currentStage);
     updates.push("stage = ?", "state = ?", "close_reason = ?");
     values.push(triple.stage, triple.state, triple.close_reason);
+    if (triple.state === "closed") {
+        // A terminal status closes the record, and closing ends its next step
+        // (the same rule updateApplication applies to a split-field close).
+        updates.push("next_action_at = ?", "next_action = ?");
+        values.push(null, null);
+    }
     if (triple.state === "open" && existing.closed_at) {
         // Reopening through the legacy path must clear the closure date too,
         // or a later close keeps reporting when the record first ended.
