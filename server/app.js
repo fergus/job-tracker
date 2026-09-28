@@ -8,6 +8,7 @@ const authMiddleware = require('./middleware/auth');
 const applicationsRouter = require('./routes/applications');
 const keysRouter = require('./routes/keys');
 const contactsRouter = require('./routes/contacts');
+const todayRouter = require('./routes/today');
 const profileRouter = require('./routes/profile');
 const uploadsRouter = require('./routes/uploads');
 const eventsRouter = require('./routes/events');
@@ -73,6 +74,7 @@ app.get('/api/me', (req, res) => {
 app.use('/api/applications', applicationsRouter);
 app.use('/api/keys', keysRouter);
 app.use('/api/contacts', contactsRouter);
+app.use('/api/today', todayRouter);
 app.use('/api', profileRouter);
 app.use('/api/events', eventsRouter);
 
