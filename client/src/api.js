@@ -155,6 +155,13 @@ export function fetchAuditLog(appId) {
     return api.get(`/applications/${appId}/audit-log`).then((r) => r.data);
 }
 
+// --- Today ---
+
+// The Today queue: already classified and ordered by the server.
+export function fetchToday(all = false) {
+  return api.get('/today', { params: all ? { all: 'true' } : {} }).then((r) => r.data)
+}
+
 // --- Contacts ---
 
 export function fetchContacts(all = false) {
