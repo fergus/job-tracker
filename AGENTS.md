@@ -315,13 +315,13 @@ necessary, which is exactly why they survived and made `git pull` unsafe.
 
 ## MCP Server
 
-A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`). It exposes tools for LLM clients to list, get, create, update, and add notes to job applications. Authentication is via Bearer API key only. The MCP server reuses the same `services/applications.js` business logic as the REST API.
+A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`). It exposes tools for LLM clients to work with applications, notes, contacts, attachments, job descriptions, the user profile and document generation. Authentication is via Bearer API key only. The MCP server reuses the same `services/applications.js` business logic as the REST API.
 
 **Transport:** Streamable HTTP (stateful sessions with `Mcp-Session-Id` header)
 
 **Paths:** The transport is mounted at `/` on the MCP port — *not* `/mcp`. Locally that means `http://localhost:3001/`. The public `https://<domain>/mcp` URL below is produced by an external reverse proxy that maps the `/mcp` path to this port; that proxy is not part of this repo's `docker-compose.yml`, which only publishes port 3001 as `${MCP_LISTEN_PORT:-3563}`. MCP does not pass through oauth2-proxy — it authenticates via Bearer API key on its own.
 
-**Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `update_note`, `delete_note`, `list_attachments`, `upload_attachment`, `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `link_contact`, `unlink_contact`, `add_contact_note`, `update_contact_note`, `delete_contact_note`, `convert_application_to_contact`
+**Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `update_status`, `add_note`, `update_note`, `delete_note`, `list_attachments`, `get_attachment_text`, `upload_attachment`, `get_upload_url`, `get_user_profile`, `get_application_context`, `generate_document`, `extract_job_description`, `fetch_job_description`, `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `link_contact`, `unlink_contact`, `add_contact_note`, `update_contact_note`, `delete_contact_note`, `convert_application_to_contact`
 
 **Follow-ups on applications** — `list_applications`, `get_application`, `create_application` and `update_application` all carry `next_action_at`, and returned records include `follow_up_state`. The morning sweep is one `list_applications` call with `follow_up_state: ["overdue", "due"]`. `add_note` also takes `next_action_at` and `next_action`, so logging a chase and re-dating it is one call — the same shape `add_contact_note` has; omit the field to leave the date alone, pass `null` to clear it. The same tools carry `next_action` (what the step is); closing a record through `update_application` or `update_status` clears both halves unless the user has turned that off in Settings. There is deliberately no separate follow-ups tool.
 

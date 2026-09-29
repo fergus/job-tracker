@@ -111,22 +111,49 @@ A date you add to a role *after* closing it (for example, "re-check this company
 
 ## MCP Server (AI Integration)
 
-A Model Context Protocol (MCP) server is included for AI clients to interact with your job applications programmatically. It exposes tools for listing, creating, updating, and adding notes to applications.
+A Model Context Protocol (MCP) server is included for AI clients to interact with your job applications programmatically. It exposes tools for applications and leads, notes, people, attachments, job descriptions and document generation.
 
 **Endpoint:** `https://your-domain.com/mcp`
 
 **Authentication:** Bearer API key (generate one in the Settings panel)
 
 **Tools exposed:**
-- `create_application` — create a new job application
-- `add_note` — append a stage note to an application, optionally re-dating the follow-up (`next_action_at`) and its wording (`next_action`) in the same call
-- `list_applications` — list all applications (optionally filter by status)
-- `get_application` — get full details including notes and attachments
-- `update_application` — update fields on an existing application, including the follow-up date and next-step wording
-- `update_status` — change status (auto-sets the corresponding date)
-- `list_attachments` — list file attachments for an application
-- `upload_attachment` — upload a small file (<~30KB) via base64-encoded content
-- `get_upload_url` — get a pre-signed upload URL for larger files (any size)
+
+*Applications and leads*
+- `list_applications` — list records with filtering (state, record type, follow-up state), pagination and sparse field sets
+- `get_application` — full record, including notes, linked contacts and attachment metadata
+- `create_application` — create an application or lead, optionally with a follow-up date (`next_action_at`) and next-step wording (`next_action`)
+- `update_application` — update fields, including the follow-up date and wording; closing clears the next step unless you turned that off in Settings
+- `update_status` — change status (auto-sets the corresponding stage date)
+- `convert_application_to_contact` — turn a record that is really a person into a contact (the original is backed up first)
+
+*Stage notes*
+- `add_note` — append a stage note, optionally re-dating the follow-up and its wording in the same call
+- `update_note` — correct a note (replaces its content; can re-file it under another stage)
+- `delete_note` — withdraw a note (hidden, no undo)
+
+*People (contacts)*
+- `list_contacts` — list contacts ordered by what is owed soonest
+- `get_contact` — one contact with every record they are linked to
+- `create_contact` / `update_contact` / `delete_contact` — manage contacts
+- `link_contact` / `unlink_contact` — attach or detach a contact from an application or lead
+- `add_contact_note` — log an interaction, optionally setting the next action in the same call
+- `update_contact_note` / `delete_contact_note` — correct or withdraw a logged interaction
+
+*Attachments*
+- `list_attachments` — list an application's attachments (metadata only)
+- `get_attachment_text` — extracted plain text from a PDF, DOCX, TXT or MD attachment
+- `upload_attachment` — upload a small file (<~30KB) as base64
+- `get_upload_url` — one-time pre-signed URL for uploading larger files
+
+*Job descriptions, profile and documents*
+- `fetch_job_description` — fetch the description from the posting URL, store it and extract structured data
+- `extract_job_description` — extract structured data (skills, responsibilities, salary) from the stored description
+- `get_user_profile` — your candidate profile (resume, career narrative, agent instructions)
+- `get_application_context` — everything about one application plus your profile, in one call
+- `generate_document` — draft a cover letter, resume tailoring tips or an interview prep brief for an application
+
+There is no separate Today tool: `list_applications` with `follow_up_state: ["overdue","due"]` and `state: "open"`, plus `list_contacts` with `next_action_before`, answer the same question.
 
 ### Connecting from Claude Code
 
