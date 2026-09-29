@@ -480,11 +480,11 @@ function createApplication(userEmail, data) {
         throw new ServiceError(400, "salary_min must not exceed salary_max");
     }
 
-    const nextActionAt =
+    let nextActionAt =
         data.next_action_at === undefined
             ? null
             : normaliseFollowUpDate(data.next_action_at);
-    const nextAction =
+    let nextAction =
         data.next_action === undefined
             ? null
             : normaliseNextAction(data.next_action);
@@ -494,6 +494,13 @@ function createApplication(userEmail, data) {
         status && VALID_STATUSES.includes(status) ? status : "interested";
     const dateField = STATUS_DATE_MAP[appStatus];
     const triple = tripleFromStatus(appStatus, null);
+    // A record created already closed owes nothing either: the same rule a
+    // close write applies, under the same per-user setting. Validated above
+    // first, so a malformed value is still refused rather than silently dropped.
+    if (triple.state === "closed" && clearsNextStepOnClose(userEmail)) {
+        nextActionAt = null;
+        nextAction = null;
+    }
     // A record created at or beyond `applied` is one that was applied to;
     // anything earlier is a lead until it progresses.
     const recordType = evidencesApplication(triple.stage, appStatus)

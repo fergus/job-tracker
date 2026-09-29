@@ -416,8 +416,15 @@ describe("filtering the list by follow-up state (U2)", () => {
         const email = owner();
         const c = await seed(email, {
             openOverdue: { next_action_at: shiftDays(-1) },
-            closedOverdue: { status: "rejected", next_action_at: shiftDays(-1) },
+            closedOverdue: { status: "rejected" },
         });
+        // A date set after closing is kept (a deliberate re-check); one sent
+        // with a closed create is dropped, so date it separately.
+        const dated = await as(req.put(`/api/applications/${c.closedOverdue.id}`), email).send({
+            next_action_at: shiftDays(-1),
+        });
+        assert.equal(dated.status, 200, JSON.stringify(dated.body));
+        c.closedOverdue = dated.body;
         const res = await as(
             req.get("/api/applications?state=open&follow_up_state=overdue"),
             email,

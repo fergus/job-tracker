@@ -135,3 +135,50 @@ describe("closing honours the setting", () => {
         assert.deepEqual(step(a.id), { next_action_at: null, next_action: null });
     });
 });
+
+describe("creating an already-closed record honours the setting (review P3)", () => {
+    async function mkClosed(email, status) {
+        const res = await as(req.post("/api/applications"), email).send({
+            company_name: "Closed At Birth Co",
+            role_title: "Engineer",
+            status,
+            next_action_at: "2026-10-01",
+            next_action: "Chase",
+        });
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        return res.body;
+    }
+
+    test("with the default, a record created rejected carries no next step", async () => {
+        const a = await mkClosed(user(), "rejected");
+        assert.equal(a.state, "closed");
+        assert.deepEqual(step(a.id), { next_action_at: null, next_action: null });
+    });
+
+    test("with the default, a record created accepted carries no next step", async () => {
+        const a = await mkClosed(user(), "accepted");
+        assert.deepEqual(step(a.id), { next_action_at: null, next_action: null });
+    });
+
+    test("turned off, a record created closed keeps its step", async () => {
+        const email = user();
+        await as(req.put("/api/me/settings"), email).send({ clear_next_step_on_close: false });
+        const a = await mkClosed(email, "rejected");
+        assert.deepEqual(step(a.id), { next_action_at: "2026-10-01", next_action: "Chase" });
+    });
+
+    test("an open record created with a step keeps it", async () => {
+        const a = await mkClosed(user(), "applied");
+        assert.deepEqual(step(a.id), { next_action_at: "2026-10-01", next_action: "Chase" });
+    });
+
+    test("a malformed date on a closed create is still refused", async () => {
+        const res = await as(req.post("/api/applications"), user()).send({
+            company_name: "Bad Date Co",
+            role_title: "Engineer",
+            status: "rejected",
+            next_action_at: "next Thursday",
+        });
+        assert.equal(res.status, 400);
+    });
+});
