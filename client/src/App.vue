@@ -395,16 +395,22 @@ async function loadToday() {
         if (seq !== todayLoadSeq || scope !== showAllUsers.value) return true;
         todayItems.value = next;
         todayLoaded.value = true;
+        todayFailureShown = false;
         return true;
     } catch {
         return false;
     }
 }
 
+// A failed Today load is reported once per outage, however it was triggered:
+// a save and the live update it causes both reload Today, and a burst of live
+// updates fails the same way each time. The flag clears when a load succeeds.
+let todayFailureShown = false;
 async function refreshToday() {
-    if (!(await loadToday())) {
-        toast.error("Error loading Today — the list may be out of date");
-    }
+    if (await loadToday()) return;
+    if (todayFailureShown) return;
+    todayFailureShown = true;
+    toast.error("Error loading Today — the list may be out of date");
 }
 
 // A row opens the record or the person it is about. The application panel
@@ -844,7 +850,7 @@ function retryLiveUpdates() {
 function handleRemoteChange(evt) {
     // Any application change can move a commitment on Today. Contacts are not
     // on the stream; Today picks theirs up on focus or reconnect.
-    if (section.value === "today") loadToday();
+    if (section.value === "today") refreshToday();
     if (evt.type === "deleted") {
         applications.value = applications.value.filter((a) => a.id !== evt.id);
         if (panelApp.value?.id === evt.id) {

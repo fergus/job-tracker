@@ -183,3 +183,20 @@ test('a Today refresh that fails after a panel save says so (review P2)', async 
 
   await expect(page.getByText('Error loading Today — the list may be out of date')).toBeVisible()
 })
+
+test('a Today reload driven by live updates says once that it failed, not per event', async ({ page, request }) => {
+  const today = await serverToday(request)
+  const app = await seedApp(request, { company_name: 'TodayStreamCo', next_action_at: today })
+
+  await openToday(page)
+  await expect(page.getByText('TodayStreamCo')).toBeVisible()
+
+  await page.route('**/api/today*', (route) => route.fulfill({ status: 500, body: '{}' }))
+  // Two changes made elsewhere (an agent, another tab) arrive over the stream.
+  await request.put(`/api/applications/${app.id}`, { data: { next_action: 'First change' } })
+  const toast = page.getByText('Error loading Today — the list may be out of date')
+  await expect(toast).toHaveCount(1)
+  await request.put(`/api/applications/${app.id}`, { data: { next_action: 'Second change' } })
+  await page.waitForTimeout(1500)
+  await expect(toast).toHaveCount(1)
+})
