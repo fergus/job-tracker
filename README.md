@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/fergus/job-tracker/actions/workflows/build.yml/badge.svg)](https://github.com/fergus/job-tracker/actions/workflows/build.yml)
 
-A multi-user web app for tracking job applications through a pipeline — from initial interest through to offer and acceptance. Kanban board with drag-and-drop, table view, timeline view, file attachments, notes, salary tracking, and date tracking per stage. Each user sees only their own applications; admins can view all.
+A multi-user web app for tracking job applications through a pipeline — from initial interest through to offer and acceptance. A Today queue of what you owe this week, a Kanban board with drag-and-drop, a timeline view, a people list for recruiters and referrers, file attachments, notes, salary tracking, and date tracking per stage. Each user sees only their own applications; admins can view all.
 
 ![Job Application Tracker kanban board with applications across all pipeline stages](docs/screenshot.png)
 
@@ -80,10 +80,9 @@ cp -r uploads/ uploads-backup/
 ## Features
 
 - **Today** — the home screen: everything you owe in the next seven days across roles, leads and people, grouped Overdue / Today / This week (see [Today and follow-ups](#today-and-follow-ups))
-- **Kanban board** — drag cards between columns: Interested → Applied → Screening → Interview → Offer → Accepted/Rejected
-- **Table view** — sortable columns, click any row for details
-- **Timeline view** — visual history of status changes per application
-- **Hamburger menu** — slide-in sidebar with the view switcher and account info; an "Always use menu" toggle (persisted per browser) controls whether the view switcher also appears inline in the header
+- **Kanban board** (Pipeline) — drag cards between columns: Interested → Applied → Responded → Interview (offers sit here too) → Closed; the Closed column splits into Accepted and Rejected and can be hidden with the show-closed toggle
+- **Timeline view** (Pipeline) — each application's stage history as a bar, switchable from the board with the Board / Timeline toggle
+- **People** — recruiters, referrers and hiring managers, grouped by what you owe them; log interactions and set a next action from each person's drawer
 - **Settings panel** — manage API keys, choose whether closing a record clears its next step (Follow-ups), and, for admins, toggle between personal and all-users view
 - **API keys** — generate personal API keys for programmatic access without the browser OAuth flow; scoped to your account, shown once at creation
 - **File attachments** — upload PDF, DOC, DOCX, MD, or TXT files (up to 10MB each) as attachments; CV and cover letter can also be attached directly to an application
