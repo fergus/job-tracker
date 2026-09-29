@@ -79,11 +79,12 @@ cp -r uploads/ uploads-backup/
 
 ## Features
 
+- **Today** — the home screen: everything you owe in the next seven days across roles, leads and people, grouped Overdue / Today / This week (see [Today and follow-ups](#today-and-follow-ups))
 - **Kanban board** — drag cards between columns: Interested → Applied → Screening → Interview → Offer → Accepted/Rejected
 - **Table view** — sortable columns, click any row for details
 - **Timeline view** — visual history of status changes per application
 - **Hamburger menu** — slide-in sidebar with the view switcher and account info; an "Always use menu" toggle (persisted per browser) controls whether the view switcher also appears inline in the header
-- **Settings panel** — manage API keys; admins can toggle between personal and all-users view
+- **Settings panel** — manage API keys, choose whether closing a record clears its next step (Follow-ups), and, for admins, toggle between personal and all-users view
 - **API keys** — generate personal API keys for programmatic access without the browser OAuth flow; scoped to your account, shown once at creation
 - **File attachments** — upload PDF, DOC, DOCX, MD, or TXT files (up to 10MB each) as attachments; CV and cover letter can also be attached directly to an application
 - **Salary tracking** — min/max salary range and job location per application
@@ -91,6 +92,23 @@ cp -r uploads/ uploads-backup/
 - **Stage notes** — per-stage timestamped notes with markdown rendering and colored stage badges
 - **Links** — store job posting and company website URLs
 - **Multi-user** — each user sees only their own applications, identified via PocketID `X-Forwarded-Email` header. Admins (configured via `ADMIN_EMAILS`) can view all users' applications but cannot edit or delete others' data
+
+## Today and follow-ups
+
+The app opens on **Today**, a single list of what you owe this week. **Pipeline** (the board and Timeline) and **People** are one click away in the header.
+
+**What appears on Today.** Every open role or lead, and every person, whose follow-up date falls on or before seven days from today. Rows are grouped **Overdue**, **Today** and **This week**, oldest first, with roles and people mixed together. Each row says what kind it is (Role, Lead or Person) and what to do, for example "Overdue by 2 days: Chase the panel date". A row with a date but no wording reads "Follow up". Anything further out than seven days, or with no date, lives only in Pipeline or People. When nothing is due, Today says so.
+
+**Setting a follow-up on a role.** Open the application, expand **Dates**, and set **Follow up** (the date) and **Next step** (what to do). Each half can be changed or cleared on its own. People have the same pair in their contact drawer.
+
+**Working the list.**
+- Click a row to open the role or the person.
+- Use **+1d**, **+1w** or the calendar icon to snooze. Snoozing only moves the date: it is not logged as contact and does not count as activity on the record.
+- Anything that records what actually happened (a note, a call) goes through the role's panel or the person's drawer.
+
+**Closing a role.** By default, closing a role or lead (from the board, the panel, the API or an agent) clears its next step, and reopening it does not bring the step back. To keep steps instead, turn off **Settings → Follow-ups → Clear the next step when a record closes**. With it off, the step stays on the closed record and returns if you reopen it. Either way, closed records never appear on Today.
+
+A date you add to a role *after* closing it (for example, "re-check this company in six months") is always kept, but Today still lists open records only, so it will not show there.
 
 ## MCP Server (AI Integration)
 
@@ -102,10 +120,10 @@ A Model Context Protocol (MCP) server is included for AI clients to interact wit
 
 **Tools exposed:**
 - `create_application` — create a new job application
-- `add_note` — append a stage note to an application
+- `add_note` — append a stage note to an application, optionally re-dating the follow-up (`next_action_at`) and its wording (`next_action`) in the same call
 - `list_applications` — list all applications (optionally filter by status)
 - `get_application` — get full details including notes and attachments
-- `update_application` — update fields on an existing application
+- `update_application` — update fields on an existing application, including the follow-up date and next-step wording
 - `update_status` — change status (auto-sets the corresponding date)
 - `list_attachments` — list file attachments for an application
 - `upload_attachment` — upload a small file (<~30KB) via base64-encoded content
