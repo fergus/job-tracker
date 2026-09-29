@@ -23,6 +23,13 @@ db.exec(`
   )
 `);
 
+// Migrate: per-user settings. Nullable, so a user who never chose reads back
+// the default (services/settings.js) rather than a stored value.
+const userCols = db.prepare("PRAGMA table_info(users)").all();
+if (!userCols.some((c) => c.name === "clear_next_step_on_close")) {
+    db.exec("ALTER TABLE users ADD COLUMN clear_next_step_on_close INTEGER");
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS applications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,6 +201,12 @@ db.exec(
 const followUpCheck = db.prepare("PRAGMA table_info(applications)").all();
 if (!followUpCheck.some((c) => c.name === "next_action_at")) {
     db.exec("ALTER TABLE applications ADD COLUMN next_action_at TEXT");
+}
+// What the follow-up is, beside when. Free text, nullable, independent of the
+// date -- the same pair contacts carry, so an application row can say what is
+// owed and not just that something is.
+if (!followUpCheck.some((c) => c.name === "next_action")) {
+    db.exec("ALTER TABLE applications ADD COLUMN next_action TEXT");
 }
 
 db.exec(

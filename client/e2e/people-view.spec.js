@@ -67,7 +67,7 @@ test('switching to People works from either lens, and back again', async ({ page
   // R20: People renders no lens control.
   await expect(page.getByRole('button', { name: 'Timeline' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Applications', exact: true }).click()
+  await page.getByRole('button', { name: 'Pipeline', exact: true }).click()
   await page.waitForTimeout(400)
   await page.getByRole('button', { name: 'Timeline' }).click()
   await page.waitForTimeout(400)
@@ -76,8 +76,8 @@ test('switching to People works from either lens, and back again', async ({ page
   await page.waitForTimeout(400)
   await expect(page.getByRole('button', { name: 'People' })).toHaveAttribute('aria-current', 'page')
 
-  // R20 again: returning to Applications restores the lens the user left on.
-  await page.getByRole('button', { name: 'Applications', exact: true }).click()
+  // R20 again: returning to Pipeline restores the lens the user left on.
+  await page.getByRole('button', { name: 'Pipeline', exact: true }).click()
   await page.waitForTimeout(400)
   await expect(page.getByRole('button', { name: 'Board' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Timeline' })).toHaveAttribute('aria-current', 'true')

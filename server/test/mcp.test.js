@@ -249,3 +249,74 @@ describe("mcp note edit/delete tools", () => {
         assert.match(result.content[0].text, /^Error 404: /);
     });
 });
+
+describe("mcp application next step (Today queue U3/U4)", () => {
+    let registered;
+
+    before(() => {
+        registered = tools();
+    });
+
+    function call(name, args) {
+        const parsed = registered[name].inputSchema.safeParse(args);
+        assert.ok(parsed.success, JSON.stringify(parsed.error?.issues));
+        return registered[name].handler(parsed.data, authed());
+    }
+
+    function mk(extra = {}) {
+        return createApplication(TEST_EMAIL, {
+            company_name: "McpStep Co",
+            role_title: "Engineer",
+            status: "applied",
+            ...extra,
+        });
+    }
+
+    test("create_application, update_application and add_note accept next_action", () => {
+        for (const name of ["create_application", "update_application", "add_note"]) {
+            assert.ok(
+                "next_action" in registered[name].inputSchema.def.shape,
+                `${name} is missing next_action`,
+            );
+        }
+    });
+
+    test("update_application sets next_action", async () => {
+        const a = mk();
+        const out = parseResult(await call("update_application", { id: a.id, next_action: "Send portfolio" }));
+        assert.equal(out.next_action, "Send portfolio");
+    });
+
+    test("add_note sets it, and omitting it leaves it alone", async () => {
+        const a = mk({ next_action: "Old" });
+        await call("add_note", { id: a.id, stage: "applied", content: "Chased", next_action: "New" });
+        let got = parseResult(await call("get_application", { id: a.id }));
+        assert.equal(got.next_action, "New");
+        await call("add_note", { id: a.id, stage: "applied", content: "Chased again" });
+        got = parseResult(await call("get_application", { id: a.id }));
+        assert.equal(got.next_action, "New");
+    });
+
+    test("an over-length next_action is refused", () => {
+        assert.equal(
+            registered.update_application.inputSchema.safeParse({ id: 1, next_action: "x".repeat(501) }).success,
+            false,
+        );
+    });
+
+    test("closing through update_application clears both halves (AE5)", async () => {
+        const a = mk({ next_action: "Chase", next_action_at: "2099-01-01" });
+        const out = parseResult(
+            await call("update_application", { id: a.id, state: "closed", close_reason: "rejected" }),
+        );
+        assert.equal(out.next_action, null);
+        assert.equal(out.next_action_at, null);
+    });
+
+    test("update_status to rejected clears both halves", async () => {
+        const a = mk({ next_action: "Chase", next_action_at: "2099-01-01" });
+        const out = parseResult(await call("update_status", { id: a.id, status: "rejected" }));
+        assert.equal(out.next_action, null);
+        assert.equal(out.next_action_at, null);
+    });
+});

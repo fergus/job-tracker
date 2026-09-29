@@ -137,6 +137,15 @@ export function updateProfile(data) {
     return api.put("/me/profile", data).then((r) => r.data);
 }
 
+// Per-user settings that change how the server treats this user's writes.
+export function fetchSettings() {
+    return api.get("/me/settings").then((r) => r.data);
+}
+
+export function updateSettings(data) {
+    return api.put("/me/settings", data).then((r) => r.data);
+}
+
 export function extractJd(appId) {
     return api.post(`/applications/${appId}/extract-jd`).then((r) => r.data);
 }
@@ -153,6 +162,13 @@ export function generateDocument(appId, task) {
 
 export function fetchAuditLog(appId) {
     return api.get(`/applications/${appId}/audit-log`).then((r) => r.data);
+}
+
+// --- Today ---
+
+// The Today queue: already classified and ordered by the server.
+export function fetchToday(all = false) {
+  return api.get('/today', { params: all ? { all: 'true' } : {} }).then((r) => r.data)
 }
 
 // --- Contacts ---

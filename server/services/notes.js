@@ -5,11 +5,16 @@ const {
     VALID_STATUSES,
     getOwnApp,
     normaliseFollowUpDate,
+    normaliseNextAction,
 } = require("./applications");
 const { emitChange } = require("../lib/events");
 const { visibleStageNote } = require("./stage-notes");
 
-function addNote(userEmail, appId, { stage, content, next_action_at }) {
+function addNote(
+    userEmail,
+    appId,
+    { stage, content, next_action_at, next_action },
+) {
     const existing = getOwnApp(appId, userEmail);
     if (!existing) throw new ServiceError(404, "Not found");
 
@@ -33,6 +38,8 @@ function addNote(userEmail, appId, { stage, content, next_action_at }) {
         next_action_at === undefined
             ? undefined
             : normaliseFollowUpDate(next_action_at);
+    const followUpWhat =
+        next_action === undefined ? undefined : normaliseNextAction(next_action);
 
     const now = new Date().toISOString();
     const insertNote = db.transaction(() => {
@@ -45,6 +52,11 @@ function addNote(userEmail, appId, { stage, content, next_action_at }) {
             db.prepare(
                 "UPDATE applications SET next_action_at = ? WHERE id = ?",
             ).run(followUp, appId);
+        }
+        if (followUpWhat !== undefined) {
+            db.prepare(
+                "UPDATE applications SET next_action = ? WHERE id = ?",
+            ).run(followUpWhat, appId);
         }
         db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
             now,

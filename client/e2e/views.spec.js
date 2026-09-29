@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
+import { gotoPipeline } from './helpers.js'
 
 test('kanban board renders applications', async ({ page, request }) => {
   await request.post('/api/applications', {
     data: { company_name: 'KanbanCorp', role_title: 'Engineer', status: 'interested' },
   })
-  await page.goto('/')
+  await gotoPipeline(page)
   await expect(page.getByText('KanbanCorp').first()).toBeVisible()
   await expect(page.getByText('Engineer').first()).toBeVisible()
 })
@@ -13,7 +14,7 @@ test('timeline view renders after switching from kanban', async ({ page, request
   await request.post('/api/applications', {
     data: { company_name: 'TimelineCorp', role_title: 'Engineer', status: 'interested' },
   })
-  await page.goto('/')
+  await gotoPipeline(page)
   await page.click('button:has-text("Timeline")')
   await page.waitForTimeout(400)
   await expect(page.getByText('TimelineCorp').first()).toBeVisible()
@@ -24,7 +25,7 @@ test('mobile viewport renders data', async ({ page, request }) => {
     data: { company_name: 'MobileCorp', role_title: 'Engineer', status: 'interested' },
   })
   await page.setViewportSize({ width: 375, height: 667 })
-  await page.goto('/')
+  await gotoPipeline(page)
   await expect(page.getByRole('button', { name: /MobileCorp/ })).toBeVisible()
 })
 
@@ -33,7 +34,7 @@ test('showClosed=false persists across view switches', async ({ page, request })
     data: { company_name: 'PersistCorp', role_title: 'Engineer', status: 'rejected' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
 
   // Hide closed column via global header toggle
   await page.getByRole('button', { name: 'Hide closed applications' }).click()
@@ -58,7 +59,7 @@ test('timeline renders accepted bars in full colour and rejected bars muted', as
     data: { company_name: 'TimelineRejected', role_title: 'Engineer', status: 'rejected' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
   await page.click('button:has-text("Timeline")')
   await page.waitForTimeout(400)
 
@@ -83,7 +84,7 @@ test('People is reachable as a third destination and carries no lens control', a
     data: { company_name: 'SectionCorp', role_title: 'Engineer', status: 'interested' },
   })
 
-  await page.goto('/')
+  await gotoPipeline(page)
   await expect(page.getByText('SectionCorp').first()).toBeVisible()
 
   await page.getByRole('button', { name: 'People' }).click()
@@ -92,7 +93,7 @@ test('People is reachable as a third destination and carries no lens control', a
   await expect(page.getByText('SectionCorp')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Board' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Applications', exact: true }).click()
+  await page.getByRole('button', { name: 'Pipeline', exact: true }).click()
   await page.waitForTimeout(400)
   await expect(page.getByText('SectionCorp').first()).toBeVisible()
 })

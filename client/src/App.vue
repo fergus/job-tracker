@@ -39,7 +39,7 @@
                 <div class="flex items-center gap-3 order-2 sm:order-3">
                     <!-- Show/Hide Closed toggle -->
                     <button
-                        v-show="closedCount > 0"
+                        v-show="section === 'applications' && closedCount > 0"
                         :aria-label="
                             showClosed
                                 ? 'Hide closed applications'
@@ -117,8 +117,19 @@
         <!-- Main content -->
         <main id="main-content" class="flex-1 px-4 py-4">
             <Transition name="view" mode="out-in">
+                <TodayView
+                    v-if="section === 'today'"
+                    key="today"
+                    :items="todayItems"
+                    :loaded="todayLoaded"
+                    :readOnly="showAllUsers"
+                    :showUser="showAllUsers"
+                    :pendingKey="snoozingTodayKey"
+                    @open="handleTodayOpen"
+                    @snooze="handleTodaySnooze"
+                />
                 <KanbanBoard
-                    v-if="section === 'applications' && view === 'kanban'"
+                    v-else-if="section === 'applications' && view === 'kanban'"
                     key="kanban"
                     :applications="applications"
                     :showUser="showAllUsers"
@@ -200,6 +211,7 @@ import {
     fetchApplications,
     fetchApplication,
     fetchContacts,
+    fetchToday,
     createContact,
     updateContact,
     updateStatus,
@@ -233,6 +245,8 @@ import { defineAsyncComponent } from 'vue'
 import KanbanBoard from "./components/KanbanBoard.vue";
 import SectionNav from "./components/SectionNav.vue";
 import PeopleView from "./components/PeopleView.vue";
+import TodayView from "./components/TodayView.vue";
+import { todayItemKey } from "./utils/todayGroups.js";
 import TimelineView from "./components/TimelineView.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import ToastContainer from "./components/ToastContainer.vue";
@@ -254,12 +268,17 @@ const SHOW_CLOSED_KEY = "jobtracker_show_closed";
 
 
 
-// Two tiers: the section is which entity you are looking at, the view is
-// which lens the Applications section is under. People has no lens.
-const section = ref("applications");
+// Two tiers: the section is which view you are looking at, the view is which
+// lens the Pipeline (applications) section is under. Today and People have no
+// lens. Today is home: the app opens on what is owed.
+const section = ref("today");
 const view = ref("kanban");
 const applications = ref([]);
 const contacts = ref([]);
+const todayItems = ref([]);
+// Whether a Today load has ever succeeded. Until one has, an empty list means
+// "not known yet", and the view must not say nothing is owed.
+const todayLoaded = ref(false);
 const panelApp = ref(null);
 const showPanel = ref(false);
 const currentUser = ref(null);
@@ -364,11 +383,77 @@ async function refreshContacts() {
     }
 }
 
+// Today is server-ordered too, so it is always replaced whole. It carries the
+// same token and scope guard as the contact list, and a failed load keeps the
+// list it had: an empty screen after an error would read as "nothing owed".
+let todayLoadSeq = 0;
+async function loadToday() {
+    const seq = ++todayLoadSeq;
+    const scope = showAllUsers.value;
+    try {
+        const next = await fetchToday(scope);
+        if (seq !== todayLoadSeq || scope !== showAllUsers.value) return true;
+        todayItems.value = next;
+        todayLoaded.value = true;
+        todayFailureShown = false;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// A failed Today load is reported once per outage, however it was triggered:
+// a save and the live update it causes both reload Today, and a burst of live
+// updates fails the same way each time. The flag clears when a load succeeds.
+let todayFailureShown = false;
+async function refreshToday() {
+    if (await loadToday()) return;
+    if (todayFailureShown) return;
+    todayFailureShown = true;
+    toast.error("Error loading Today — the list may be out of date");
+}
+
+// A row opens the record or the person it is about. The application panel
+// opens on the board's row when it has one, and upgrades to the full record.
+function handleTodayOpen(item) {
+    if (item.kind === "contact") {
+        openContact(item.id);
+        return;
+    }
+    openPanel(applications.value.find((a) => a.id === item.id) ?? { id: item.id });
+}
+
+// Snoozing moves the date and nothing else, through the same update endpoint
+// each kind already uses, so it is never logged as contact or activity. The
+// list is refetched rather than the row moved: order is the server's.
+const snoozingTodayKey = ref(null);
+async function handleTodaySnooze(item, date) {
+    if (snoozingTodayKey.value !== null) return;
+    snoozingTodayKey.value = todayItemKey(item);
+    let written = false;
+    try {
+        if (item.kind === "contact") {
+            await updateContact(item.id, { next_action_at: date });
+        } else {
+            await updateApplication(item.id, { next_action_at: date });
+        }
+        written = true;
+    } catch (err) {
+        toast.error("Failed to reschedule — " + getErrorMessage(err));
+    } finally {
+        snoozingTodayKey.value = null;
+    }
+    if (!written) return;
+    if (!(await loadToday())) {
+        toast.error("Rescheduled, but the list did not refresh — reload to see it in place");
+    }
+}
+
 // R23. The contact list is not on the change event stream (KTD8), so its
 // freshness comes from refetching at the moments the user could have missed
 // something: arriving at the section, returning to the tab, and a stream
 // reconnect that proves the client was disconnected.
-const SECTION_LABELS = { applications: "Applications", people: "People" };
+const SECTION_LABELS = { today: "Today", applications: "Pipeline", people: "People" };
 const sectionAnnouncement = ref("");
 
 let announcementTimer = null;
@@ -385,6 +470,7 @@ function setSection(next) {
         announcementTimer = null;
     }, 1000);
     if (next === "people") refreshContacts();
+    if (next === "today") refreshToday();
 }
 
 // KTD3: the update endpoint, not the notes endpoint -- logging a note would
@@ -435,9 +521,9 @@ async function handleCreateContact(data, done) {
 }
 
 function refreshOnFocus() {
-    if (document.visibilityState === "visible" && section.value === "people") {
-        refreshContacts();
-    }
+    if (document.visibilityState !== "visible") return;
+    if (section.value === "people") refreshContacts();
+    if (section.value === "today") refreshToday();
 }
 
 // The board holds list rows, which carry no linked contacts -- only the detail
@@ -476,9 +562,13 @@ async function handleContactSaved() {
         return;
     }
     await loadContacts();
+    if (section.value === "today") await refreshToday();
 }
 
 async function handlePanelSaved() {
+    // A save can move, add or clear a commitment, and Today is ordered by the
+    // server, so it refetches rather than patching a row.
+    if (section.value === "today") await refreshToday();
     if (panelApp.value?.id) {
         const exists = applications.value.some(
             (a) => a.id === panelApp.value.id,
@@ -588,6 +678,7 @@ function setShowAll(val) {
     showAllUsers.value = val;
     loadApplications();
     if (section.value === "people") refreshContacts();
+    if (section.value === "today") refreshToday();
     connectLiveUpdates();
 }
 
@@ -730,9 +821,12 @@ function requestReconnectRefetch() {
     );
     refetchQueue = gate.state;
     if (gate.apply) runRefetch();
-    // Contacts have no drag gesture to land under, so they refetch straight
-    // away rather than going through the applications queue.
+    // Contacts and Today have no drag gesture to land under, so they refetch
+    // straight away rather than going through the applications queue. The
+    // day-rollover detector routes through here too, which is what moves Today
+    // across midnight.
     if (section.value === "people") refreshContacts();
+    if (section.value === "today") refreshToday();
 }
 
 watch(dragActive, (active) => {
@@ -754,6 +848,9 @@ function retryLiveUpdates() {
 }
 
 function handleRemoteChange(evt) {
+    // Any application change can move a commitment on Today. Contacts are not
+    // on the stream; Today picks theirs up on focus or reconnect.
+    if (section.value === "today") refreshToday();
     if (evt.type === "deleted") {
         applications.value = applications.value.filter((a) => a.id !== evt.id);
         if (panelApp.value?.id === evt.id) {
@@ -771,6 +868,8 @@ onMounted(async () => {
     document.addEventListener("visibilitychange", refreshOnFocus);
     currentUser.value = await fetchMe();
     loadApplications();
+    // Today is the default section, so it never passes through setSection.
+    refreshToday();
     connectLiveUpdates();
     // Follow-up state is classified server-side against today, so a board
     // left open past midnight is showing yesterday's classification. Refetch
