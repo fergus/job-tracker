@@ -165,3 +165,21 @@ test('closing a role from the board clears its step, and reopening does not brin
   await page.waitForTimeout(400)
   await expect(page.getByText('TodayCloseCo')).toHaveCount(0)
 })
+
+test('a Today refresh that fails after a panel save says so (review P2)', async ({ page, request }) => {
+  const today = await serverToday(request)
+  await seedApp(request, { company_name: 'TodayToastCo', next_action_at: today })
+
+  await openToday(page)
+  await page.getByRole('button', { name: /^Role\. TodayToastCo/ }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+
+  // Only the Today reload fails; the save itself goes through.
+  await page.route('**/api/today*', (route) => route.fulfill({ status: 500, body: '{}' }))
+  const field = dialog.getByLabel('Next step', { exact: true })
+  await field.fill('Send portfolio')
+  await field.press('Enter')
+
+  await expect(page.getByText('Error loading Today — the list may be out of date')).toBeVisible()
+})

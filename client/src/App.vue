@@ -556,13 +556,13 @@ async function handleContactSaved() {
         return;
     }
     await loadContacts();
-    if (section.value === "today") await loadToday();
+    if (section.value === "today") await refreshToday();
 }
 
 async function handlePanelSaved() {
     // A save can move, add or clear a commitment, and Today is ordered by the
     // server, so it refetches rather than patching a row.
-    if (section.value === "today") loadToday();
+    if (section.value === "today") await refreshToday();
     if (panelApp.value?.id) {
         const exists = applications.value.some(
             (a) => a.id === panelApp.value.id,
