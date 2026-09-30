@@ -205,6 +205,7 @@ Auth middleware (`server/middleware/auth.js`) supports two methods:
 - `trust proxy` enabled for Express behind a reverse proxy.
 - File uploads are restricted to `.pdf`, `.doc`, `.docx`, `.md`, `.txt`, max 10 MB.
 - `safePath()` prevents directory traversal for uploaded files.
+- Fetching a job posting (`services/fetch-jd.js`) connects only to public addresses. `job_posting_url` is caller-controlled, so the check runs inside the socket's DNS lookup (the address checked is the address dialled) and redirects are followed by hand, each hop re-checked, up to `JD_FETCH_MAX_REDIRECTS`. Do not swap it back to `fetch()`, which offers no hook between resolving and connecting.
 - `SERVER_API_KEY_SECRET` is **required** in production; hard-fail on startup if missing.
 - Admin users can view and download any user's applications/attachments (audit-logged), but **cannot** create, update, or delete other users' records.
 
