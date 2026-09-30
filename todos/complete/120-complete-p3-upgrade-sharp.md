@@ -29,5 +29,5 @@ cd client && npm install --save-dev sharp@0.35.5
 
 ## Acceptance Criteria
 
-- [ ] `client/package.json` references `^0.35.5`
-- [ ] Client builds clean (`npm run build:client` from repo root)
+- [x] `client/package.json` references `^0.35.5`
+- [x] Client builds clean (`npm run build:client` from repo root)
