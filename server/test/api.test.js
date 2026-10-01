@@ -860,6 +860,18 @@ describe("Job Description Extraction", () => {
         assert.ok(res.body.error);
     });
 
+    test("POST /api/applications/:id/fetch-jd refuses an internal address", async () => {
+        const app = await createApp();
+        await req.put(`/api/applications/${app.id}`).send({
+            job_posting_url: "http://169.254.169.254/latest/meta-data/",
+        });
+        const res = await req.post(`/api/applications/${app.id}/fetch-jd`);
+        assert.equal(res.status, 502);
+        assert.equal(res.body.type, "blocked");
+        const after = await req.get(`/api/applications/${app.id}`);
+        assert.equal(after.body.job_description ?? null, null);
+    });
+
     test("POST /api/applications/:id/extract-jd scopes to owner", async () => {
         const app = await createApp();
         await req

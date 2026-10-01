@@ -33,6 +33,6 @@ upstream changelog.
 
 ## Acceptance Criteria
 
-- [ ] `server/package.json` references `^1.13.0`
-- [ ] Server tests pass (`cd server && npm test`)
-- [ ] .docx text extraction still works on an uploaded CV or cover letter
+- [x] `server/package.json` references `^1.13.0`
+- [x] Server tests pass (`cd server && npm test`)
+- [x] .docx text extraction still works on an uploaded CV or cover letter
