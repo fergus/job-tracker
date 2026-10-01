@@ -31,6 +31,6 @@ upstream changelog.
 
 ## Acceptance Criteria
 
-- [ ] Package upgraded to v1.31.0
-- [ ] Server tests pass (`cd server && npm test`)
-- [ ] An MCP client can still initialise a session and list tools
+- [x] Package upgraded to v1.31.0
+- [x] Server tests pass (`cd server && npm test`)
+- [x] An MCP client can still initialise a session and list tools
