@@ -29,5 +29,12 @@ cd client && npm install --save-dev sharp@0.35.5
 
 ## Acceptance Criteria
 
-- [ ] `client/package.json` references `^0.35.5`
-- [ ] Client builds clean (`npm run build:client` from repo root)
+- [x] `client/package.json` references `^0.35.5`
+- [x] Client builds clean (`npm run build:client` from repo root)
+
+## Completion
+
+- Completed 2026-10-03: the 48-hour freshness window had long passed, so the
+  patch bump was auto-applied by the weekly dependency check.
+  `cd client && npm install sharp@0.35.5` → now on `^0.35.5`; `npm run build:client`
+  from repo root built clean with Vite 8.3.2.
