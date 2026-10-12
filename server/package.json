@@ -1,6 +1,6 @@
 {
     "name": "job-tracker-server",
-    "version": "0.24.2",
+    "version": "0.24.3",
     "private": true,
     "scripts": {
         "test": "node --test test/*.test.js test/*/*.test.js"
