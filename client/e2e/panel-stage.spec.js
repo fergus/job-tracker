@@ -28,7 +28,7 @@ test('a stage pill moves the record and Undo restores the previous stage', async
   expect(moved.interview_at).toBeTruthy()
   expect('status' in moved).toBe(false)
 
-  await page.getByRole('button', { name: 'Undo' }).click()
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect(dialog.getByRole('button', { name: 'applied', exact: true })).toHaveAttribute('aria-pressed', 'true')
   expect((await findApp(request, 'PanelStageCo')).stage).toBe('applied')
 
@@ -51,7 +51,7 @@ test('Close opens the picker; Accepted is reachable and Undo reopens', async ({ 
   expect(closed.stage).toBe('offer')
   await expect(dialog.getByTestId('panel-close-reason')).toHaveText('Offer accepted')
 
-  await page.getByRole('button', { name: 'Undo' }).click()
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect(dialog.getByTestId('panel-close-action')).toHaveText('Close')
   const reopened = await findApp(request, 'PanelAcceptCo')
   expect(reopened.state).toBe('open')

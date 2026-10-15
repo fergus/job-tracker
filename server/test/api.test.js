@@ -1041,13 +1041,18 @@ describe("Context Assembly", () => {
 describe("Document Generation", () => {
     const extraction = require("../services/extraction");
     let originalGetOpenAIClient;
+    // The last request the generation service sent, so a test can read the
+    // prompt context it built.
+    let lastRequest = null;
 
     before(() => {
         originalGetOpenAIClient = extraction.getOpenAIClient;
         extraction.getOpenAIClient = () => ({
             chat: {
                 completions: {
-                    create: async () => ({
+                    create: async (request) => {
+                        lastRequest = request;
+                        return {
                         choices: [
                             {
                                 message: {
@@ -1055,7 +1060,8 @@ describe("Document Generation", () => {
                                 },
                             },
                         ],
-                    }),
+                        };
+                    },
                 },
             },
         });
@@ -1095,6 +1101,34 @@ describe("Document Generation", () => {
         assert.equal(attachRes.status, 200);
         assert.equal(attachRes.body.length, 1);
         assert.equal(attachRes.body[0].generated_by, "agent");
+    });
+
+    test("the generation prompt describes the record by stage, state and close reason", async () => {
+        const email = "gen-context@example.com";
+        const created = await req
+            .post("/api/applications")
+            .set("X-Forwarded-Email", email)
+            .field("company_name", "ContextCo")
+            .field("role_title", "Engineer")
+            .field("stage", "interview")
+            .field("job_description", "Build things");
+        assert.equal(created.status, 201);
+        await req
+            .put(`/api/applications/${created.body.id}`)
+            .set("X-Forwarded-Email", email)
+            .send({ state: "closed", close_reason: "role_closed" });
+
+        const res = await req
+            .post(`/api/applications/${created.body.id}/generate`)
+            .set("X-Forwarded-Email", email)
+            .send({ task: "cover_letter" });
+        assert.equal(res.status, 200);
+
+        const prompt = JSON.stringify(lastRequest.messages);
+        assert.match(prompt, /Stage: interview/);
+        assert.match(prompt, /State: closed/);
+        assert.match(prompt, /Close reason: role_closed/);
+        assert.doesNotMatch(prompt, /Status:/);
     });
 
     test("POST /api/applications/:id/generate supports resume_tailor and interview_prep", async () => {

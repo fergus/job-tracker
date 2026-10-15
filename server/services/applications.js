@@ -706,11 +706,16 @@ function updateApplication(userEmail, id, data) {
         }
 
         // Reaching a stage stamps its date, which the timeline reads. Only a
-        // change of stage or a reopen counts: re-saving the stage a record is
-        // already at must not overwrite the date it first got there.
+        // change of stage counts, plus a reopen onto a stage that has no date
+        // yet: re-saving the stage a record is at, or reopening it where it
+        // closed (an Undo of a close), must not overwrite the date it first
+        // got there.
         const reopens = existing.state === "closed" && nextState === "open";
         const dateField = STAGE_DATE_MAP[nextStage];
-        if (dateField && (nextStage !== existing.stage || reopens)) {
+        if (
+            dateField &&
+            (nextStage !== existing.stage || (reopens && !existing[dateField]))
+        ) {
             updates.push(`${dateField} = ?`);
             values.push(new Date().toISOString());
         }

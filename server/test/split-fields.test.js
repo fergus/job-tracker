@@ -191,13 +191,23 @@ describe("stage writes stamp the stage date", () => {
         assert.ok(res.body.responded_at);
     });
 
-    test("reopening at the stage it closed from stamps that stage again", async () => {
+    test("reopening where it closed keeps the stage date, so Undo of a close loses nothing", async () => {
         const created = await createApp({ stage: "responded" });
+        await patch(created.id, { stage: "responded" });
+        const stamped = (await get(created.id)).responded_at;
+        assert.ok(stamped);
         await patch(created.id, { state: "closed", close_reason: "lapsed" });
         await new Promise((r) => setTimeout(r, 5));
-        const reopened = await patch(created.id, { state: "open" });
-        assert.notEqual(reopened.body.responded_at, created.responded_at);
-        assert.ok(reopened.body.responded_at);
+        const reopened = await patch(created.id, { state: "open", stage: "responded" });
+        assert.equal(reopened.body.state, "open");
+        assert.equal(reopened.body.responded_at, stamped);
+    });
+
+    test("reopening onto a stage that never got a date stamps it", async () => {
+        const created = await createApp({ stage: "applied" });
+        await patch(created.id, { state: "closed", close_reason: "lapsed" });
+        const reopened = await patch(created.id, { state: "open", stage: "interview" });
+        assert.ok(reopened.body.interview_at);
     });
 });
 
@@ -413,5 +423,28 @@ describe("MCP surfaces contact errors as tool errors", () => {
 
     test("an unexpected error still propagates", () => {
         assert.throws(() => toolError(new Error("boom")), /boom/);
+    });
+});
+
+describe("Undo of a close", () => {
+    test("restores the follow-up the close cleared, in one reopen write", async () => {
+        const created = await createApp({ stage: "applied" });
+        await patch(created.id, { next_action_at: "2099-01-01", next_action: "Send references" });
+        const before = await get(created.id);
+
+        const closed = await patch(created.id, { state: "closed", close_reason: "lapsed" });
+        assert.equal(closed.body.next_action, null);
+
+        const restored = await patch(created.id, {
+            stage: before.stage,
+            state: "open",
+            next_action_at: before.next_action_at,
+            next_action: before.next_action,
+        });
+        assert.equal(restored.status, 200, JSON.stringify(restored.body));
+        assert.equal(restored.body.state, "open");
+        assert.equal(restored.body.next_action, "Send references");
+        assert.equal(restored.body.next_action_at, "2099-01-01");
+        assert.equal(restored.body.applied_at, before.applied_at);
     });
 });

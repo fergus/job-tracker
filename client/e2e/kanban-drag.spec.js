@@ -159,11 +159,57 @@ test('moving a card between open stages stamps the stage date, and Undo puts it 
   expect(moved.stage).toBe('applied')
   expect(moved.applied_at).toBeTruthy()
 
-  await page.getByRole('button', { name: 'Undo' }).click()
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
   await page.waitForTimeout(500)
 
   const restored = await findApp(request, 'StampCorp')
   expect(restored.stage).toBe('interested')
   expect(restored.state).toBe('open')
   await cleanup(request, 'StampCorp')
+})
+
+test('Undo of a close restores the stage date and the follow-up the close cleared', async ({ page, request }) => {
+  const seeded = await seedApp(request, {
+    company_name: 'UndoCloseCorp',
+    role_title: 'Engineer',
+    stage: 'applied',
+    next_action_at: '2099-01-01',
+    next_action: 'Send references',
+  })
+  const before = await findApp(request, 'UndoCloseCorp')
+  expect(before.applied_at).toBeTruthy()
+
+  await gotoPipeline(page)
+  await dragWithDelay(page, page.getByText('UndoCloseCorp').first(), page.getByTestId('closed-drop-zone'))
+  await page.getByTestId('close-reason-picker').getByTestId('close-reason-lapsed').click()
+  await page.waitForTimeout(500)
+
+  const closed = await findApp(request, 'UndoCloseCorp')
+  expect(closed.state).toBe('closed')
+  expect(closed.next_action).toBeNull()
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await page.waitForTimeout(500)
+
+  const restored = await findApp(request, 'UndoCloseCorp')
+  expect(restored.state).toBe('open')
+  expect(restored.stage).toBe('applied')
+  expect(restored.applied_at).toBe(before.applied_at)
+  expect(restored.next_action).toBe('Send references')
+  expect(restored.next_action_at).toBe('2099-01-01')
+  await request.delete(`/api/applications/${seeded.id}`)
+})
+
+test('on a phone-width screen the Closed group lists closed cards with their reason', async ({ page, request }) => {
+  // A drag across the sideways-scrolling strip cannot be driven reliably, so the
+  // mobile drop target is covered by what it renders. It shares onClosedAdded
+  // with the desktop column, whose drop is exercised above.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await seedApp(request, { company_name: 'MobileSeedClosed', role_title: 'Engineer', stage: 'applied' }, 'lapsed')
+
+  await gotoPipeline(page)
+  const zone = page.getByTestId('closed-drop-zone-mobile')
+  await expect(zone.getByText('MobileSeedClosed')).toHaveCount(1)
+  await expect(zone.getByTestId('close-reason-badge')).toContainText('No response')
+  await cleanup(request, 'MobileSeedClosed')
 })

@@ -73,7 +73,7 @@ const signal = computed(() => cardSignal(props.application, Date.now()))
 const closeReasonStyle = computed(() => {
   const tone = ['accepted', 'rejected'].includes(props.application.close_reason)
     ? props.application.close_reason
-    : 'interested'
+    : 'closed'
   return { backgroundColor: `var(--stage-${tone}-bg)`, color: `var(--stage-${tone}-fg)` }
 })
 </script>

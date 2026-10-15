@@ -67,6 +67,7 @@
             :key="s"
             @click="onStageClick(s)"
             :aria-pressed="isStageActive(s)"
+            :disabled="writingRecord"
             :class="[
               isStageActive(s) ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1',
               stampingStage === s ? 'stage-stamp' : ''
@@ -1228,7 +1229,17 @@ function isStageActive(s) {
 const stageForcesApplication = computed(() => STAGE_ORDER.indexOf(form.stage) >= STAGE_ORDER.indexOf('applied'))
 const effectiveRecordType = computed(() => (stageForcesApplication.value ? 'application' : form.record_type))
 
+// One stage or close write at a time: a double-click must not send two.
+const writingRecord = ref(false)
+
+// What Undo restores: the saved stage, state and reason plus the follow-up.
+function recordSnapshot() {
+  return snapshotOf({ ...props.panelApp, ...record })
+}
+
 async function writeRecord(appId, body, failureMessage, toastMessage, before) {
+  if (writingRecord.value) return
+  writingRecord.value = true
   try {
     const updated = await updateApplication(appId, body)
     syncRecord(updated)
@@ -1246,6 +1257,8 @@ async function writeRecord(appId, body, failureMessage, toastMessage, before) {
     })
   } catch (err) {
     toast.error(failureMessage + getErrorMessage(err))
+  } finally {
+    writingRecord.value = false
   }
 }
 
@@ -1263,7 +1276,7 @@ async function onStageClick(s) {
     { stage: s, state: 'open' },
     'Error updating stage: ',
     record.state === 'closed' ? `Reopened at ${label}` : `Moved to ${label}`,
-    snapshotOf(record),
+    recordSnapshot(),
   )
 }
 
@@ -1280,7 +1293,7 @@ async function onCloseReasonPicked(reason) {
     { state: 'closed', close_reason: reason },
     'Failed to close record: ',
     `Closed — ${label}`,
-    snapshotOf(record),
+    recordSnapshot(),
   )
 }
 
