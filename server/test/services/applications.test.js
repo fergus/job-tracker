@@ -14,7 +14,6 @@ const {
     ServiceError,
     createApplication,
     updateApplication,
-    updateStatus,
     deleteApplication,
     getApplication,
     listApplications,
@@ -66,7 +65,9 @@ describe("services/applications", () => {
             });
             assert.equal(app.company_name, "Acme");
             assert.equal(app.role_title, "Engineer");
-            assert.equal(app.status, "interested");
+            assert.equal(app.stage, "interested");
+            assert.equal(app.state, "open");
+            assert.equal(app.record_type, "lead");
             assert.ok(app.created_at);
             assert.ok(app.interested_at);
         });
@@ -117,13 +118,13 @@ describe("services/applications", () => {
             );
         });
 
-        test("sets applied_at when status is applied", () => {
+        test("sets applied_at when the stage is applied", () => {
             const app = createApplication(TEST_EMAIL, {
                 company_name: "Acme",
                 role_title: "Engineer",
-                status: "applied",
+                stage: "applied",
             });
-            assert.equal(app.status, "applied");
+            assert.equal(app.stage, "applied");
             assert.ok(app.applied_at);
         });
 
@@ -212,54 +213,82 @@ describe("services/applications", () => {
         });
     });
 
-    describe("updateStatus", () => {
-        test("updates status and sets date field", () => {
+    describe("stage and close writes", () => {
+        test("a stage write sets that stage's date", () => {
             const app = createApplication(TEST_EMAIL, {
                 company_name: "Acme",
                 role_title: "Engineer",
-                status: "interested",
             });
-            const updated = updateStatus(TEST_EMAIL, app.id, "interview");
-            assert.equal(updated.status, "interview");
+            const updated = updateApplication(TEST_EMAIL, app.id, {
+                stage: "interview",
+            });
+            assert.equal(updated.stage, "interview");
             assert.ok(updated.interview_at);
         });
 
-        test("rejects invalid status", () => {
+        test("rejects an invalid stage", () => {
             const app = createApplication(TEST_EMAIL, {
                 company_name: "Acme",
                 role_title: "Engineer",
             });
             assert.throws(
-                () => updateStatus(TEST_EMAIL, app.id, "bogus"),
+                () => updateApplication(TEST_EMAIL, app.id, { stage: "bogus" }),
                 (err) => err instanceof ServiceError && err.status === 400,
             );
         });
 
         test("returns 404 for unknown app", () => {
             assert.throws(
-                () => updateStatus(TEST_EMAIL, 999999, "applied"),
+                () => updateApplication(TEST_EMAIL, 999999, { stage: "applied" }),
                 (err) => err instanceof ServiceError && err.status === 404,
             );
         });
 
-        test("sets closed_at for rejected", () => {
+        test("closing sets closed_at and the reason", () => {
             const app = createApplication(TEST_EMAIL, {
                 company_name: "Acme",
                 role_title: "Engineer",
             });
-            const updated = updateStatus(TEST_EMAIL, app.id, "rejected");
-            assert.equal(updated.status, "rejected");
+            const updated = updateApplication(TEST_EMAIL, app.id, {
+                state: "closed",
+                close_reason: "rejected",
+            });
+            assert.equal(updated.close_reason, "rejected");
             assert.ok(updated.closed_at);
         });
 
-        test("sets closed_at for accepted", () => {
+        test("the legacy status never comes back", () => {
             const app = createApplication(TEST_EMAIL, {
                 company_name: "Acme",
                 role_title: "Engineer",
             });
-            const updated = updateStatus(TEST_EMAIL, app.id, "accepted");
-            assert.equal(updated.status, "accepted");
-            assert.ok(updated.closed_at);
+            assert.equal("status" in app, false);
+            assert.equal(
+                "status" in updateApplication(TEST_EMAIL, app.id, { stage: "applied" }),
+                false,
+            );
+        });
+    });
+
+    describe("rejectLegacyStatus", () => {
+        const { rejectLegacyStatus } = require("../../services/applications");
+
+        test("throws a 400 naming the replacement fields when status is given", () => {
+            assert.throws(
+                () => rejectLegacyStatus({ status: "applied" }),
+                (err) =>
+                    err instanceof ServiceError &&
+                    err.status === 400 &&
+                    /stage, state, close_reason and record_type/.test(err.message),
+            );
+        });
+
+        test("ignores absent, null and empty status", () => {
+            rejectLegacyStatus({});
+            rejectLegacyStatus({ status: undefined });
+            rejectLegacyStatus({ status: null });
+            rejectLegacyStatus({ status: "" });
+            rejectLegacyStatus(undefined);
         });
     });
 
@@ -339,19 +368,21 @@ describe("services/applications", () => {
             assert.equal(list[0].company_name, "A");
         });
 
-        test("filters by status", () => {
+        test("filters by record type", () => {
             cleanupApps();
             createApplication(TEST_EMAIL, {
                 company_name: "A",
                 role_title: "E1",
-                status: "interested",
+                stage: "interested",
             });
             createApplication(TEST_EMAIL, {
                 company_name: "B",
                 role_title: "E2",
-                status: "applied",
+                stage: "applied",
             });
-            const list = listApplications(TEST_EMAIL, { status: "applied" });
+            const list = listApplications(TEST_EMAIL, {
+                record_type: "application",
+            });
             assert.equal(list.length, 1);
             assert.equal(list[0].company_name, "B");
         });
@@ -438,20 +469,20 @@ describe("services/applications", () => {
             createApplication(TEST_EMAIL, {
                 company_name: "A",
                 role_title: "E",
-                status: "interested",
+                stage: "interested",
             });
             createApplication(TEST_EMAIL, {
                 company_name: "B",
                 role_title: "E",
-                status: "applied",
+                stage: "applied",
             });
             createApplication(TEST_EMAIL, {
                 company_name: "C",
                 role_title: "E",
-                status: "applied",
+                stage: "applied",
             });
             const result = listApplications(TEST_EMAIL, {
-                status: "applied",
+                record_type: "application",
                 limit: 10,
                 offset: 0,
             });

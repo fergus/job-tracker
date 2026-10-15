@@ -27,7 +27,7 @@ async function mkApp(email) {
     const res = await as(req.post("/api/applications"), email).send({
         company_name: "Settings Co",
         role_title: "Engineer",
-        status: "applied",
+        stage: "applied",
         next_action_at: "2026-10-01",
         next_action: "Chase",
     });
@@ -109,11 +109,11 @@ describe("closing honours the setting", () => {
         assert.equal(reopened.body.next_action_at, "2026-10-01");
     });
 
-    test("turned off, a status close keeps the step", async () => {
+    test("turned off, a close keeps the step", async () => {
         const email = user();
         await as(req.put("/api/me/settings"), email).send({ clear_next_step_on_close: false });
         const a = await mkApp(email);
-        await as(req.patch(`/api/applications/${a.id}/status`), email).send({ status: "rejected" });
+        await as(req.put(`/api/applications/${a.id}`), email).send({ state: "closed", close_reason: "rejected" });
         assert.deepEqual(step(a.id), { next_action_at: "2026-10-01", next_action: "Chase" });
     });
 
@@ -121,7 +121,7 @@ describe("closing honours the setting", () => {
         const email = user();
         await as(req.put("/api/me/settings"), email).send({ clear_next_step_on_close: false });
         const a = await mkApp(email);
-        await as(req.patch(`/api/applications/${a.id}/status`), email).send({ status: "rejected" });
+        await as(req.put(`/api/applications/${a.id}`), email).send({ state: "closed", close_reason: "rejected" });
         const today = await as(req.get("/api/today"), email);
         assert.equal(today.body.some((i) => i.kind === "application" && i.id === a.id), false);
     });
@@ -131,52 +131,31 @@ describe("closing honours the setting", () => {
         await as(req.put("/api/me/settings"), email).send({ clear_next_step_on_close: false });
         await as(req.put("/api/me/settings"), email).send({ clear_next_step_on_close: true });
         const a = await mkApp(email);
-        await as(req.patch(`/api/applications/${a.id}/status`), email).send({ status: "accepted" });
+        await as(req.put(`/api/applications/${a.id}`), email).send({ state: "closed", close_reason: "accepted" });
         assert.deepEqual(step(a.id), { next_action_at: null, next_action: null });
     });
 });
 
-describe("creating an already-closed record honours the setting (review P3)", () => {
-    async function mkClosed(email, status) {
-        const res = await as(req.post("/api/applications"), email).send({
-            company_name: "Closed At Birth Co",
+describe("creating a record with a next step", () => {
+    test("an open record created with a step keeps it", async () => {
+        const res = await as(req.post("/api/applications"), user()).send({
+            company_name: "Open Step Co",
             role_title: "Engineer",
-            status,
+            stage: "applied",
             next_action_at: "2026-10-01",
             next_action: "Chase",
         });
         assert.equal(res.status, 201, JSON.stringify(res.body));
-        return res.body;
-    }
-
-    test("with the default, a record created rejected carries no next step", async () => {
-        const a = await mkClosed(user(), "rejected");
-        assert.equal(a.state, "closed");
-        assert.deepEqual(step(a.id), { next_action_at: null, next_action: null });
+        assert.deepEqual(step(res.body.id), {
+            next_action_at: "2026-10-01",
+            next_action: "Chase",
+        });
     });
 
-    test("with the default, a record created accepted carries no next step", async () => {
-        const a = await mkClosed(user(), "accepted");
-        assert.deepEqual(step(a.id), { next_action_at: null, next_action: null });
-    });
-
-    test("turned off, a record created closed keeps its step", async () => {
-        const email = user();
-        await as(req.put("/api/me/settings"), email).send({ clear_next_step_on_close: false });
-        const a = await mkClosed(email, "rejected");
-        assert.deepEqual(step(a.id), { next_action_at: "2026-10-01", next_action: "Chase" });
-    });
-
-    test("an open record created with a step keeps it", async () => {
-        const a = await mkClosed(user(), "applied");
-        assert.deepEqual(step(a.id), { next_action_at: "2026-10-01", next_action: "Chase" });
-    });
-
-    test("a malformed date on a closed create is still refused", async () => {
+    test("a malformed date on create is still refused", async () => {
         const res = await as(req.post("/api/applications"), user()).send({
             company_name: "Bad Date Co",
             role_title: "Engineer",
-            status: "rejected",
             next_action_at: "next Thursday",
         });
         assert.equal(res.status, 400);

@@ -32,7 +32,7 @@ async function mkApp(body = {}, email = USER) {
     const res = await as(req.post("/api/applications"), email).send({
         company_name: "Today Co",
         role_title: "Engineer",
-        status: "applied",
+        stage: "applied",
         ...body,
     });
     assert.equal(res.status, 201, JSON.stringify(res.body));
@@ -67,7 +67,7 @@ describe("GET /api/today", () => {
     test("classifies overdue, due and this week, and excludes past the window (AE1)", async () => {
         await mkApp({ company_name: "Overdue Co", next_action_at: shiftDays(-3) });
         await mkContact({ name: "Due Person", next_action_at: shiftDays(0) });
-        await mkApp({ company_name: "Edge Co", status: "interested", next_action_at: shiftDays(7) });
+        await mkApp({ company_name: "Edge Co", stage: "interested", next_action_at: shiftDays(7) });
         await mkApp({ company_name: "Far Co", next_action_at: shiftDays(8) });
 
         const items = await today();
@@ -81,18 +81,14 @@ describe("GET /api/today", () => {
         );
     });
 
-    test("closed applications are excluded, including a legacy row with no state", async () => {
+    test("closed applications are excluded", async () => {
         await mkApp({ company_name: "Open Co", next_action_at: shiftDays(-1) });
         const closed = await mkApp({ company_name: "Closed Co" });
-        const legacy = await mkApp({ company_name: "Legacy Co" });
-        // A date set after closing, and a pre-split row the backfill never
-        // reached: neither is open, so neither is owed.
+        // A date set after closing is a deliberate re-check, but the record is
+        // not open, so it is not owed.
         db.prepare(
-            "UPDATE applications SET state = 'closed', close_reason = 'rejected', status = 'rejected', next_action_at = ? WHERE id = ?",
+            "UPDATE applications SET state = 'closed', close_reason = 'rejected', next_action_at = ? WHERE id = ?",
         ).run(shiftDays(-1), closed.id);
-        db.prepare(
-            "UPDATE applications SET state = NULL, stage = NULL, close_reason = NULL, record_type = NULL, status = 'rejected', next_action_at = ? WHERE id = ?",
-        ).run(shiftDays(-1), legacy.id);
 
         assert.deepEqual(
             (await today()).map((i) => i.title),
@@ -107,7 +103,7 @@ describe("GET /api/today", () => {
     });
 
     test("leads are included and carry their record type", async () => {
-        await mkApp({ company_name: "Lead Co", status: "interested", next_action_at: shiftDays(1) });
+        await mkApp({ company_name: "Lead Co", stage: "interested", next_action_at: shiftDays(1) });
         const [item] = await today();
         assert.equal(item.kind, "application");
         assert.equal(item.record_type, "lead");

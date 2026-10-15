@@ -13,10 +13,6 @@ const {
     followUpState,
     daysUntil,
 } = require("../lib/followup");
-const {
-    EFFECTIVE_STATE_SQL,
-    EFFECTIVE_RECORD_TYPE_SQL,
-} = require("./applications");
 
 const WINDOW_DAYS = 7;
 
@@ -56,16 +52,16 @@ function listToday(userEmail, { all, isAdmin = false } = {}, now = new Date()) {
     const contactScope = showAll ? "" : "AND c.user_email = ?";
     const scopeParams = showAll ? [] : [userEmail];
 
-    // Open only, with the same legacy fallback listApplications filters with.
+    // Open only, read from the same columns listApplications filters on.
     const applications = db
         .prepare(
             `SELECT a.id, a.company_name AS title, a.role_title AS subtitle,
-                    ${EFFECTIVE_RECORD_TYPE_SQL} AS record_type,
+                    a.record_type,
                     a.next_action, a.next_action_at, a.user_email
              FROM applications a
              WHERE a.next_action_at IS NOT NULL
                AND date(a.next_action_at) <= ?
-               AND ${EFFECTIVE_STATE_SQL} = 'open'
+               AND a.state = 'open'
                ${appScope}`,
         )
         .all(bound, ...scopeParams)

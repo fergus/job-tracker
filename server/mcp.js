@@ -71,8 +71,6 @@ function createMcpServer() {
                         company_name: args.company_name,
                         role_title: args.role_title,
                     };
-                } else if (name === "update_status") {
-                    details = { status: args.status };
                 } else if (name === "add_note") {
                     details = { stage: args.stage };
                 } else if (name === "upload_attachment") {
@@ -120,20 +118,14 @@ function createMcpServer() {
 
     server.tool(
         "list_applications",
-        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead). The legacy `status` field is derived from those and kept only for compatibility -- filter on state and record_type instead, since status collapses every non-acceptance close onto 'rejected'. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call, and add state \"open\" to match the Today screen: a closed record can carry a deliberately set re-check date, which this filter alone still returns. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
+        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call, and add state \"open\" to match the Today screen: a closed record can carry a deliberately set re-check date, which this filter alone still returns. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
         {
             status: z
-                .enum([
-                    "interested",
-                    "applied",
-                    "responded",
-                    "interview",
-                    "offer",
-                    "accepted",
-                    "rejected",
-                ])
+                .string()
                 .optional()
-                .describe("Filter by status"),
+                .describe(
+                    "Removed. Passing it is an error: use stage, state, close_reason and record_type.",
+                ),
             company_name: z
                 .string()
                 .optional()
@@ -148,7 +140,7 @@ function createMcpServer() {
                 .enum(["open", "closed"])
                 .optional()
                 .describe(
-                    "Filter by whether the record is still open. Prefer this over status for 'what is live'.",
+                    "Filter by whether the record is still open. Use this for 'what is live'.",
                 ),
             close_reason: z
                 .enum([
@@ -180,7 +172,7 @@ function createMcpServer() {
                 .array(z.string())
                 .optional()
                 .describe(
-                    "Limit which fields are returned per record. Omit to return all fields. Suggested summary preset: [\"id\",\"company_name\",\"role_title\",\"status\",\"job_location\",\"job_posting_url\",\"salary_min\",\"salary_max\",\"interested_at\",\"applied_at\",\"closed_at\",\"updated_at\",\"next_action_at\",\"next_action\",\"follow_up_state\"]",
+                    "Limit which fields are returned per record. Omit to return all fields. Suggested summary preset: [\"id\",\"company_name\",\"role_title\",\"stage\",\"state\",\"close_reason\",\"record_type\",\"job_location\",\"job_posting_url\",\"salary_min\",\"salary_max\",\"interested_at\",\"applied_at\",\"closed_at\",\"updated_at\",\"next_action_at\",\"next_action\",\"follow_up_state\"]",
                 ),
             limit: z
                 .number()
@@ -204,6 +196,7 @@ function createMcpServer() {
                     isError: true,
                 };
             try {
+                svc.rejectLegacyStatus(args);
                 const usePagination =
                     args.limit !== undefined || args.offset !== undefined;
                 const includeNotes =
@@ -216,7 +209,6 @@ function createMcpServer() {
                 const offset = args.offset ?? 0;
 
                 const result = svc.listApplications(userEmail, {
-                    status: args.status,
                     state: args.state,
                     close_reason: args.close_reason,
                     record_type: args.record_type,
@@ -288,18 +280,24 @@ function createMcpServer() {
         {
             company_name: z.string().min(1).max(200).describe("Company name"),
             role_title: z.string().min(1).max(200).describe("Job title"),
-            status: z
-                .enum([
-                    "interested",
-                    "applied",
-                    "responded",
-                    "interview",
-                    "offer",
-                    "accepted",
-                    "rejected",
-                ])
+            stage: z
+                .enum(["interested", "applied", "responded", "interview", "offer"])
                 .optional()
-                .describe('Initial status (defaults to "interested")'),
+                .describe(
+                    'Starting stage (defaults to "interested"). A stage of applied or beyond makes the record an application whatever record_type says.',
+                ),
+            record_type: z
+                .enum(["application", "lead"])
+                .optional()
+                .describe(
+                    'Application or lead (defaults to "lead" below applied). Records are always created open; close one afterwards with update_application.',
+                ),
+            status: z
+                .string()
+                .optional()
+                .describe(
+                    "Removed. Passing it is an error: use stage, state, close_reason and record_type.",
+                ),
             job_description: z
                 .string()
                 .max(10000)
@@ -368,6 +366,7 @@ function createMcpServer() {
                     isError: true,
                 };
             try {
+                svc.rejectLegacyStatus(args);
                 const result = svc.createApplication(userEmail, args);
                 return {
                     content: [
@@ -441,6 +440,12 @@ function createMcpServer() {
                 .optional()
                 .nullable()
                 .describe("Maximum salary"),
+            status: z
+                .string()
+                .optional()
+                .describe(
+                    "Removed. Passing it is an error: use stage, state, close_reason and record_type.",
+                ),
             stage: z
                 .enum(["interested", "applied", "responded", "interview", "offer"])
                 .optional()
@@ -485,7 +490,7 @@ function createMcpServer() {
                 .optional()
                 .nullable()
                 .describe(
-                    "What the next step is, in a few words, or null to clear it. Independent of next_action_at. A write carrying only next_action/next_action_at does not bump updated_at. Closing the record (state closed, or update_status to accepted/rejected) clears both halves unless the user has turned that off in Settings.",
+                    "What the next step is, in a few words, or null to clear it. Independent of next_action_at. A write carrying only next_action/next_action_at does not bump updated_at. Closing the record (state closed) clears both halves unless the user has turned that off in Settings.",
                 ),
         },
         async (args, extra) => {
@@ -497,6 +502,7 @@ function createMcpServer() {
                 };
             const { id, ...data } = args;
             try {
+                svc.rejectLegacyStatus(args);
                 const result = svc.updateApplication(userEmail, id, data);
                 return {
                     content: [
@@ -509,45 +515,22 @@ function createMcpServer() {
         },
     );
 
+    // Tombstone, removed next release: kept registered so an old client gets a
+    // clear error naming update_application rather than "tool not found". The
+    // schema is deliberately loose so any old call reaches the handler.
     server.tool(
         "update_status",
-        "Change the status of a job application. Automatically sets the corresponding date field.",
+        "Removed. Always returns an error and changes nothing: use update_application with stage, state and close_reason. This tool is deleted next release.",
         {
-            id: z.number().int().positive().describe("Application ID"),
-            status: z
-                .enum([
-                    "interested",
-                    "applied",
-                    "responded",
-                    "interview",
-                    "offer",
-                    "accepted",
-                    "rejected",
-                ])
-                .describe("New status"),
+            id: z.number().int().positive().optional().describe("Application ID"),
+            status: z.string().optional().describe("Removed"),
         },
-        async (args, extra) => {
-            const userEmail = extra.authInfo?.clientId;
-            if (!userEmail)
-                return {
-                    content: [{ type: "text", text: "Unauthorized" }],
-                    isError: true,
-                };
-            try {
-                const result = svc.updateStatus(
-                    userEmail,
-                    args.id,
-                    args.status,
-                );
-                return {
-                    content: [
-                        { type: "text", text: JSON.stringify(result, null, 2) },
-                    ],
-                };
-            } catch (err) {
-                return toolError(err);
-            }
-        },
+        async () => ({
+            content: [
+                { type: "text", text: `Error 410: ${svc.STATUS_REMOVED_MESSAGE}` },
+            ],
+            isError: true,
+        }),
     );
 
     server.tool(
@@ -859,7 +842,7 @@ function createMcpServer() {
                             type: "text",
                             text: JSON.stringify(
                                 {
-                                    application: app,
+                                    application: svc.toApiRecord(app),
                                     notes,
                                     attachments,
                                     profile: profile || null,
