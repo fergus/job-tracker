@@ -124,7 +124,7 @@ A Model Context Protocol (MCP) server is included for AI clients to interact wit
 - `get_application` — full record, including notes, linked contacts and attachment metadata
 - `create_application` — create an application or lead, optionally with a follow-up date (`next_action_at`) and next-step wording (`next_action`)
 - `update_application` — update fields, including the follow-up date and wording; closing clears the next step unless you turned that off in Settings
-- `update_status` — change status (auto-sets the corresponding stage date)
+- `update_status` — removed; always returns an error naming `update_application`, and is deleted next release. Change stage and close a record with `update_application` (`stage`, `state`, `close_reason`)
 - `convert_application_to_contact` — turn a record that is really a person into a contact (the original is backed up first)
 
 *Stage notes*

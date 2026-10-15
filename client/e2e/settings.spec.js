@@ -34,13 +34,15 @@ test('with the switch off, closing a role keeps its next step', async ({ page, r
       data: {
         company_name: 'KeepStepCo',
         role_title: 'Engineer',
-        status: 'applied',
+        stage: 'applied',
         next_action_at: '2099-01-01',
         next_action: 'Send references',
       },
     })
     .then((r) => r.json())
-  await request.patch(`/api/applications/${app.id}/status`, { data: { status: 'rejected' } })
+  await request.put(`/api/applications/${app.id}`, {
+    data: { state: 'closed', close_reason: 'rejected' },
+  })
 
   const closed = await (await request.get(`/api/applications/${app.id}`)).json()
   expect(closed.state).toBe('closed')

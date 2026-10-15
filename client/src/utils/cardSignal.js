@@ -26,7 +26,7 @@ function formatStaleDuration(days) {
 }
 
 function stalenessSignal(application, now) {
-  const staleDays = STALE_STAGES.has(application.status)
+  const staleDays = application.state === 'open' && STALE_STAGES.has(application.stage)
     ? (now - new Date(application.updated_at)) / MS_PER_DAY
     : 0
   const level = staleDays >= 30 ? 2 : staleDays >= 14 ? 1 : 0

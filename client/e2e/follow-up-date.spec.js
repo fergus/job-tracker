@@ -4,7 +4,7 @@ import { gotoPipeline } from './helpers.js'
 async function seedApp(request, company) {
   return request
     .post('/api/applications', {
-      data: { company_name: company, role_title: 'Engineer', status: 'interested' },
+      data: { company_name: company, role_title: 'Engineer', stage: 'interested' },
     })
     .then((r) => r.json())
 }
@@ -191,7 +191,7 @@ test('the next step is written in the panel and read back in its prose (AE2)', a
   // extra card there moves their target.
   const app = await request
     .post('/api/applications', {
-      data: { company_name: 'NextStepCo', role_title: 'Engineer', status: 'applied' },
+      data: { company_name: 'NextStepCo', role_title: 'Engineer', stage: 'applied' },
     })
     .then((r) => r.json())
   const target = await serverDateInDays(request, app.id, 2)

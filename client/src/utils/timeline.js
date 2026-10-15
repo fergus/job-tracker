@@ -5,8 +5,6 @@ export const STAGE_ORDER = [
     "interview",
     "offer",
 ];
-export const TERMINAL_STAGES = ["accepted", "rejected"];
-
 export const CLOSE_REASONS = [
     "accepted",
     "rejected",
@@ -27,40 +25,22 @@ export const CLOSE_REASON_LABELS = {
     unresolved: "Reason unknown",
 };
 
-// `state` is authoritative where present. The status fallback keeps a record
-// rendering correctly mid-migration, before the backfill has been applied.
-export function isTerminal(statusOrApp) {
-    if (statusOrApp && typeof statusOrApp === "object") {
-        if (statusOrApp.state) return statusOrApp.state === "closed";
-        return TERMINAL_STAGES.includes(statusOrApp.status);
-    }
-    return TERMINAL_STAGES.includes(statusOrApp);
+export function isTerminal(app) {
+    return app?.state === "closed";
 }
 
 // Only a genuine rejection is quieted. A record closed because the role was
 // filled or because it lapsed is not a failure and should not read as one.
-export function isMuted(statusOrApp) {
-    return isRejected(statusOrApp);
+export function isMuted(app) {
+    return isRejected(app);
 }
 
-export function isRejected(statusOrApp) {
-    if (statusOrApp && typeof statusOrApp === "object") {
-        if (statusOrApp.close_reason) {
-            return statusOrApp.close_reason === "rejected";
-        }
-        return statusOrApp.status === "rejected";
-    }
-    return statusOrApp === "rejected";
+export function isRejected(app) {
+    return app?.close_reason === "rejected";
 }
 
-export function isAccepted(statusOrApp) {
-    if (statusOrApp && typeof statusOrApp === "object") {
-        if (statusOrApp.close_reason) {
-            return statusOrApp.close_reason === "accepted";
-        }
-        return statusOrApp.status === "accepted";
-    }
-    return statusOrApp === "accepted";
+export function isAccepted(app) {
+    return app?.close_reason === "accepted";
 }
 
 export function isLead(app) {
@@ -81,7 +61,7 @@ export function stageColor(stage) {
 
 export function computeSegments(application, globalEnd) {
     const today = globalEnd || new Date().toISOString();
-    const isTerminal = TERMINAL_STAGES.includes(application.status);
+    const closed = isTerminal(application);
 
     // Build ordered list of { stage, date } transition points
     const points = [];
@@ -94,14 +74,14 @@ export function computeSegments(application, globalEnd) {
     }
 
     const terminalDate = application.closed_at;
-    const trailingEnd = isTerminal && terminalDate ? terminalDate : today;
+    const trailingEnd = closed && terminalDate ? terminalDate : today;
 
     const segments = [];
 
     for (let i = 0; i < points.length; i++) {
         const start = points[i].date;
         const end = i + 1 < points.length ? points[i + 1].date : trailingEnd;
-        const isTrailing = i === points.length - 1 && !isTerminal;
+        const isTrailing = i === points.length - 1 && !closed;
 
         if (!start) continue;
 
@@ -113,10 +93,17 @@ export function computeSegments(application, globalEnd) {
         });
     }
 
-    // Add terminal stage segment if application is closed
-    if (isTerminal && terminalDate) {
+    // Add a closing segment. Accepted and rejected keep their own colours; every
+    // other reason shares a neutral one, so a lapse or a withdrawal is not drawn
+    // as a rejection. `reason` carries the real close reason for labels.
+    if (closed && terminalDate) {
+        const reason = application.close_reason;
         segments.push({
-            stage: application.status,
+            stage:
+                reason === "accepted" || reason === "rejected"
+                    ? reason
+                    : "closed",
+            reason,
             start: terminalDate,
             end: terminalDate,
             isTrailing: false,

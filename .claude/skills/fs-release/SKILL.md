@@ -84,6 +84,16 @@ Report pass or fail. If it fails, stop — do not deploy a broken image.
 
 ### 7. Deploy
 
+Take a database backup first. A release that changes how rows are written is
+not safe to roll back by redeploying the previous image; restoring this file
+is the rollback.
+
+```bash
+ssh docker 'docker exec -w /app/server job-tracker-app node -e "require(\"better-sqlite3\")(\"/app/data/job-tracker.db\").backup(\"/app/data/pre-deploy-$(date +%Y%m%d-%H%M).db\").then(() => console.log(\"backup ok\"))"'
+```
+
+Stop if it does not print `backup ok`. Then deploy:
+
 ```bash
 ssh docker 'cd job-tracker && git pull --ff-only && docker compose pull && docker compose up -d --build'
 ```

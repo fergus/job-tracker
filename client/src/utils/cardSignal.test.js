@@ -11,7 +11,8 @@ const DAY = 86_400_000
 function app(overrides) {
   return {
     id: 1,
-    status: 'applied',
+    stage: 'applied',
+    state: 'open',
     updated_at: new Date(NOW - 25 * DAY).toISOString(),
     next_action_at: null,
     follow_up_state: null,
@@ -24,7 +25,7 @@ function app(overrides) {
 // kept verbatim so the no-date path is proven unchanged.
 const STALE_STAGES = new Set(['applied', 'responded', 'interview', 'offer'])
 function legacySlot(application, now) {
-  const staleDays = STALE_STAGES.has(application.status)
+  const staleDays = application.state === 'open' && STALE_STAGES.has(application.stage)
     ? (now - new Date(application.updated_at)) / 86_400_000
     : 0
   const level = staleDays >= 30 ? 2 : staleDays >= 14 ? 1 : 0
@@ -105,7 +106,7 @@ test('a record due today reads "due today" in the accent tone', () => {
 
 test('a closed record with a follow-up date still shows the follow-up', () => {
   const signal = cardSignal(
-    app({ status: 'rejected', next_action_at: '2099-01-10', follow_up_state: 'upcoming', follow_up_days: 9 }),
+    app({ state: 'closed', close_reason: 'rejected', next_action_at: '2099-01-10', follow_up_state: 'upcoming', follow_up_days: 9 }),
     NOW,
   )
 
@@ -121,15 +122,32 @@ test('the card never computes the state itself: a stale date string is ignored',
   assert.strictEqual(signal.kind, 'staleness')
 })
 
-for (const status of ['applied', 'offer', 'interested', 'accepted', 'rejected']) {
+const RECORDS = [
+  { stage: 'applied', state: 'open' },
+  { stage: 'offer', state: 'open' },
+  { stage: 'interested', state: 'open' },
+  { stage: 'offer', state: 'closed', close_reason: 'accepted' },
+  { stage: 'applied', state: 'closed', close_reason: 'withdrawn' },
+]
+for (const shape of RECORDS) {
   for (const days of [0, 14, 30, 75]) {
-    test(`no date: ${status} idle ${days} days matches the previous card output`, () => {
-      const record = app({ status, updated_at: new Date(NOW - days * DAY).toISOString() })
+    test(`no date: ${shape.state} ${shape.stage} idle ${days} days matches the previous card output`, () => {
+      const record = app({ ...shape, updated_at: new Date(NOW - days * DAY).toISOString() })
 
       assert.deepStrictEqual(slot(cardSignal(record, NOW)), legacySlot(record, NOW))
     })
   }
 }
+
+test('a closed record never reads as stale, however long it has been idle', () => {
+  const signal = cardSignal(
+    app({ state: 'closed', close_reason: 'lapsed', updated_at: new Date(NOW - 90 * DAY).toISOString() }),
+    NOW,
+  )
+
+  assert.strictEqual(signal.dot, null)
+  assert.strictEqual(signal.title, '')
+})
 
 test('no date: the thresholds land where they did (level 0, 1, 2)', () => {
   const at = (days) => cardSignal(app({ updated_at: new Date(NOW - days * DAY).toISOString() }), NOW)

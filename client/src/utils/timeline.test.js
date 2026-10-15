@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert";
 import {
     STAGE_ORDER,
-    TERMINAL_STAGES,
     isTerminal,
     isMuted,
     isRejected,
@@ -23,28 +22,15 @@ test("STAGE_ORDER contains the five active stages in pipeline order", () => {
     ]);
 });
 
-test("TERMINAL_STAGES contains accepted and rejected", () => {
-    assert.deepStrictEqual(TERMINAL_STAGES, ["accepted", "rejected"]);
+test("isTerminal is true only for a closed record", () => {
+    assert.strictEqual(isTerminal({ state: "closed", close_reason: "lapsed" }), true);
+    assert.strictEqual(isTerminal({ state: "open", stage: "interview" }), false);
 });
 
-test("isTerminal returns true for terminal statuses", () => {
-    assert.strictEqual(isTerminal("accepted"), true);
-    assert.strictEqual(isTerminal("rejected"), true);
-});
-
-test("isTerminal returns false for active statuses", () => {
-    assert.strictEqual(isTerminal("interested"), false);
-    assert.strictEqual(isTerminal("applied"), false);
-    assert.strictEqual(isTerminal("responded"), false);
-    assert.strictEqual(isTerminal("interview"), false);
-    assert.strictEqual(isTerminal("offer"), false);
-});
-
-test("isTerminal returns false for unknown statuses", () => {
-    assert.strictEqual(isTerminal("archived"), false);
-    assert.strictEqual(isTerminal(""), false);
+test("isTerminal is false for a missing record", () => {
     assert.strictEqual(isTerminal(undefined), false);
     assert.strictEqual(isTerminal(null), false);
+    assert.strictEqual(isTerminal({}), false);
 });
 
 test("stageColor returns a CSS var reference", () => {
@@ -60,7 +46,7 @@ test("stageColor returns a CSS var reference", () => {
 
 test("computeSegments builds stage segments from date transitions", () => {
     const app = {
-        status: "interview",
+        stage: "interview", state: "open",
         interested_at: "2026-01-01T00:00:00Z",
         applied_at: "2026-01-10T00:00:00Z",
         responded_at: "2026-01-20T00:00:00Z",
@@ -90,7 +76,7 @@ test("computeSegments builds stage segments from date transitions", () => {
 
 test("computeSegments marks last segment as trailing for active apps", () => {
     const app = {
-        status: "interview",
+        stage: "interview", state: "open",
         interested_at: "2026-01-01T00:00:00Z",
         applied_at: "2026-01-10T00:00:00Z",
     };
@@ -105,7 +91,8 @@ test("computeSegments marks last segment as trailing for active apps", () => {
 
 test("computeSegments adds terminal segment for closed apps", () => {
     const app = {
-        status: "rejected",
+        state: "closed",
+        close_reason: "rejected",
         interested_at: "2026-01-01T00:00:00Z",
         applied_at: "2026-01-10T00:00:00Z",
         closed_at: "2026-02-01T00:00:00Z",
@@ -121,7 +108,7 @@ test("computeSegments adds terminal segment for closed apps", () => {
 
 test("computeSegments uses today as trailing end when no terminal date", () => {
     const app = {
-        status: "interested",
+        stage: "interested", state: "open",
         interested_at: "2026-01-01T00:00:00Z",
     };
     const today = "2026-04-01T00:00:00Z";
@@ -150,7 +137,8 @@ test("durationDays never returns negative", () => {
 
 test("computeSegments adds terminal segment for accepted apps", () => {
     const app = {
-        status: "accepted",
+        state: "closed",
+        close_reason: "accepted",
         interested_at: "2026-01-01T00:00:00Z",
         applied_at: "2026-01-10T00:00:00Z",
         closed_at: "2026-02-01T00:00:00Z",
@@ -164,20 +152,39 @@ test("computeSegments adds terminal segment for accepted apps", () => {
     assert.strictEqual(last.isTrailing, false);
 });
 
-// --- Record-aware predicates (the status split) ---
-//
-// These take a record, not a status string. The string overload is retained
-// only for the places where a bare stage is all that is available.
-
-test("isTerminal reads state when the record carries it", () => {
-    assert.equal(isTerminal({ state: "closed", status: "applied" }), true);
-    assert.equal(isTerminal({ state: "open", status: "rejected" }), false);
+test("a non-rejection close gets a neutral closing segment that keeps its reason", () => {
+    for (const reason of ["withdrawn", "role_closed", "lapsed", "not_pursued", "unresolved"]) {
+        const segments = computeSegments(
+            {
+                stage: "applied",
+                state: "closed",
+                close_reason: reason,
+                interested_at: "2026-01-01T00:00:00Z",
+                applied_at: "2026-01-10T00:00:00Z",
+                closed_at: "2026-02-01T00:00:00Z",
+            },
+            "2026-04-01T00:00:00Z",
+        );
+        const last = segments[segments.length - 1];
+        assert.strictEqual(last.stage, "closed", `${reason} must not be drawn as rejected`);
+        assert.strictEqual(last.reason, reason);
+    }
 });
 
-test("isTerminal falls back to status before the backfill has run", () => {
-    assert.equal(isTerminal({ status: "rejected" }), true);
-    assert.equal(isTerminal({ status: "applied" }), false);
+test("an open record gets no closing segment", () => {
+    const segments = computeSegments(
+        {
+            stage: "applied",
+            state: "open",
+            interested_at: "2026-01-01T00:00:00Z",
+            applied_at: "2026-01-10T00:00:00Z",
+        },
+        "2026-04-01T00:00:00Z",
+    );
+    assert.deepStrictEqual(segments.map((s) => s.stage), ["interested", "applied"]);
 });
+
+// --- Record predicates ---
 
 test("only a genuine rejection is quieted", () => {
     assert.equal(isMuted({ state: "closed", close_reason: "rejected" }), true);
@@ -190,26 +197,16 @@ test("only a genuine rejection is quieted", () => {
     }
 });
 
-test("a record closed for an unnamed reason is not styled as a rejection", () => {
-    // The status compatibility column collapses every non-acceptance close
-    // onto 'rejected', so reading it would grey out the whole Closed column.
-    const record = { state: "closed", close_reason: "unresolved", status: "rejected" };
-    assert.equal(isMuted(record), false);
-});
-
-test("isAccepted reads close_reason when present, status otherwise", () => {
+test("isRejected and isAccepted read the close reason", () => {
+    assert.equal(isRejected({ state: "closed", close_reason: "rejected" }), true);
+    assert.equal(isRejected({ state: "closed", close_reason: "role_closed" }), false);
     assert.equal(isAccepted({ state: "closed", close_reason: "accepted" }), true);
     assert.equal(isAccepted({ state: "closed", close_reason: "withdrawn" }), false);
-    assert.equal(isAccepted({ status: "accepted" }), true);
+    assert.equal(isAccepted({ state: "open" }), false);
 });
 
 test("isLead identifies a role that was never applied to", () => {
     assert.equal(isLead({ record_type: "lead" }), true);
     assert.equal(isLead({ record_type: "application" }), false);
     assert.equal(isLead({}), false);
-});
-
-test("the string overload still works for a bare stage", () => {
-    assert.equal(isRejected("rejected"), true);
-    assert.equal(isTerminal("accepted"), true);
 });

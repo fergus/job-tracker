@@ -1,16 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { gotoPipeline } from './helpers.js'
+import { gotoPipeline, seedApp } from './helpers.js'
 
 test('closed column shows terminal applications', async ({ page, request }) => {
-  await request.post('/api/applications', {
-    data: { company_name: 'KanbanActive', role_title: 'Engineer', status: 'interested' },
-  })
-  await request.post('/api/applications', {
-    data: { company_name: 'KanbanRejected', role_title: 'Engineer', status: 'rejected' },
-  })
-  await request.post('/api/applications', {
-    data: { company_name: 'KanbanAccepted', role_title: 'Engineer', status: 'accepted' },
-  })
+  await seedApp(request, { company_name: 'KanbanActive', role_title: 'Engineer', stage: 'interested' })
+  await seedApp(request, { company_name: 'KanbanRejected', role_title: 'Engineer' }, 'rejected')
+  await seedApp(request, { company_name: 'KanbanAccepted', role_title: 'Engineer' }, 'accepted')
 
   await gotoPipeline(page)
 
@@ -40,9 +34,7 @@ test('closed column shows terminal applications', async ({ page, request }) => {
 })
 
 test('no show-older button when all closed apps are recent', async ({ page, request }) => {
-  await request.post('/api/applications', {
-    data: { company_name: 'KanbanRecentClosed', role_title: 'Engineer', status: 'rejected' },
-  })
+  await seedApp(request, { company_name: 'KanbanRecentClosed', role_title: 'Engineer' }, 'rejected')
 
   await gotoPipeline(page)
 
@@ -53,9 +45,7 @@ test('no show-older button when all closed apps are recent', async ({ page, requ
 })
 
 test('panel auto-closes when hiding closed column with terminal app open', async ({ page, request }) => {
-  await request.post('/api/applications', {
-    data: { company_name: 'PanelRejected', role_title: 'Engineer', status: 'rejected' },
-  })
+  await seedApp(request, { company_name: 'PanelRejected', role_title: 'Engineer' }, 'rejected')
 
   await gotoPipeline(page)
 
@@ -73,14 +63,8 @@ test('panel auto-closes when hiding closed column with terminal app open', async
 })
 
 test('show-older toggle expands and collapses older closed apps', async ({ page, request }) => {
-  // Create an app, move it to rejected, then backdate closed_at so it appears older
-  const res = await request.post('/api/applications', {
-    data: { company_name: 'KanbanOldClosed', role_title: 'Engineer', status: 'interested' },
-  })
-  const app = await res.json()
-  await request.patch(`/api/applications/${app.id}/status`, {
-    data: { status: 'rejected' },
-  })
+  // Create an app, close it as rejected, then backdate closed_at so it appears older
+  const app = await seedApp(request, { company_name: 'KanbanOldClosed', role_title: 'Engineer', stage: 'interested' }, 'rejected')
   await request.patch(`/api/applications/${app.id}/dates`, {
     data: { closed_at: '2026-01-01T00:00:00.000Z' },
   })
@@ -103,12 +87,8 @@ test('show-older toggle expands and collapses older closed apps', async ({ page,
 })
 
 test('accepted cards render at full weight, rejected cards are quieted', async ({ page, request }) => {
-  await request.post('/api/applications', {
-    data: { company_name: 'QuietRejected', role_title: 'Engineer', status: 'rejected' },
-  })
-  await request.post('/api/applications', {
-    data: { company_name: 'BoldAccepted', role_title: 'Engineer', status: 'accepted' },
-  })
+  await seedApp(request, { company_name: 'QuietRejected', role_title: 'Engineer' }, 'rejected')
+  await seedApp(request, { company_name: 'BoldAccepted', role_title: 'Engineer' }, 'accepted')
 
   await gotoPipeline(page)
 

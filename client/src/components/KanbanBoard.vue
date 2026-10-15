@@ -41,57 +41,24 @@
           <span class="text-xs text-ink-3 ml-auto">{{ closedCount }}</span>
         </div>
 
-        <!-- Drop targets -->
+        <!-- One drop target: a drop opens the reason picker -->
         <div :class="['space-y-4 rounded-lg p-2', showClosed ? 'min-h-[60px] bg-sunken' : '']">
-          <!-- Accepted — header hidden when closed is collapsed, draggable always in DOM -->
-          <div>
-            <div v-show="showClosed" class="flex items-center gap-2 mb-2">
-              <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" :style="{ backgroundColor: 'var(--stage-accepted)' }"></span>
-              <h4 class="text-xs font-semibold font-condensed text-ink-2 uppercase tracking-wider">Accepted</h4>
-              <span class="text-xs text-ink-3 ml-auto">{{ columns.accepted.length }}</span>
-            </div>
-            <draggable
-              v-model="recentClosedAccepted"
-              group="applications"
-              :sort="false"
-              item-key="id"
-              :delay="100"
-              :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
-              data-testid="accepted-drop-zone"
-              @change="onAcceptedAdded"
-              @start="dragActive = true"
-              @end="dragActive = false"
-            >
-              <template #item="{ element }">
-                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
-              </template>
-            </draggable>
-          </div>
-
-          <!-- Rejected — same pattern -->
-          <div>
-            <div v-show="showClosed" class="flex items-center gap-2 mb-2">
-              <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" :style="{ backgroundColor: 'var(--stage-rejected)' }"></span>
-              <h4 class="text-xs font-semibold font-condensed text-ink-2 uppercase tracking-wider">Rejected</h4>
-              <span class="text-xs text-ink-3 ml-auto">{{ columns.rejected.length }}</span>
-            </div>
-            <draggable
-              v-model="recentClosedRejected"
-              group="applications"
-              :sort="false"
-              item-key="id"
-              :delay="100"
-              :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
-              data-testid="closed-drop-zone"
-              @change="onRejectedAdded"
-              @start="dragActive = true"
-              @end="dragActive = false"
-            >
-              <template #item="{ element }">
-                <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
-              </template>
-            </draggable>
-          </div>
+          <draggable
+            v-model="recentClosed"
+            group="applications"
+            :sort="false"
+            item-key="id"
+            :delay="100"
+            :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
+            data-testid="closed-drop-zone"
+            @change="onClosedAdded"
+            @start="dragActive = true"
+            @end="dragActive = false"
+          >
+            <template #item="{ element }">
+              <KanbanCard v-show="showClosed" :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
+            </template>
+          </draggable>
 
           <button
             v-show="showClosed && olderCount > 0"
@@ -171,37 +138,33 @@
         >
           <div class="flex items-center gap-2 mb-4">
             <h3 class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider">Closed</h3>
-            <span class="text-xs text-ink-3 ml-auto">{{ groupCount(mobileClosedGroup) }}</span>
+            <span class="text-xs text-ink-3 ml-auto">{{ closedCount }}</span>
           </div>
-          <div class="space-y-4">
-            <div v-for="stage in mobileClosedGroup.stages" :key="stage.value">
-              <div class="flex items-center gap-2 mb-2">
-                <span
-                  class="w-2 h-2 rounded-full inline-block"
-                  :style="{ backgroundColor: `var(--stage-${stage.value})` }"
-                ></span>
-                <h4 class="text-xs font-semibold font-condensed text-ink-2 uppercase tracking-wider">{{ stage.label }}</h4>
-                <span class="text-xs text-ink-3 ml-auto">{{ columns[stage.value].length }}</span>
-              </div>
-              <draggable
-                v-model="columns[stage.value]"
-                group="applications"
-                item-key="id"
-                :delay="100"
-                class="space-y-2 min-h-[60px] bg-sunken rounded-lg p-2"
-                @change="(evt) => onMobileClosedChange(evt, stage.value)"
-                @start="dragActive = true"
-                @end="dragActive = false"
-              >
-                <template #item="{ element }">
-                  <KanbanCard :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
-                </template>
-              </draggable>
-            </div>
-          </div>
+          <draggable
+            v-model="columns.closed"
+            group="applications"
+            item-key="id"
+            :delay="100"
+            class="space-y-2 min-h-[60px] bg-sunken rounded-lg p-2"
+            data-testid="closed-drop-zone-mobile"
+            @change="onClosedAdded"
+            @start="dragActive = true"
+            @end="dragActive = false"
+          >
+            <template #item="{ element }">
+              <KanbanCard :application="element" :showUser="showUser" :quiet="isMuted(element)" @select="$emit('select', element)" />
+            </template>
+          </draggable>
         </div>
       </div>
     </div>
+
+    <CloseReasonPicker
+      v-if="pendingClose"
+      :subtitle="`${pendingClose.company_name} — ${pendingClose.role_title}`"
+      @select="confirmClose"
+      @cancel="cancelClose"
+    />
   </div>
 </template>
 
@@ -217,20 +180,22 @@ import { reactive, watch, ref, computed, nextTick } from 'vue'
 import draggable from 'vuedraggable'
 import KanbanCard from './KanbanCard.vue'
 import ViewLensToggle from './ViewLensToggle.vue'
-import { isMuted, isTerminal, isAccepted } from '../utils/timeline.js'
+import CloseReasonPicker from './CloseReasonPicker.vue'
+import { isMuted, isTerminal } from '../utils/timeline.js'
+import { partitionClosed } from '../utils/closedPartition.js'
 
 const props = defineProps({
   applications: Array,
   showClosed: Boolean,
   showUser: Boolean,
-  statusVersion: Number,
+  writeVersion: Number,
 })
 // KanbanBoard receives the full unfiltered applications list (unlike TimelineView
 // which receive pre-filtered displayApplications) because vuedraggable requires every
 // column — including the hidden Closed column — to be mounted in the DOM for drag-and-drop
 // to work correctly across the board. showClosed therefore toggles visibility rather
 // than filtering the data upstream.
-const emit = defineEmits(['status-change', 'close-record', 'select', 'toggle-show-closed', 'drag-active', 'set-view'])
+const emit = defineEmits(['stage-change', 'close-record', 'select', 'toggle-show-closed', 'drag-active', 'set-view'])
 
 const activeStages = [
   { value: 'interested', label: 'Interested' },
@@ -241,20 +206,7 @@ const activeStages = [
 
 const mobileActiveGroup = {
   label: 'Active',
-  stages: [
-    { value: 'interested', label: 'Interested' },
-    { value: 'applied', label: 'Applied' },
-    { value: 'responded', label: 'Responded' },
-    { value: 'interview', label: 'Interview' },
-  ],
-}
-
-const mobileClosedGroup = {
-  label: 'Closed',
-  stages: [
-    { value: 'accepted', label: 'Accepted' },
-    { value: 'rejected', label: 'Rejected' },
-  ],
+  stages: activeStages,
 }
 
 const columns = reactive({
@@ -262,120 +214,87 @@ const columns = reactive({
   applied: [],
   responded: [],
   interview: [],
-  accepted: [],
-  rejected: [],
+  closed: [],
 })
 
 const showOlder = ref(false)
 const closedGroupRef = ref(null)
 const inFlightIds = ref(new Set())
 const dragActive = ref(false)
+// The open record a drop on Closed is waiting to name a reason for.
+const pendingClose = ref(null)
 
-const closedCount = computed(() => columns.accepted.length + columns.rejected.length)
+const closedCount = computed(() => columns.closed.length)
 
-import { RECENT_CLOSED_DAYS, MS_PER_DAY } from '../utils/date.js'
+const olderCount = computed(() => partitionClosed(columns.closed).older.length)
 
-function daysSinceClosed(app) {
-  const dateStr = app.closed_at || app.updated_at
-  if (!dateStr) return Infinity
-  return (Date.now() - new Date(dateStr).getTime()) / MS_PER_DAY
-}
+const olderCards = computed(() => partitionClosed(columns.closed).older)
 
-function isRecent(app) {
-  return daysSinceClosed(app) < RECENT_CLOSED_DAYS
-}
-
-const olderCount = computed(() => {
-  const all = [...columns.accepted, ...columns.rejected]
-  return all.filter(app => !isRecent(app)).length
-})
-
-const olderCards = computed(() => {
-  return [...columns.accepted, ...columns.rejected].filter(app => !isRecent(app))
-})
-
-// Filtered refs for the desktop closed-column draggables — only recent cards,
+// Filtered ref for the desktop closed-column draggable — only recent cards,
 // so older cards are never duplicated in the DOM alongside the static older list.
-const recentClosedAccepted = ref([])
-const recentClosedRejected = ref([])
+const recentClosed = ref([])
 
-watch(() => props.applications, (apps) => {
+// The Interview column also holds offers: both are open and past responded.
+function columnFor(app) {
+  if (app.state !== 'open') return null
+  return app.stage === 'offer' ? 'interview' : app.stage
+}
+
+function syncColumns() {
+  const apps = props.applications || []
   for (const s of activeStages) {
-    if (s.value === 'interview') {
-      columns.interview = apps.filter(a => a.status === 'interview' || a.status === 'offer')
-    } else {
-      columns[s.value] = apps.filter(a => a.status === s.value)
-    }
+    columns[s.value] = apps.filter(a => columnFor(a) === s.value)
   }
-  columns.accepted = apps.filter(a => a.status === 'accepted')
-  columns.rejected = apps.filter(a => a.status === 'rejected')
-  recentClosedAccepted.value = columns.accepted.filter(isRecent)
-  recentClosedRejected.value = columns.rejected.filter(isRecent)
-}, { immediate: true })
+  columns.closed = apps.filter(isTerminal)
+  recentClosed.value = partitionClosed(columns.closed).recent
+}
+
+watch(() => props.applications, syncColumns, { immediate: true })
 
 function groupCount(group) {
   return group.stages.reduce((sum, s) => sum + columns[s.value].length, 0)
 }
 
-function onActiveChange(evt, status) {
-  if (evt.added) {
-    const app = evt.added.element
-    if (inFlightIds.value.has(app.id)) return
-    if (app.status !== status) {
-      inFlightIds.value.add(app.id)
-      emit('status-change', app.id, status)
-    }
-  }
+// A drop on an open column. The Interview column holds interview and offer, so
+// a card already at one of them keeps its stage; reaching offer is a stage the
+// panel sets.
+function targetStage(app, column) {
+  if (column === 'interview' && ['interview', 'offer'].includes(app.stage)) return app.stage
+  return column
 }
 
-// The mobile Closed group renders accepted and rejected as ordinary stage
-// lists, so it was still wired to the legacy status-change path -- meaning a
-// mobile drop into Rejected recorded a real rejection, the exact one-gesture
-// path this change exists to remove. It mirrors the desktop handlers instead.
-function onMobileClosedChange(evt, stage) {
-  if (evt.added) {
-    const app = evt.added.element
-    if (inFlightIds.value.has(app.id)) return
+function onActiveChange(evt, column) {
+  if (!evt.added) return
+  const app = evt.added.element
+  if (inFlightIds.value.has(app.id)) return
+  const stage = targetStage(app, column)
+  // Reopening a closed card is a state change even when the stage matches.
+  if (app.state === 'closed' || app.stage !== stage) {
     inFlightIds.value.add(app.id)
-    if (stage === 'accepted') {
-      emit('close-record', app.id, 'accepted')
-    } else if (isAccepted(app)) {
-      // Correcting an acceptance to a rejection is explicit, so it may name one.
-      emit('close-record', app.id, 'rejected')
-    } else {
-      emit('close-record', app.id, 'unresolved')
-    }
+    emit('stage-change', app.id, stage)
   }
 }
 
-function onAcceptedAdded(evt) {
-  if (evt.added) {
-    const app = evt.added.element
-    if (inFlightIds.value.has(app.id)) return
-    if (app.status === 'accepted') return
-    inFlightIds.value.add(app.id)
-    // The drop target names the outcome. Dropping on Accepted means accepted,
-    // whether the card came from an active column or from Rejected -- closing
-    // it as 'unresolved' instead re-derived status='rejected', so the card
-    // reappeared under Rejected and acceptance was unrepresentable from the board.
-    emit('close-record', app.id, 'accepted')
-  }
+// A drop on Closed does not close anything yet: the picker names the reason,
+// and Escape returns the card to where it came from.
+function onClosedAdded(evt) {
+  if (!evt.added) return
+  const app = evt.added.element
+  if (inFlightIds.value.has(app.id) || isTerminal(app)) return
+  pendingClose.value = app
 }
 
-function onRejectedAdded(evt) {
-  if (evt.added) {
-    const app = evt.added.element
-    if (inFlightIds.value.has(app.id)) return
-    if (isAccepted(app)) {
-      // Moving an accepted record into Rejected is an explicit correction,
-      // so it is the one drag that may name a rejection.
-      inFlightIds.value.add(app.id)
-      emit('close-record', app.id, 'rejected')
-    } else if (!isTerminal(app)) {
-      inFlightIds.value.add(app.id)
-      emit('close-record', app.id, 'unresolved')
-    }
-  }
+function confirmClose(reason) {
+  const app = pendingClose.value
+  pendingClose.value = null
+  if (!app) return
+  inFlightIds.value.add(app.id)
+  emit('close-record', app.id, reason)
+}
+
+function cancelClose() {
+  pendingClose.value = null
+  syncColumns()
 }
 
 function handleToggle() {
@@ -391,7 +310,7 @@ watch(() => props.showClosed, async (val) => {
   }
 })
 
-watch(() => props.statusVersion, () => {
+watch(() => props.writeVersion, () => {
   inFlightIds.value.clear()
 })
 
