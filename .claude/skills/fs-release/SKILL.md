@@ -89,7 +89,7 @@ not safe to roll back by redeploying the previous image; restoring this file
 is the rollback.
 
 ```bash
-ssh docker 'docker exec -w /app/server job-tracker-app node -e "require(\"better-sqlite3\")(\"/app/data/job-tracker.db\").backup(\"/app/data/pre-deploy-$(date +%Y%m%d-%H%M).db\").then(() => console.log(\"backup ok\"))"'
+ssh docker 'docker exec -u nodejs -w /app/server job-tracker-app node -e "require(\"better-sqlite3\")(\"/app/data/job-tracker.db\").backup(\"/app/data/pre-deploy-$(date +%Y%m%d-%H%M).db\").then(() => console.log(\"backup ok\"))"'
 ```
 
 Stop if it does not print `backup ok`. Then deploy:
