@@ -48,3 +48,5 @@ rather than only eyeballing the diff.
 - [ ] `cd server && npm test` passes
 - [ ] Manual check: create an application with a CV attachment via the UI
 - [ ] Manual check: an oversized file (>10 MB) is still rejected with a 4xx
+
+- **Resolved:** 2026-10-25 (npm audit fix; lockfile now hono 4.13.13 / follow-redirects 1.16.1 / multer 2.5.0, audit clean)
