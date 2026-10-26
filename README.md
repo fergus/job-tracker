@@ -4,7 +4,10 @@
 
 A multi-user web app for tracking job applications through a pipeline — from initial interest through to offer and acceptance. A Today queue of what you owe this week, a Kanban board with drag-and-drop, a timeline view, a people list for recruiters and referrers, file attachments, notes, salary tracking, and date tracking per stage. Each user sees only their own applications; admins can view all.
 
-![Job Application Tracker kanban board with applications across all pipeline stages](docs/screenshot.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+  <img alt="Job Application Tracker board with an In play rail for interviews and offers above columns for each pipeline stage" src="docs/screenshot-light.png">
+</picture>
 
 ## Quick Start
 
@@ -80,7 +83,7 @@ cp -r uploads/ uploads-backup/
 ## Features
 
 - **Today** — the home screen: everything you owe in the next seven days across roles, leads and people, grouped Overdue / Today / This week (see [Today and follow-ups](#today-and-follow-ups))
-- **Kanban board** (Pipeline) — drag cards between columns: Interested → Applied → Responded → Interview (offers sit here too) → Closed; the Closed column splits into Accepted and Rejected and can be hidden with the show-closed toggle
+- **Kanban board** (Pipeline) — drag cards between columns: Interested → Applied → Responded → Interview (offers sit here too) → Closed. Each column is headed by its stage colour and a count, and an **In play** rail above the board lists your interviews and offers as one-click chips. Dropping a card on Closed asks for the reason (accepted, rejected, withdrawn and so on), shown on the card; the Closed column can be hidden with the show-closed toggle
 - **Timeline view** (Pipeline) — each application's stage history as a bar, switchable from the board with the Board / Timeline toggle
 - **People** — recruiters, referrers and hiring managers, grouped by what you owe them; log interactions and set a next action from each person's drawer
 - **Settings panel** — manage API keys, choose whether closing a record clears its next step (Follow-ups), and, for admins, toggle between personal and all-users view
