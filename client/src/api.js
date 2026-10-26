@@ -8,9 +8,8 @@ export function fetchMe() {
     return api.get("/me").then((r) => r.data);
 }
 
-export function fetchApplications(status, all = false) {
+export function fetchApplications(all = false) {
     const params = {};
-    if (status) params.status = status;
     if (all) params.all = "true";
     return api.get("/applications", { params }).then((r) => r.data);
 }
@@ -29,12 +28,6 @@ export function createApplication(formData) {
 
 export function updateApplication(id, data) {
     return api.put(`/applications/${id}`, data).then((r) => r.data);
-}
-
-export function updateStatus(id, status) {
-    return api
-        .patch(`/applications/${id}/status`, { status })
-        .then((r) => r.data);
 }
 
 export function uploadCV(id, file) {

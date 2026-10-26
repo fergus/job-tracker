@@ -26,6 +26,24 @@ This skill checks five categories:
 
 ## Steps
 
+### 0. Prepare
+
+Findings are only as good as the checkout they come from.
+
+```bash
+date +%F                                   # use this date everywhere; never guess it
+git fetch origin && git status -sb         # confirm you are on current main, not a stale or detached checkout
+(cd server && npm ci) && (cd client && npm ci)
+```
+
+`npm outdated` reports every package as `MISSING` without `node_modules`, and
+`npm audit` is less reliable, so install first. Run each npm command from its
+own directory with an explicit `cd <root>/server` or `cd <root>/client` in the
+same call; a bare `npm outdated` runs wherever the shell last was.
+
+Then list the open dependency todos (see `.claude/skills/fs-todos/SKILL.md`)
+and note each one's age, so step 2 can match findings against them.
+
 ### 1. Gather all dependency information
 
 Run all checks. `npm outdated` exits 1 when outdated packages exist — that's expected.
@@ -40,7 +58,7 @@ cd server && npm audit --json 2>/dev/null; true
 cd client && npm audit --json 2>/dev/null; true
 ```
 
-For GitHub Actions, read all workflow files in `.github/workflows/` and extract `uses:` lines with their pinned versions.
+For GitHub Actions, read all workflow files in `.github/workflows/` and extract `uses:` lines with their pinned versions. Look up the latest release with `gh api repos/<owner>/<repo>/releases/latest --jq .tag_name` rather than scraping release pages. Most pins are floating major tags (`@v6`), which already track the newest 6.x, so only a new *major* is an update.
 
 For Docker images, read `Dockerfile` for `FROM` lines and `docker-compose.yml` for `image:` lines.
 
@@ -69,6 +87,13 @@ Build **one unified list** of all findings. For each npm package, annotate with 
 | **Publisher verified?** | `npm view <package> --json` and check `signingKeys` or `provenance` fields. Note: this is advisory — many legitimate packages lack provenance |
 | **Update age** | `npm view <package>@<latest> time --json` — if the latest version was published less than 48 hours ago, flag as "fresh" (higher risk of undetected compromise) |
 | **Blast radius** | `npm why <package>` in the relevant directory to see how many packages depend on it |
+
+**Match against existing todos.** For each finding, check whether an open todo already covers that package or advisory.
+
+- Same target version: do not create a duplicate. Report the todo and its age.
+- Target moved (a newer latest): add an `- **Updated:**` line to the todo, per fs-todos.
+- Finding gone (already fixed, or the package was removed): move the todo to `todos/complete/` and rename its marker, per fs-todos.
+- A CVE todo older than two weeks is stale: raise it in the summary as overdue instead of re-listing it quietly.
 
 ### 3. Present all findings in a consolidated summary
 
@@ -105,6 +130,8 @@ For fresh updates (<48h old), add the ⚠️ marker and a brief warning below th
 **If any CVEs are found**, they are non-negotiable — present them with a clear note that they will be fixed.
 
 ### 4. Single approval prompt
+
+**Unattended runs (scheduled, no one to answer).** Do not apply anything, and do not skip anything silently. Treat the answer as "Skip all": step 6 creates or updates a todo for every finding (CVEs as p2 and called out at the top of the summary), including ones that fall under a CVE-only fix. If the invoking prompt asks for patch bumps to be auto-applied, this skill's no-auto-apply policy wins; record them as todos and say so in the summary.
 
 Using `AskUserQuestion`, present a single question:
 
@@ -166,7 +193,7 @@ Track everything that was applied for the final summary.
 
 ### 6. Create todos for skipped items
 
-For any finding the user chose to skip, create a todo. Read
+For any finding the user chose to skip (and not already covered by an open todo, per step 2), create a todo. Read
 `.claude/skills/fs-todos/SKILL.md` for the naming, numbering, priority and file
 layout, then fill the body with the dependency detail:
 
@@ -230,7 +257,7 @@ If the repo is in a detached HEAD state, determine the target branch via `git ls
 
 ### 8. Display final summary
 
-Print a markdown table of what was actually applied and what was recorded as todos:
+Print a markdown table of what was actually applied and what was recorded as todos. End with every open dependency todo and its age in days, so long-standing items stay visible:
 
 ```markdown
 ## Dependency Update — Applied
@@ -264,6 +291,11 @@ Print a markdown table of what was actually applied and what was recorded as tod
 | Item | Reason |
 |------|--------|
 | ...  | User chose to skip |
+
+### Open dependency todos
+| Todo | Priority | Age (days) |
+|------|----------|------------|
+| todos/NNN-... | p2 | 12 |
 ```
 
 ## Guardrails
@@ -274,4 +306,5 @@ Print a markdown table of what was actually applied and what was recorded as tod
 - Fresh updates (<48h old) are flagged with ⚠️ and a warning.
 - CVEs are non-negotiable — they will be fixed. The user can only choose how (now vs. record as todo).
 - If `npm outdated` or `npm audit` fail (network issues, etc.), report what was found and move on — don't block.
+- Never state a date, version or todo age you did not read from `date`, a registry or a file. Verify the checkout is current before calling anything "stale" or "unchanged".
 - Do not fabricate version information. If you can't verify a version or safety property, note it as "unknown".

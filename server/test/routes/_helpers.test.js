@@ -24,13 +24,12 @@ function makeReq({ email = "owner@example.com", isAdmin = false } = {}) {
 function insertApp(email) {
     const result = db
         .prepare(
-            `INSERT INTO applications (company_name, role_title, status, created_at, updated_at, user_email)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO applications (company_name, role_title, created_at, updated_at, user_email)
+       VALUES (?, ?, ?, ?, ?)`,
         )
         .run(
             "Acme",
             "Engineer",
-            "interested",
             new Date().toISOString(),
             new Date().toISOString(),
             email,

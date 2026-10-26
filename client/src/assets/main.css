@@ -38,6 +38,7 @@
     --stage-offer: oklch(56% 0.18 148);
     --stage-accepted: oklch(47% 0.2 148);
     --stage-rejected: oklch(50% 0.14 18);
+    --stage-closed: oklch(57% 0.04 240);
 
     /* Stage badge pairs — bg / fg */
     --stage-interested-bg: oklch(94% 0.015 240);
@@ -54,6 +55,8 @@
     --stage-accepted-fg: oklch(23% 0.16 148);
     --stage-rejected-bg: oklch(95% 0.035 18);
     --stage-rejected-fg: oklch(33% 0.12 18);
+    --stage-closed-bg: oklch(94% 0.015 240);
+    --stage-closed-fg: oklch(33% 0.08 240);
 }
 
 /* ─── Dark mode overrides ────────────────────────────────────────── */
@@ -87,6 +90,7 @@
         --stage-offer: oklch(64% 0.18 148);
         --stage-accepted: oklch(58% 0.2 148);
         --stage-rejected: oklch(60% 0.14 18);
+        --stage-closed: oklch(65% 0.04 240);
 
         --stage-interested-bg: oklch(24% 0.03 240);
         --stage-interested-fg: oklch(72% 0.06 240);
@@ -102,6 +106,8 @@
         --stage-accepted-fg: oklch(68% 0.16 148);
         --stage-rejected-bg: oklch(24% 0.05 18);
         --stage-rejected-fg: oklch(72% 0.12 18);
+        --stage-closed-bg: oklch(24% 0.03 240);
+        --stage-closed-fg: oklch(72% 0.06 240);
     }
 }
 

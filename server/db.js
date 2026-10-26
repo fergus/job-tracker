@@ -177,10 +177,9 @@ if (!extractedJdCheck.some((c) => c.name === "extracted_jd")) {
     db.exec("ALTER TABLE applications ADD COLUMN extracted_jd TEXT");
 }
 
-// Migrate: split the overloaded status column into three independent facts,
-// and separate applications from leads. All nullable with no defaults — a null
-// distinguishes "not yet backfilled" from "backfilled", which the one-shot
-// backfill below relies on to stay resumable.
+// Migrate: the stage / state / close_reason / record_type columns that replace
+// the overloaded status column, which is left in place and no longer read or
+// written. All nullable with no defaults.
 const splitCheck = db.prepare("PRAGMA table_info(applications)").all();
 for (const col of ["stage", "state", "close_reason", "record_type"]) {
     if (!splitCheck.some((c) => c.name === col)) {
@@ -372,24 +371,6 @@ db.exec(
     `CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT)`,
 );
 
-// One-shot migration: rename screening status to responded and copy dates
-const screeningMigrationRan = db
-    .prepare("SELECT 1 FROM _migrations WHERE name = ?")
-    .get("screening_to_responded");
-if (!screeningMigrationRan) {
-    db.transaction(() => {
-        db.exec(
-            "UPDATE applications SET status = 'responded' WHERE status = 'screening'",
-        );
-        db.exec(
-            "UPDATE applications SET responded_at = screening_at WHERE responded_at IS NULL AND screening_at IS NOT NULL",
-        );
-        db.prepare(
-            "INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))",
-        ).run("screening_to_responded");
-    })();
-}
-
 // Migrate existing CV/cover-letter data into attachments table
 const alreadyRun = db
     .prepare("SELECT 1 FROM _migrations WHERE name = ?")
@@ -554,100 +535,6 @@ if (!backfillRan) {
             `[backfill] Summary: total=${attachments.length} success=${successCount} failed=${failCount} skipped=${skipCount}`,
         );
     })();
-}
-
-// One-shot migration: split the overloaded status column into stage / state /
-// close_reason and separate applications from leads.
-//
-// Report mode is the default. A deploy alone must not rewrite 174 records of
-// live personal data on the strength of inference rules nobody has checked
-// against the real dataset, so applying requires an explicit opt-in. Both modes
-// run the same derivation, so the report cannot drift from the apply.
-const STATUS_SPLIT_MIGRATION = "status_split_backfill";
-const statusSplitApplied = db
-    .prepare("SELECT 1 FROM _migrations WHERE name = ?")
-    .get(STATUS_SPLIT_MIGRATION);
-
-if (!statusSplitApplied) {
-    const { deriveRecord, buildReport } = require("./services/migration-backfill");
-    const applyRequested = process.env.SCHEMA_BACKFILL === "apply";
-
-    if (applyRequested) {
-        db.transaction(() => {
-            // Only rows nothing has touched. Keying resume on `stage` alone was
-            // wrong in both directions: the app stays writable during the
-            // report-then-apply window, so a record closed through the new
-            // shape has state and close_reason but no stage -- the backfill
-            // would have overwritten the operator's reason with an inferred
-            // rejection -- while a record given only a stage would be skipped
-            // forever with state and record_type left null.
-            const rows = db
-                .prepare(
-                    `SELECT * FROM applications
-                     WHERE stage IS NULL AND state IS NULL
-                       AND close_reason IS NULL AND record_type IS NULL`,
-                )
-                .all();
-            const update = db.prepare(
-                `UPDATE applications
-                 SET stage = ?, state = ?, close_reason = ?, record_type = ?
-                 WHERE id = ?`,
-            );
-
-            let written = 0;
-            let flagged = 0;
-            let skipped = 0;
-            for (const row of rows) {
-                const d = deriveRecord(row);
-                if (d.stage === null) {
-                    // Unknown status: reported, never guessed at.
-                    skipped++;
-                    continue;
-                }
-                update.run(d.stage, d.state, d.close_reason, d.record_type, row.id);
-                written++;
-                if (d.review) flagged++;
-            }
-
-            // Only record the migration as done when every row was classified.
-            // Recording it while rows were skipped would gate the whole block
-            // off and strand those rows at null forever, since nothing revisits
-            // them. Leaving it unrecorded means the operator fixes the odd
-            // statuses and re-runs; rows already written are excluded by the
-            // selector above, so the retry does no double work.
-            if (skipped === 0) {
-                db.prepare(
-                    "INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))",
-                ).run(STATUS_SPLIT_MIGRATION);
-            }
-
-            console.log(
-                `[status-split] Applied. written=${written} flagged=${flagged} unclassified=${skipped}`,
-            );
-            if (flagged > 0) {
-                console.log(
-                    `[status-split] ${flagged} record(s) carry close_reason='unresolved' and need review.`,
-                );
-            }
-            if (skipped > 0) {
-                console.warn(
-                    `[status-split] NOT marked complete: ${skipped} record(s) have a status the rules do not understand. ` +
-                        `Fix those statuses and restart with SCHEMA_BACKFILL=apply to finish.`,
-                );
-            }
-        })();
-    } else if (dbPath !== ":memory:") {
-        const reportPath = path.join(
-            path.dirname(dbPath),
-            "schema-backfill-report.json",
-        );
-        const report = buildReport(db, { reportPath });
-        console.log(
-            `[status-split] Report mode (set SCHEMA_BACKFILL=apply to write). ` +
-                `total=${report.summary.total} flagged=${report.summary.flagged}`,
-        );
-        console.log(`[status-split] Report written to ${reportPath}`);
-    }
 }
 
 // API key prepared statements

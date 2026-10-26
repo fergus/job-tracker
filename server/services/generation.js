@@ -46,7 +46,11 @@ function buildContextMessage(context) {
         parts.push(`Company: ${app.company_name || "Unknown"}`);
         parts.push(`Role: ${app.role_title || "Unknown"}`);
         parts.push(`Location: ${app.job_location || "Not specified"}`);
-        parts.push(`Status: ${app.status || "Unknown"}`);
+        parts.push(`Stage: ${app.stage || "Unknown"}`);
+        parts.push(`State: ${app.state || "Unknown"}`);
+        if (app.close_reason) {
+            parts.push(`Close reason: ${app.close_reason}`);
+        }
     }
 
     if (context.job_description) {

@@ -8,7 +8,6 @@ const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
 const { isValidUrl } = require("../lib/validation");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
 const { emitChange } = require("../lib/events");
-const { deriveRecord } = require("./migration-backfill");
 const { visibleStageNotesForApplications } = require("./stage-notes");
 const {
     VALID_FOLLOWUP_STATES,
@@ -25,7 +24,10 @@ class ServiceError extends Error {
     }
 }
 
-const VALID_STATUSES = [
+// The stages a stage note can be filed under. Wider than VALID_STAGES: a note
+// can record an outcome (accepted, rejected), which is a close reason on the
+// record rather than a stage it can sit at.
+const NOTE_STAGES = [
     "interested",
     "applied",
     "responded",
@@ -35,22 +37,10 @@ const VALID_STATUSES = [
     "rejected",
 ];
 
-const STATUS_DATE_MAP = {
-    interested: "interested_at",
-    applied: "applied_at",
-    responded: "responded_at",
-    interview: "interview_at",
-    offer: "offer_at",
-    accepted: "closed_at",
-    rejected: "closed_at",
-};
-
-// --- The status split ------------------------------------------------------
+// --- Stage, state, close reason and record type ---------------------------
 //
-// `status` used to encode three unrelated facts: how far a record got, whether
-// it is still open, and why it ended. It is now derived rather than
-// authoritative, and kept in step on every write so callers that have not
-// migrated keep working.
+// The legacy `status` column is no longer read or written. It stays in the
+// table, untouched, until the release after this one drops it.
 
 const VALID_STAGES = [
     "interested",
@@ -71,54 +61,53 @@ const VALID_CLOSE_REASONS = [
     "unresolved",
 ];
 
-// Derive the triple from a legacy status write. `currentStage` is preserved
-// when the write only closes the record: closing must not change how far the
-// record got.
-function tripleFromStatus(status, currentStage) {
-    if (status === "accepted") {
-        return {
-            stage: currentStage || "offer",
-            state: "closed",
-            close_reason: "accepted",
-        };
-    }
-    if (status === "rejected") {
-        return {
-            stage: currentStage || "interested",
-            state: "closed",
-            close_reason: "rejected",
-        };
-    }
-    return { stage: status, state: "open", close_reason: null };
-}
+// The date column a stage stamps when a record reaches it.
+const STAGE_DATE_MAP = {
+    interested: "interested_at",
+    applied: "applied_at",
+    responded: "responded_at",
+    interview: "interview_at",
+    offer: "offer_at",
+};
 
 // A record is an application once something evidences it was actually applied
-// to: a stage at or beyond `applied`, or an acceptance. Closing is NOT such
-// evidence -- a lead you close is still a lead, and treating a close as proof
-// of an application is the exact conflation this split exists to undo.
-function evidencesApplication(stage, status) {
-    if (status === "accepted") return true;
+// to: a stage at or beyond `applied`. Closing is NOT such evidence -- a lead
+// you close is still a lead, and treating a close as proof of an application
+// is the exact conflation the split exists to undo.
+function evidencesApplication(stage) {
     if (!stage) return false;
     return VALID_STAGES.indexOf(stage) >= VALID_STAGES.indexOf("applied");
 }
 
-// Derive the legacy status from the triple. Lossy in this direction by design:
-// the legacy column has exactly one failure state, so every non-acceptance
-// close collapses onto `rejected`.
-function statusFromTriple({ stage, state, close_reason }) {
-    if (state === "closed") {
-        return close_reason === "accepted" ? "accepted" : "rejected";
+const LEGACY_STATUS_MESSAGE =
+    "status is no longer supported: use stage, state, close_reason and record_type";
+
+// Returned by the tombstones for the removed status write path (the
+// update_status MCP tool and PATCH /:id/status), which go in the next release.
+const STATUS_REMOVED_MESSAGE =
+    "Changing status is no longer supported and this route is removed next release: use update_application (PUT /api/applications/:id) with stage, state and close_reason";
+
+// A `status` argument fails rather than being ignored: silently returning
+// everything, or writing nothing, is how a caller keeps trusting a field that
+// no longer exists. Shared by the REST routes and the MCP tools.
+function rejectLegacyStatus(args) {
+    if (
+        args &&
+        args.status !== undefined &&
+        args.status !== null &&
+        args.status !== ""
+    ) {
+        throw new ServiceError(400, LEGACY_STATUS_MESSAGE);
     }
-    return stage || "interested";
 }
 
-// A row's state and record type as SQL, falling back to the legacy status for
-// rows the split backfill has not reached. Filtering on the bare columns would
-// return nothing before the apply runs -- which is the default deployed state.
-// Shared so every reader of "open" or "lead" agrees on the fallback. Both
-// expect the applications table aliased as `a`.
-const EFFECTIVE_STATE_SQL = `COALESCE(a.state, CASE WHEN a.status IN ('accepted','rejected') THEN 'closed' ELSE 'open' END)`;
-const EFFECTIVE_RECORD_TYPE_SQL = `COALESCE(a.record_type, CASE WHEN a.status IN ('applied','responded','interview','offer','accepted') THEN 'application' ELSE 'lead' END)`;
+// The one outbound shape for a record: the legacy column never leaves the
+// server, whichever surface the row is leaving through.
+function toApiRecord(row) {
+    if (!row) return row;
+    const { status: _legacyStatus, ...rest } = row;
+    return rest;
+}
 
 const LIMITS = {
     company_name: 200,
@@ -151,7 +140,7 @@ function getOwnApp(id, userEmail) {
 // injectable for tests; callers mapping over rows must not pass the index.
 function withFollowUp(row, now = new Date()) {
     return {
-        ...row,
+        ...toApiRecord(row),
         follow_up_state: followUpState(row.next_action_at, now),
         follow_up_days: daysUntil(row.next_action_at, now),
     };
@@ -215,7 +204,6 @@ function attachNotes(rows) {
 function listApplications(
     userEmail,
     {
-        status,
         state,
         close_reason,
         record_type,
@@ -239,17 +227,6 @@ function listApplications(
         params.push(userEmail);
     }
 
-    if (status !== undefined && status !== null && status !== "") {
-        if (!VALID_STATUSES.includes(status)) {
-            throw new ServiceError(
-                400,
-                `Invalid status: expected one of ${VALID_STATUSES.join(", ")}`,
-            );
-        }
-        conditions.push("a.status = ?");
-        params.push(status);
-    }
-
     // The split filters. An unknown value is rejected rather than ignored:
     // silently returning everything is how a caller ends up trusting a count
     // that answers a different question than the one it asked.
@@ -260,12 +237,7 @@ function listApplications(
                 `Invalid state: expected one of ${VALID_STATES.join(", ")}`,
             );
         }
-        // Fall back to the legacy status for rows the backfill has not reached.
-        // Filtering on the bare column would return nothing at all before the
-        // apply runs -- which is the default deployed state.
-        conditions.push(
-            `${EFFECTIVE_STATE_SQL} = ?`,
-        );
+        conditions.push("a.state = ?");
         params.push(state);
     }
 
@@ -276,9 +248,7 @@ function listApplications(
                 `Invalid close_reason: expected one of ${VALID_CLOSE_REASONS.join(", ")}`,
             );
         }
-        conditions.push(
-            `COALESCE(a.close_reason, CASE a.status WHEN 'accepted' THEN 'accepted' WHEN 'rejected' THEN 'rejected' END) = ?`,
-        );
+        conditions.push("a.close_reason = ?");
         params.push(close_reason);
     }
 
@@ -289,13 +259,7 @@ function listApplications(
                 `Invalid record_type: expected one of ${VALID_RECORD_TYPES.join(", ")}`,
             );
         }
-        // Deriving the fallback rather than assuming 'application' matters:
-        // pre-backfill every row is null, so assuming would return the whole
-        // table for record_type=application -- the inflated count this change
-        // exists to fix -- and nothing at all for lead.
-        conditions.push(
-            `${EFFECTIVE_RECORD_TYPE_SQL} = ?`,
-        );
+        conditions.push("a.record_type = ?");
         params.push(record_type);
     }
 
@@ -416,7 +380,8 @@ function createApplication(userEmail, data) {
     const {
         company_name,
         role_title,
-        status,
+        stage: rawStage,
+        record_type: rawRecordType,
         job_description,
         job_posting_url,
         company_website_url,
@@ -437,6 +402,25 @@ function createApplication(userEmail, data) {
 
     const lengthError = validateInputLengths(data, Object.keys(LIMITS));
     if (lengthError) throw new ServiceError(400, lengthError);
+
+    // Multipart forms send empty fields as ''; treat '' as not given.
+    const stage = rawStage === undefined || rawStage === "" ? "interested" : rawStage;
+    if (!VALID_STAGES.includes(stage)) {
+        throw new ServiceError(
+            400,
+            `stage must be one of: ${VALID_STAGES.join(", ")}`,
+        );
+    }
+    const givenRecordType =
+        rawRecordType === undefined || rawRecordType === ""
+            ? null
+            : rawRecordType;
+    if (givenRecordType !== null && !VALID_RECORD_TYPES.includes(givenRecordType)) {
+        throw new ServiceError(
+            400,
+            `record_type must be one of: ${VALID_RECORD_TYPES.join(", ")}`,
+        );
+    }
 
     if (!isValidUrl(job_posting_url))
         throw new ServiceError(
@@ -490,39 +474,28 @@ function createApplication(userEmail, data) {
             : normaliseNextAction(data.next_action);
 
     const now = new Date().toISOString();
-    const appStatus =
-        status && VALID_STATUSES.includes(status) ? status : "interested";
-    const dateField = STATUS_DATE_MAP[appStatus];
-    const triple = tripleFromStatus(appStatus, null);
-    // A record created already closed owes nothing either: the same rule a
-    // close write applies, under the same per-user setting. Validated above
-    // first, so a malformed value is still refused rather than silently dropped.
-    if (triple.state === "closed" && clearsNextStepOnClose(userEmail)) {
-        nextActionAt = null;
-        nextAction = null;
-    }
-    // A record created at or beyond `applied` is one that was applied to;
-    // anything earlier is a lead until it progresses.
-    const recordType = evidencesApplication(triple.stage, appStatus)
+    const dateField = STAGE_DATE_MAP[stage];
+    // A stage at or beyond `applied` makes the record an application whatever
+    // record_type says; below it the given type holds, defaulting to a lead.
+    const recordType = evidencesApplication(stage)
         ? "application"
-        : "lead";
+        : (givenRecordType ?? "lead");
 
     const result = db
         .prepare(
             `
-    INSERT INTO applications (company_name, role_title, status, job_description, job_posting_url, company_website_url,
+    INSERT INTO applications (company_name, role_title, job_description, job_posting_url, company_website_url,
       cv_filename, cv_path, cover_letter_filename, cover_letter_path, interview_notes, prep_work,
       salary_min, salary_max, job_location,
       created_at, updated_at,
       interested_at, applied_at, responded_at, interview_at, offer_at, closed_at, user_email,
       stage, state, close_reason, record_type, next_action_at, next_action)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
         )
         .run(
             company_name,
             role_title,
-            appStatus,
             job_description || null,
             job_posting_url || null,
             company_website_url || null,
@@ -542,11 +515,11 @@ function createApplication(userEmail, data) {
             dateField === "responded_at" ? now : null,
             dateField === "interview_at" ? now : null,
             dateField === "offer_at" ? now : null,
-            dateField === "closed_at" ? now : null,
+            null,
             userEmail,
-            triple.stage,
-            triple.state,
-            triple.close_reason,
+            stage,
+            "open",
+            null,
             recordType,
             nextActionAt,
             nextAction,
@@ -649,8 +622,7 @@ function updateApplication(userEmail, id, data) {
         }
     }
 
-    // The split fields. Any write to one of them re-derives the legacy status
-    // so callers that still read `status` stay consistent.
+    // The split fields.
     if (data.stage !== undefined && !VALID_STAGES.includes(data.stage)) {
         throw new ServiceError(
             400,
@@ -690,21 +662,8 @@ function updateApplication(userEmail, id, data) {
     let closesRecord = false;
 
     if (touchesSplit) {
-        // A row the backfill has not reached carries its facts only in the
-        // legacy status and the stage dates, so derive from those with the
-        // same rules the backfill uses -- an edit before the apply then agrees
-        // with what the apply would have written. Reading the null columns
-        // directly would write stage = NULL and collapse status to 'rejected',
-        // destroying how far the record actually got, and would leave the row
-        // half-written so the apply selector skips it forever.
-        const derived = deriveRecord(existing);
-        const currentStage = existing.stage ?? derived.stage;
-        const currentState = existing.state ?? derived.state;
-        const currentCloseReason = existing.close_reason ?? derived.close_reason;
-        const currentRecordType = existing.record_type ?? derived.record_type;
-
-        const nextStage = data.stage !== undefined ? data.stage : currentStage;
-        const nextState = data.state !== undefined ? data.state : currentState;
+        const nextStage = data.stage !== undefined ? data.stage : existing.stage;
+        const nextState = data.state !== undefined ? data.state : existing.state;
 
         let nextCloseReason;
         if (data.state === "open") {
@@ -716,7 +675,7 @@ function updateApplication(userEmail, id, data) {
         } else if (data.close_reason !== undefined) {
             nextCloseReason = data.close_reason;
         } else {
-            nextCloseReason = currentCloseReason;
+            nextCloseReason = existing.close_reason;
         }
 
         if (nextState !== "closed" && nextCloseReason) {
@@ -732,19 +691,9 @@ function updateApplication(userEmail, id, data) {
             );
         }
 
-        const nextTriple = {
-            stage: nextStage,
-            state: nextState,
-            close_reason: nextCloseReason,
-        };
         closesRecord = nextState === "closed";
-        updates.push("stage = ?", "state = ?", "close_reason = ?", "status = ?");
-        values.push(
-            nextStage,
-            nextState,
-            nextCloseReason,
-            statusFromTriple(nextTriple),
-        );
+        updates.push("stage = ?", "state = ?", "close_reason = ?");
+        values.push(nextStage, nextState, nextCloseReason);
 
         if (nextState === "closed" && !existing.closed_at) {
             updates.push("closed_at = ?");
@@ -756,63 +705,41 @@ function updateApplication(userEmail, id, data) {
             values.push(null);
         }
 
-        // Advancing the stage through the new shape is the same evidence a
-        // legacy status write carries, so promote record_type the same way --
-        // unless the caller set it explicitly below.
-        if (data.record_type === undefined) {
-            // An explicitly stored record_type is the operator's statement about
-            // what this record IS, and no unrelated write may overturn it. The
-            // earlier rule promoted on stage evidence alone, so merely reopening
-            // a record parked at `responded` silently flipped an operator's
-            // `lead` back to `application` -- which broke the documented way of
-            // keeping non-roles out of pipeline counts.
-            const stageAdvancedThisWrite =
-                data.stage !== undefined &&
-                evidencesApplication(nextStage, statusFromTriple(nextTriple)) &&
-                !evidencesApplication(currentStage, existing.status);
+        // Reaching a stage stamps its date, which the timeline reads. Only a
+        // change of stage counts, plus a reopen onto a stage that has no date
+        // yet: re-saving the stage a record is at, or reopening it where it
+        // closed (an Undo of a close), must not overwrite the date it first
+        // got there.
+        const reopens = existing.state === "closed" && nextState === "open";
+        const dateField = STAGE_DATE_MAP[nextStage];
+        if (
+            dateField &&
+            (nextStage !== existing.stage || (reopens && !existing[dateField]))
+        ) {
+            updates.push(`${dateField} = ?`);
+            values.push(new Date().toISOString());
+        }
 
-            if (existing.record_type == null) {
-                // Never set: derive it, so a legacy row is not left half-written.
-                const derivedType = evidencesApplication(
-                    nextStage,
-                    statusFromTriple(nextTriple),
-                )
-                    ? "application"
-                    : currentRecordType;
-                if (derivedType) {
-                    updates.push("record_type = ?");
-                    values.push(derivedType);
-                }
-            } else if (stageAdvancedThisWrite && existing.record_type === "lead") {
-                // The stage genuinely moved past `applied` in this write, so the
-                // record demonstrably became an application.
-                updates.push("record_type = ?");
-                values.push("application");
-            }
+        // A stage that genuinely moves past `applied` in this write is
+        // evidence the record became an application. An explicitly stored
+        // `lead` is otherwise the operator's statement and no unrelated write
+        // overturns it: reopening a record parked at `responded` must not flip
+        // it back.
+        if (
+            data.record_type === undefined &&
+            existing.record_type === "lead" &&
+            data.stage !== undefined &&
+            evidencesApplication(nextStage) &&
+            !evidencesApplication(existing.stage)
+        ) {
+            updates.push("record_type = ?");
+            values.push("application");
         }
     }
 
     if (data.record_type !== undefined) {
         updates.push("record_type = ?");
         values.push(data.record_type);
-
-        // Hydrate the rest of the split fields on a legacy row. The apply
-        // selector claims only rows where all four columns are null, so
-        // writing record_type alone -- an operator correcting a type during
-        // the report window -- would leave the row half-written and strand it
-        // from the backfill permanently. status is deliberately untouched:
-        // a record-type correction is not a status change.
-        if (!touchesSplit && existing.stage == null) {
-            const hydrated = deriveRecord(existing);
-            if (hydrated.stage !== null) {
-                updates.push("stage = ?", "state = ?", "close_reason = ?");
-                values.push(
-                    hydrated.stage,
-                    hydrated.state,
-                    hydrated.close_reason,
-                );
-            }
-        }
     }
 
     // Closing ends the commitment by default: a closed record owes nothing, so
@@ -852,70 +779,6 @@ function updateApplication(userEmail, id, data) {
     values.push(id);
     values.push(userEmail);
 
-    db.prepare(
-        `UPDATE applications SET ${updates.join(", ")} WHERE id = ? AND user_email = ?`,
-    ).run(...values);
-    emitChange(userEmail, "updated", Number(id));
-    return withFollowUp(
-        db.prepare("SELECT * FROM applications WHERE id = ?").get(id),
-    );
-}
-
-function updateStatus(userEmail, id, status) {
-    if (!status || !VALID_STATUSES.includes(status)) {
-        throw new ServiceError(400, "Invalid status");
-    }
-
-    const existing = getOwnApp(id, userEmail);
-    if (!existing) throw new ServiceError(404, "Not found");
-
-    const now = new Date().toISOString();
-    const updates = ["status = ?", "updated_at = ?"];
-    const values = [status, now];
-
-    const dateField = STATUS_DATE_MAP[status];
-    if (dateField) {
-        updates.push(`${dateField} = ?`);
-        values.push(now);
-    }
-
-    // Keep the split fields in step with the legacy write. A row the backfill
-    // has not reached carries its facts only in the legacy status and the stage
-    // dates, so derive from those first -- reading the raw null stage would
-    // collapse an `offer` row to `interested` and leave record_type null, which
-    // is exactly the half-written shape the apply selector skips forever.
-    const derived = deriveRecord(existing);
-    const currentStage = existing.stage ?? derived.stage;
-    const currentRecordType = existing.record_type ?? derived.record_type;
-
-    const triple = tripleFromStatus(status, currentStage);
-    updates.push("stage = ?", "state = ?", "close_reason = ?");
-    values.push(triple.stage, triple.state, triple.close_reason);
-    if (triple.state === "closed" && clearsNextStepOnClose(userEmail)) {
-        // A terminal status closes the record, and closing ends its next step
-        // unless the user turned that off (the same rule updateApplication
-        // applies to a split-field close).
-        updates.push("next_action_at = ?", "next_action = ?");
-        values.push(null, null);
-    }
-    if (triple.state === "open" && existing.closed_at) {
-        // Reopening through the legacy path must clear the closure date too,
-        // or a later close keeps reporting when the record first ended.
-        updates.push("closed_at = ?");
-        values.push(null);
-    }
-    if (evidencesApplication(triple.stage, status)) {
-        updates.push("record_type = ?");
-        values.push("application");
-    } else if (existing.record_type == null && currentRecordType) {
-        // Carry the derived type onto a legacy row rather than leaving it
-        // partially written.
-        updates.push("record_type = ?");
-        values.push(currentRecordType);
-    }
-
-    values.push(id);
-    values.push(userEmail);
     db.prepare(
         `UPDATE applications SET ${updates.join(", ")} WHERE id = ? AND user_email = ?`,
     ).run(...values);
@@ -1060,25 +923,25 @@ function getAttachment(
 
 module.exports = {
     ServiceError,
-    VALID_STATUSES,
+    NOTE_STAGES,
     VALID_STAGES,
     VALID_STATES,
     VALID_RECORD_TYPES,
     VALID_CLOSE_REASONS,
-    statusFromTriple,
-    tripleFromStatus,
+    STAGE_DATE_MAP,
+    LEGACY_STATUS_MESSAGE,
+    STATUS_REMOVED_MESSAGE,
+    rejectLegacyStatus,
+    toApiRecord,
     getOwnApp,
     attachNotes,
     withFollowUp,
     normaliseFollowUpDate,
     normaliseNextAction,
-    EFFECTIVE_STATE_SQL,
-    EFFECTIVE_RECORD_TYPE_SQL,
     listApplications,
     getApplication,
     createApplication,
     updateApplication,
-    updateStatus,
     deleteApplication,
     listAttachments,
     getAttachment,

@@ -40,7 +40,7 @@
             <option value="company">Company name</option>
             <option value="duration">Longest in stage</option>
             <option value="start">Start date</option>
-            <option value="status">Status</option>
+            <option value="stage">Stage</option>
           </select>
           </div>
         </div>
@@ -87,14 +87,14 @@
       </div>
 
       <!-- Grouped application rows -->
-      <template v-for="group in groupedApps" :key="group.status">
+      <template v-for="group in groupedApps" :key="group.key">
         <!-- Section header -->
         <div class="flex items-center gap-2 mt-3 mb-1">
           <div
             class="w-2 h-2 rounded-full"
-            :style="{ backgroundColor: `var(--stage-${group.status})` }"
+            :style="{ backgroundColor: `var(--stage-${group.key})` }"
           ></div>
-          <span class="text-xs font-bold uppercase tracking-wider text-ink-3">{{ group.status }}</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-ink-3">{{ group.key }}</span>
           <span class="text-xs text-ink-3">({{ group.apps.length }})</span>
         </div>
 
@@ -104,7 +104,7 @@
           class="flex items-center group cursor-pointer hover:bg-raised rounded transition-colors min-h-9"
           role="button"
           tabindex="0"
-          :aria-label="`${app.company_name} — ${app.role_title}, currently ${app.status}, started ${formatShortDate(app.created_at)}`"
+          :aria-label="`${app.company_name} — ${app.role_title}, currently ${currentLabel(app)}, started ${formatShortDate(app.created_at)}`"
           @click="$emit('open-detail', app)"
           @keydown.enter="$emit('open-detail', app)"
           @keydown.space.prevent="$emit('open-detail', app)"
@@ -145,7 +145,7 @@
               <div
                 v-else
                 class="absolute top-0 h-full rounded flex items-center justify-center overflow-hidden"
-                :style="segmentStyle(seg, app.status)"
+                :style="segmentStyle(seg, app)"
                 @mouseenter="showTooltip($event, seg)"
                 @mouseleave="hideTooltip"
                 @click.stop="showTooltipTouch($event, seg)"
@@ -189,7 +189,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { computeSegments, durationDays, isRejected, isTerminal } from '../utils/timeline'
+import { computeSegments, durationDays, isRejected, isTerminal, STAGE_ORDER, CLOSE_REASON_LABELS } from '../utils/timeline'
 import { storageGetString, storageSet } from '../utils/storage.js'
 import { formatShortDate } from '../utils/date.js'
 import ViewLensToggle from './ViewLensToggle.vue'
@@ -201,7 +201,9 @@ defineEmits(['open-detail', 'toggle-show-closed', 'set-view'])
 const SORT_KEY = 'jobtracker_timeline_sort'
 
 const today = ref(new Date().toISOString())
-const sortKey = ref(storageGetString(SORT_KEY, 'updated'))
+// 'status' was the old name of the stage sort; a stored one maps across.
+const storedSort = storageGetString(SORT_KEY, 'updated')
+const sortKey = ref(storedSort === 'status' ? 'stage' : storedSort)
 const tooltip = ref(null)
 const tooltipTimer = ref(null)
 
@@ -224,7 +226,18 @@ onUnmounted(() => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value)
 })
 
-const allStages = ['interested', 'applied', 'responded', 'interview', 'offer', 'accepted', 'rejected']
+const allStages = [...STAGE_ORDER, 'accepted', 'rejected', 'closed']
+
+// Where a record sits for grouping and sorting: its stage while open, one
+// shared position once closed.
+function groupKey(app) {
+  return isTerminal(app) ? 'closed' : app.stage
+}
+
+function currentLabel(app) {
+  if (!isTerminal(app)) return app.stage
+  return `closed (${CLOSE_REASON_LABELS[app.close_reason] || app.close_reason || 'reason unknown'})`
+}
 
 const minDate = computed(() => {
   if (!props.applications?.length) return today.value
@@ -252,11 +265,11 @@ function sortApps(apps) {
     }
     case 'start':
       return list.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
-    case 'status': {
-      const order = ['interested', 'applied', 'responded', 'interview', 'offer', 'accepted', 'rejected']
+    case 'stage': {
+      const order = [...STAGE_ORDER, 'closed']
       return list.sort((a, b) => {
-        const aIdx = order.indexOf(a.status)
-        const bIdx = order.indexOf(b.status)
+        const aIdx = order.indexOf(groupKey(a))
+        const bIdx = order.indexOf(groupKey(b))
         if (aIdx !== bIdx) return aIdx - bIdx
         const aDate = a.updated_at || a.created_at || ''
         const bDate = b.updated_at || b.created_at || ''
@@ -278,11 +291,11 @@ const sortedApps = computed(() => {
 })
 
 const groupedApps = computed(() => {
-  const order = ['interested', 'applied', 'responded', 'interview', 'offer', 'accepted', 'rejected']
+  const order = [...STAGE_ORDER, 'closed']
   const groups = []
-  for (const status of order) {
-    const apps = sortedApps.value.filter(a => a.status === status)
-    if (apps.length) groups.push({ status, apps })
+  for (const key of order) {
+    const apps = sortedApps.value.filter(a => groupKey(a) === key)
+    if (apps.length) groups.push({ key, apps })
   }
   return groups
 })
@@ -359,11 +372,11 @@ function sliverStyle(seg) {
     width: '6px',
     height: '6px',
     backgroundColor: colorVar,
-    filter: isRejected(seg.stage) ? 'grayscale(0.4) brightness(0.85)' : undefined,
+    filter: seg.stage === 'rejected' ? 'grayscale(0.4) brightness(0.85)' : undefined,
   }
 }
 
-function segmentStyle(seg, appStatus) {
+function segmentStyle(seg, app) {
   const colorVar = `var(--stage-${seg.stage}, oklch(57% 0.04 240))`
 
   if (seg.isTrailing) {
@@ -383,18 +396,23 @@ function segmentStyle(seg, appStatus) {
     backgroundColor: colorVar,
   }
 
-  if (isRejected(appStatus)) {
+  if (isRejected(app)) {
     baseStyle.filter = 'grayscale(0.4) brightness(0.85)'
   }
 
   return baseStyle
 }
 
+// A closing segment reads as its real reason, not as a generic stage.
+function segmentName(seg) {
+  return seg.reason ? CLOSE_REASON_LABELS[seg.reason] || seg.reason : seg.stage
+}
+
 function showTooltip(event, seg) {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value)
   const days = durationDays(seg.start, seg.end)
   tooltip.value = {
-    stage: seg.stage,
+    stage: segmentName(seg),
     days,
     startLabel: formatShortDate(seg.start),
     endLabel: formatShortDate(seg.end),
@@ -407,7 +425,7 @@ function showTooltipTouch(event, seg) {
   const rect = event.target.getBoundingClientRect()
   const days = durationDays(seg.start, seg.end)
   tooltip.value = {
-    stage: seg.stage,
+    stage: segmentName(seg),
     days,
     startLabel: formatShortDate(seg.start),
     endLabel: formatShortDate(seg.end),

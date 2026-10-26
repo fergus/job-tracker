@@ -115,7 +115,7 @@ Useful queries:
 .tables
 .schema applications
 .schema stage_notes
-SELECT id, company_name, status FROM applications;
+SELECT id, company_name, stage, state, close_reason FROM applications;
 SELECT * FROM stage_notes WHERE application_id = 1;
 ```
 
@@ -152,7 +152,7 @@ Base URL: `/api/applications`
 
 ```
 GET /api/applications
-GET /api/applications?status=interview
+GET /api/applications?state=open&record_type=application
 GET /api/applications?all=true          # admin only: show all users' applications
 ```
 
@@ -173,7 +173,7 @@ POST /api/applications
 Content-Type: multipart/form-data
 
 Required: company_name, role_title
-Optional: status, job_description, job_posting_url, company_website_url,
+Optional: stage (default interested), record_type, job_description, job_posting_url, company_website_url,
           interview_notes, prep_work, salary_min, salary_max, job_location,
           cv (file), cover_letter (file)
 ```
@@ -202,18 +202,20 @@ Content-Type: application/json
 
 All fields optional. At least one must be provided.
 
-#### Change status
+#### Change stage or close a record
 
 ```
-PATCH /api/applications/:id/status
+PUT /api/applications/:id
 Content-Type: application/json
 
-{ "status": "interview" }
+{ "stage": "interview" }
+{ "state": "closed", "close_reason": "withdrawn" }
+{ "state": "open", "stage": "responded" }
 ```
 
-Valid statuses: `interested`, `applied`, `responded`, `interview`, `offer`, `accepted`, `rejected`.
+Stages: `interested`, `applied`, `responded`, `interview`, `offer`. Close reasons: `accepted`, `rejected`, `withdrawn`, `role_closed`, `lapsed`, `not_pursued`, `unresolved`.
 
-Automatically sets the corresponding date field (e.g. `interview_at`) to the current time.
+A stage change sets the corresponding date field (e.g. `interview_at`) to the current time. A `status` argument is rejected with a 400, and `PATCH /api/applications/:id/status` returns 410; both go away next release.
 
 #### Edit date fields
 
@@ -378,7 +380,7 @@ UI preferences (`compactHeader`, default view) are initialised in `onMounted` ba
 
 ```
 Child component
-  └─ emits event (e.g. 'notes-changed', 'status-change')
+  └─ emits event (e.g. 'notes-changed', 'stage-change')
       └─ App.vue handler
           ├─ calls API
           ├─ reloads applications list
@@ -490,11 +492,11 @@ curl -s -X POST http://localhost:3000/api/applications/1/notes \
   -H 'Content-Type: application/json' \
   -d '{"stage":"responded","content":"Recruiter replied"}' | jq
 
-# Change status
-curl -s -X PATCH http://localhost:3000/api/applications/1/status \
+# Change stage
+curl -s -X PUT http://localhost:3000/api/applications/1 \
   -H 'X-Forwarded-Email: dev@localhost' \
   -H 'Content-Type: application/json' \
-  -d '{"status":"responded"}' | jq
+  -d '{"stage":"responded"}' | jq
 
 # Upload an attachment
 curl -s -X POST http://localhost:3000/api/applications/1/attachments \

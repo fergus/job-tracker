@@ -6,7 +6,7 @@ import { gotoPipeline } from './helpers.js'
 async function openContactPanel(page, request, { company, person }) {
   const app = await request
     .post('/api/applications', {
-      data: { company_name: company, role_title: 'Engineer', status: 'interested' },
+      data: { company_name: company, role_title: 'Engineer', stage: 'interested' },
     })
     .then((r) => r.json())
   const contact = await request
@@ -54,7 +54,7 @@ test('the record panel flags which linked people are owed a touch', async ({
 }) => {
   const app = await request
     .post('/api/applications', {
-      data: { company_name: 'ChipCo', role_title: 'Engineer', status: 'interested' },
+      data: { company_name: 'ChipCo', role_title: 'Engineer', stage: 'interested' },
     })
     .then((r) => r.json())
   const overdue = await request
@@ -112,7 +112,7 @@ test('clearing the commitment removes it rather than blanking the display', asyn
 }) => {
   const app = await request
     .post('/api/applications', {
-      data: { company_name: 'ClearCo', role_title: 'Engineer', status: 'interested' },
+      data: { company_name: 'ClearCo', role_title: 'Engineer', stage: 'interested' },
     })
     .then((r) => r.json())
   const contact = await request

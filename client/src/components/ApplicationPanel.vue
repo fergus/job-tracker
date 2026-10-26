@@ -59,21 +59,45 @@
         </div>
       </div>
 
-      <!-- Sticky status bar -->
+      <!-- Sticky stage bar: the open stages, then Close -->
       <div class="px-5 py-2 border-b border-line shrink-0 relative">
         <div class="flex flex-wrap justify-between gap-1.5">
           <button
-            v-for="s in statuses"
+            v-for="s in stages"
             :key="s"
-            @click="onStatusClick(s)"
-            :aria-pressed="form.status === s"
+            @click="onStageClick(s)"
+            :aria-pressed="isStageActive(s)"
+            :disabled="writingRecord"
             :class="[
-              form.status === s ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1',
-              stampingStatus === s ? 'stage-stamp' : ''
+              isStageActive(s) ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1',
+              stampingStage === s ? 'stage-stamp' : ''
             ]"
-            :style="statusPillStyle(s)"
+            :style="stagePillStyle(s)"
             class="px-2.5 min-h-[44px] inline-flex items-center rounded-full text-xs font-medium capitalize transition-all duration-200"
           >{{ s }}</button>
+          <button
+            v-if="isEdit"
+            @click="openClosePicker"
+            :aria-pressed="record.state === 'closed'"
+            data-testid="panel-close-action"
+            :class="record.state === 'closed' ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1'"
+            :style="stagePillStyle('closed')"
+            class="px-2.5 min-h-[44px] inline-flex items-center rounded-full text-xs font-medium transition-all duration-200"
+          >{{ record.state === 'closed' ? `Closed — ${closeReasonLabels[record.close_reason] || 'reason unknown'}` : 'Close' }}</button>
+        </div>
+        <!-- Create mode: a record starts open, as a lead unless the stage says otherwise -->
+        <div v-if="!isEdit" class="flex items-center gap-2 mt-2" role="group" aria-label="Record type">
+          <button
+            v-for="t in recordTypes"
+            :key="t.value"
+            type="button"
+            @click="form.record_type = t.value"
+            :aria-pressed="effectiveRecordType === t.value"
+            :disabled="stageForcesApplication && t.value === 'lead'"
+            :data-testid="`create-record-type-${t.value}`"
+            :class="effectiveRecordType === t.value ? 'bg-accent text-accent-fg border-accent' : 'bg-raised text-ink-2 border-line hover:text-ink'"
+            class="px-2.5 min-h-[44px] inline-flex items-center rounded-full text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >{{ t.label }}</button>
         </div>
       </div>
 
@@ -93,7 +117,7 @@
                     aria-label="Note stage"
                     class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
                   >
-                    <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                    <option v-for="s in noteStages" :key="s" :value="s">{{ s }}</option>
                   </select>
                   <button
                     @click="addNote"
@@ -129,7 +153,7 @@
                       aria-label="Edit note stage"
                       class="border border-line bg-raised rounded-lg px-2 py-1 text-sm text-ink focus:ring-2 focus:ring-accent focus:border-accent outline-hidden capitalize"
                     >
-                      <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+                      <option v-for="s in noteStages" :key="s" :value="s">{{ s }}</option>
                     </select>
                     <div class="ml-auto flex gap-2">
                       <button
@@ -388,18 +412,16 @@
                   </select>
                 </div>
                 <div>
-                  <label for="close-reason-select" class="text-xs text-ink-3 uppercase tracking-wide">Close reason</label>
-                  <select
-                    id="close-reason-select"
-                    :value="panelApp.close_reason || ''"
-                    :disabled="panelApp.state !== 'closed'"
-                    @change="onCloseReasonChange($event.target.value)"
-                    class="mt-1 w-full text-sm border border-line rounded px-2 py-1.5 bg-raised text-ink focus:ring-2 focus:ring-accent outline-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="" disabled>Not closed</option>
-                    <option v-for="r in closeReasonOptions" :key="r" :value="r">{{ closeReasonLabels[r] }}</option>
-                  </select>
-                  <p v-if="panelApp.state !== 'closed'" class="mt-1 text-xs text-ink-3">Only set once the record is closed.</p>
+                  <span class="text-xs text-ink-3 uppercase tracking-wide">Close reason</span>
+                  <div v-if="record.state === 'closed'" class="mt-1 flex items-center gap-2">
+                    <span class="text-sm text-ink" data-testid="panel-close-reason">{{ closeReasonLabels[record.close_reason] || 'Reason unknown' }}</span>
+                    <button
+                      type="button"
+                      @click="openClosePicker"
+                      class="text-xs text-accent hover:text-accent-hover min-h-[44px] inline-flex items-center px-2"
+                    >Change</button>
+                  </div>
+                  <p v-else class="mt-1 text-xs text-ink-3">Only set once the record is closed.</p>
                 </div>
               </div>
             </div>
@@ -783,7 +805,7 @@
             <!-- Onboarding tip -->
             <div v-if="!isEdit && !notesTipDismissed && totalApplications === 0" class="flex items-start gap-2 mb-4 p-2.5 rounded-lg bg-accent-muted/20 border border-accent/10">
               <svg class="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <p class="text-sm text-ink-2 flex-1">Track your progress through the pipeline by changing status in the bar above. Add details now, or come back later — nothing is set in stone.</p>
+              <p class="text-sm text-ink-2 flex-1">Track your progress through the pipeline by changing stage in the bar above. Add details now, or come back later — nothing is set in stone.</p>
               <button
                 @click="dismissNotesTip"
                 class="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-ink-3 hover:text-ink transition-colors"
@@ -893,19 +915,29 @@
         </template>
       </div>
     </div>
+
+    <CloseReasonPicker
+      v-if="closePickerOpen"
+      :current="record.close_reason"
+      :subtitle="`${form.company_name} — ${form.role_title}`"
+      @select="onCloseReasonPicked"
+      @cancel="closePickerOpen = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import {
-  createApplication, updateApplication, updateStatus, deleteApplication,
+  createApplication, updateApplication, deleteApplication,
   updateDates, createNote, updateNote, deleteNote,
   fetchAttachments, uploadAttachments, getAttachmentUrl, deleteAttachment,
   extractJd, fetchJd, generateDocument, fetchAuditLog,
   createContact, linkContact, unlinkContact,
 } from '../api'
-import { computeSegments, stageColor, durationDays, CLOSE_REASONS, CLOSE_REASON_LABELS } from '../utils/timeline'
+import { computeSegments, stageColor, durationDays, STAGE_ORDER, CLOSE_REASON_LABELS } from '../utils/timeline'
+import { snapshotOf, restoreBody } from '../utils/recordState.js'
+import CloseReasonPicker from './CloseReasonPicker.vue'
 import { useToast } from '../composables/useToast'
 import { renderMarkdown } from '../utils/markdown.js'
 import { storageGetBool, storageSet } from '../utils/storage.js'
@@ -943,9 +975,6 @@ const emit = defineEmits(['close', 'saved', 'panel-app-updated', 'open-contact']
 // --- Outcome and people ---
 
 const closeReasonLabels = CLOSE_REASON_LABELS
-// `accepted` is not offered here: acceptance is reached by moving the record to
-// the accepted stage, not by relabelling why it closed.
-const closeReasonOptions = CLOSE_REASONS.filter((r) => r !== 'accepted')
 const newContactName = ref('')
 
 async function persistOutcome(patch, failureMessage) {
@@ -960,11 +989,6 @@ async function persistOutcome(patch, failureMessage) {
 
 function onRecordTypeChange(value) {
   persistOutcome({ record_type: value }, 'Failed to update record type')
-}
-
-function onCloseReasonChange(value) {
-  if (!value) return
-  persistOutcome({ state: 'closed', close_reason: value }, 'Failed to set close reason')
 }
 
 // A linked person's outstanding commitment, at glance length. The server
@@ -1005,7 +1029,14 @@ async function onUnlinkContact(contactId) {
 
 const isEdit = computed(() => !!(props.panelApp?.id))
 
-const statuses = ['interested', 'applied', 'responded', 'interview', 'offer', 'accepted', 'rejected']
+const stages = STAGE_ORDER
+// A stage note can record an outcome as well as a stage, so its list is wider
+// than the stages a record can sit at.
+const noteStages = [...STAGE_ORDER, 'accepted', 'rejected']
+const recordTypes = [
+  { value: 'lead', label: 'Lead' },
+  { value: 'application', label: 'Application' },
+]
 
 
 const dates = [
@@ -1018,7 +1049,7 @@ const dates = [
   { key: 'closed_at', label: 'Closed' },
 ]
 
-function statusPillStyle(s) {
+function stagePillStyle(s) {
   return {
     backgroundColor: `var(--stage-${s}-bg)`,
     color: `var(--stage-${s}-fg)`,
@@ -1036,7 +1067,7 @@ function stageBadgeStyle(s) {
 // Animation
 const panelRoot = ref(null)
 const visible = ref(false)
-const stampingStatus = ref(null)
+const stampingStage = ref(null)
 
 
 
@@ -1075,17 +1106,22 @@ onMounted(() => {
   if (props.panelApp?.id) {
     loadAttachments()
     loadAuditLog()
-    newNoteStage.value = props.panelApp.status
+    newNoteStage.value = props.panelApp.stage
   }
 })
 
 
 
+// Where the record stands, kept from the last server response so the stage bar
+// follows what was actually saved.
+const record = reactive({ stage: 'interested', state: 'open', close_reason: null })
+
 // Form state
 const form = reactive({
   company_name: '',
   role_title: '',
-  status: 'interested',
+  stage: 'interested',
+  record_type: 'lead',
   job_description: '',
   job_posting_url: '',
   company_website_url: '',
@@ -1098,7 +1134,8 @@ function initForm() {
   const a = props.panelApp || {}
   form.company_name = a.company_name || ''
   form.role_title = a.role_title || ''
-  form.status = a.status || 'interested'
+  form.stage = a.stage || 'interested'
+  syncRecord(a)
   form.job_description = a.job_description || ''
   form.job_posting_url = a.job_posting_url || ''
   form.company_website_url = a.company_website_url || ''
@@ -1117,7 +1154,7 @@ watch(() => props.panelApp?.id, (newId) => {
   if (newId) {
     loadAttachments()
     loadAuditLog()
-    newNoteStage.value = props.panelApp.status
+    newNoteStage.value = props.panelApp.stage
   } else {
     attachments.value = []
     queuedFiles.value = []
@@ -1141,7 +1178,7 @@ function isDirty() {
       form.salary_max
     )
   }
-  // Status is excluded because onStatusClick() persists it immediately.
+  // Stage and close are excluded because they persist immediately.
   return (
     form.company_name !== (a.company_name || '') ||
     form.role_title !== (a.role_title || '') ||
@@ -1172,36 +1209,92 @@ function doClose() {
   setTimeout(() => emit('close'), 300)
 }
 
-async function onStatusClick(s) {
-  const prevStatus = form.status
-  const appId = props.panelApp?.id
-  if (s !== prevStatus) {
-    stampingStatus.value = s
-    setTimeout(() => { stampingStatus.value = null }, 420)
+function syncRecord(a = {}) {
+  record.stage = a.stage || 'interested'
+  record.state = a.state || 'open'
+  record.close_reason = a.close_reason ?? null
+}
+
+watch(
+  () => [props.panelApp?.stage, props.panelApp?.state, props.panelApp?.close_reason],
+  () => { if (isEdit.value) syncRecord(props.panelApp) },
+)
+
+function isStageActive(s) {
+  return isEdit.value ? record.state === 'open' && record.stage === s : form.stage === s
+}
+
+// A stage at or beyond applied makes the record an application whatever the
+// toggle says, so the toggle follows it.
+const stageForcesApplication = computed(() => STAGE_ORDER.indexOf(form.stage) >= STAGE_ORDER.indexOf('applied'))
+const effectiveRecordType = computed(() => (stageForcesApplication.value ? 'application' : form.record_type))
+
+// One stage or close write at a time: a double-click must not send two.
+const writingRecord = ref(false)
+
+// What Undo restores: the saved stage, state and reason plus the follow-up.
+function recordSnapshot() {
+  return snapshotOf({ ...props.panelApp, ...record })
+}
+
+async function writeRecord(appId, body, failureMessage, toastMessage, before) {
+  if (writingRecord.value) return
+  writingRecord.value = true
+  try {
+    const updated = await updateApplication(appId, body)
+    syncRecord(updated)
+    emit('saved')
+    toast.success(toastMessage, {
+      actionLabel: 'Undo',
+      action: async () => {
+        try {
+          syncRecord(await updateApplication(appId, restoreBody(before)))
+          emit('saved')
+        } catch (err) {
+          toast.error('Undo failed — ' + getErrorMessage(err))
+        }
+      },
+    })
+  } catch (err) {
+    toast.error(failureMessage + getErrorMessage(err))
+  } finally {
+    writingRecord.value = false
   }
-  form.status = s
-  if (isEdit.value) {
-    try {
-      await updateStatus(appId, s)
-      emit('saved')
-      if (s !== prevStatus) {
-        const label = s.charAt(0).toUpperCase() + s.slice(1)
-        toast.success(`Moved to ${label}`, {
-          actionLabel: 'Undo',
-          action: async () => {
-            try {
-              form.status = prevStatus
-              await updateStatus(appId, prevStatus)
-              emit('saved')
-            } catch { form.status = s }
-          },
-        })
-      }
-    } catch (err) {
-      form.status = prevStatus
-      toast.error('Error updating status: ' + getErrorMessage(err))
-    }
+}
+
+async function onStageClick(s) {
+  if (!isEdit.value) {
+    form.stage = s
+    return
   }
+  if (isStageActive(s)) return
+  stampingStage.value = s
+  setTimeout(() => { stampingStage.value = null }, 420)
+  const label = s.charAt(0).toUpperCase() + s.slice(1)
+  await writeRecord(
+    props.panelApp.id,
+    { stage: s, state: 'open' },
+    'Error updating stage: ',
+    record.state === 'closed' ? `Reopened at ${label}` : `Moved to ${label}`,
+    recordSnapshot(),
+  )
+}
+
+const closePickerOpen = ref(false)
+function openClosePicker() {
+  closePickerOpen.value = true
+}
+
+async function onCloseReasonPicked(reason) {
+  closePickerOpen.value = false
+  const label = closeReasonLabels[reason] || reason
+  await writeRecord(
+    props.panelApp.id,
+    { state: 'closed', close_reason: reason },
+    'Failed to close record: ',
+    `Closed — ${label}`,
+    recordSnapshot(),
+  )
 }
 
 const saving = ref(false)
@@ -1236,7 +1329,8 @@ async function save() {
       const formData = new FormData()
       formData.append('company_name', form.company_name)
       formData.append('role_title', form.role_title)
-      formData.append('status', form.status)
+      formData.append('stage', form.stage)
+      formData.append('record_type', effectiveRecordType.value)
       if (form.job_description) formData.append('job_description', form.job_description)
       if (form.job_posting_url) formData.append('job_posting_url', form.job_posting_url)
       if (form.company_website_url) formData.append('company_website_url', form.company_website_url)
@@ -1524,7 +1618,7 @@ function humanizeAction(action) {
   const map = {
     create_application: 'Created application',
     update_application: 'Updated application',
-    update_status: 'Changed status',
+    update_status: 'Changed status', // historical entries written before status was removed
     upload_cv: 'Uploaded CV',
     upload_cover_letter: 'Uploaded cover letter',
     upload_attachment: 'Uploaded attachment',

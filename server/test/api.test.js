@@ -26,7 +26,7 @@ async function createApp(overrides = {}) {
         .post("/api/applications")
         .field("company_name", overrides.company_name ?? "Acme Corp")
         .field("role_title", overrides.role_title ?? "Engineer")
-        .field("status", overrides.status ?? "interested");
+        .field("stage", overrides.stage ?? "interested");
     assert.equal(res.status, 201);
     return res.body;
 }
@@ -104,7 +104,10 @@ describe("Applications", () => {
         assert.equal(res.status, 201);
         assert.equal(res.body.company_name, "Globex");
         assert.equal(res.body.role_title, "Developer");
-        assert.equal(res.body.status, "interested");
+        assert.equal(res.body.stage, "interested");
+        assert.equal(res.body.state, "open");
+        assert.equal(res.body.record_type, "lead");
+        assert.equal("status" in res.body, false);
         assert.equal(res.body.user_email, "dev@localhost");
         assert.ok(
             res.body.interested_at,
@@ -156,50 +159,94 @@ describe("Applications", () => {
 // Status changes
 // ---------------------------------------------------------------------------
 
-describe("Status changes", () => {
-    test("PATCH /api/applications/:id/status updates status and sets date field", async () => {
+describe("Stage and close writes", () => {
+    test("PUT /api/applications/:id with a stage stamps that stage's date", async () => {
         const created = await createApp();
         const res = await req
-            .patch(`/api/applications/${created.id}/status`)
-            .send({ status: "applied" });
+            .put(`/api/applications/${created.id}`)
+            .send({ stage: "applied" });
         assert.equal(res.status, 200);
-        assert.equal(res.body.status, "applied");
+        assert.equal(res.body.stage, "applied");
         assert.ok(res.body.applied_at, "applied_at should be set");
     });
 
-    test("PATCH /api/applications/:id/status rejects invalid status", async () => {
+    test("PUT /api/applications/:id rejects an invalid stage", async () => {
         const created = await createApp();
         const res = await req
-            .patch(`/api/applications/${created.id}/status`)
-            .send({ status: "nope" });
+            .put(`/api/applications/${created.id}`)
+            .send({ stage: "nope" });
         assert.equal(res.status, 400);
     });
 
-    test("status:interview sets interview_at", async () => {
+    test("stage interview sets interview_at", async () => {
         const created = await createApp();
         const res = await req
-            .patch(`/api/applications/${created.id}/status`)
-            .send({ status: "interview" });
+            .put(`/api/applications/${created.id}`)
+            .send({ stage: "interview" });
         assert.equal(res.status, 200);
         assert.ok(res.body.interview_at);
     });
 
-    test("status:rejected sets closed_at", async () => {
+    test("closing sets closed_at and keeps the reason", async () => {
+        const created = await createApp();
+        const res = await req
+            .put(`/api/applications/${created.id}`)
+            .send({ state: "closed", close_reason: "rejected" });
+        assert.equal(res.status, 200);
+        assert.ok(res.body.closed_at);
+        assert.equal(res.body.close_reason, "rejected");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// The removed status surface
+// ---------------------------------------------------------------------------
+
+describe("Removed status surface", () => {
+    test("PATCH /api/applications/:id/status returns 410 and changes nothing (AE2)", async () => {
         const created = await createApp();
         const res = await req
             .patch(`/api/applications/${created.id}/status`)
-            .send({ status: "rejected" });
-        assert.equal(res.status, 200);
-        assert.ok(res.body.closed_at);
+            .send({ status: "applied" });
+        assert.equal(res.status, 410);
+        assert.match(res.body.error, /update_application/);
+
+        const after = await req.get(`/api/applications/${created.id}`);
+        assert.equal(after.body.stage, "interested");
+        assert.equal(after.body.applied_at, null);
     });
 
-    test("status:accepted sets closed_at", async () => {
+    test("GET /api/applications?status= errors rather than listing everything (AE3)", async () => {
+        await createApp();
+        const res = await req.get("/api/applications?status=applied");
+        assert.equal(res.status, 400);
+        assert.match(res.body.error, /stage, state, close_reason and record_type/);
+    });
+
+    test("POST with a status field is refused and creates nothing", async () => {
+        const before = (await req.get("/api/applications")).body.length;
+        const multipart = await req
+            .post("/api/applications")
+            .field("company_name", "Legacy Co")
+            .field("role_title", "Engineer")
+            .field("status", "applied");
+        assert.equal(multipart.status, 400);
+        const json = await req
+            .post("/api/applications")
+            .send({ company_name: "Legacy Co", role_title: "Engineer", status: "applied" });
+        assert.equal(json.status, 400);
+        const after = (await req.get("/api/applications")).body.length;
+        assert.equal(after, before);
+    });
+
+    test("PUT with a status field is refused and changes nothing", async () => {
         const created = await createApp();
         const res = await req
-            .patch(`/api/applications/${created.id}/status`)
-            .send({ status: "accepted" });
-        assert.equal(res.status, 200);
-        assert.ok(res.body.closed_at);
+            .put(`/api/applications/${created.id}`)
+            .send({ status: "applied", company_name: "Renamed" });
+        assert.equal(res.status, 400);
+        const after = await req.get(`/api/applications/${created.id}`);
+        assert.equal(after.body.company_name, "Acme Corp");
     });
 });
 
@@ -1006,13 +1053,18 @@ describe("Context Assembly", () => {
 describe("Document Generation", () => {
     const extraction = require("../services/extraction");
     let originalGetOpenAIClient;
+    // The last request the generation service sent, so a test can read the
+    // prompt context it built.
+    let lastRequest = null;
 
     before(() => {
         originalGetOpenAIClient = extraction.getOpenAIClient;
         extraction.getOpenAIClient = () => ({
             chat: {
                 completions: {
-                    create: async () => ({
+                    create: async (request) => {
+                        lastRequest = request;
+                        return {
                         choices: [
                             {
                                 message: {
@@ -1020,7 +1072,8 @@ describe("Document Generation", () => {
                                 },
                             },
                         ],
-                    }),
+                        };
+                    },
                 },
             },
         });
@@ -1060,6 +1113,34 @@ describe("Document Generation", () => {
         assert.equal(attachRes.status, 200);
         assert.equal(attachRes.body.length, 1);
         assert.equal(attachRes.body[0].generated_by, "agent");
+    });
+
+    test("the generation prompt describes the record by stage, state and close reason", async () => {
+        const email = "gen-context@example.com";
+        const created = await req
+            .post("/api/applications")
+            .set("X-Forwarded-Email", email)
+            .field("company_name", "ContextCo")
+            .field("role_title", "Engineer")
+            .field("stage", "interview")
+            .field("job_description", "Build things");
+        assert.equal(created.status, 201);
+        await req
+            .put(`/api/applications/${created.body.id}`)
+            .set("X-Forwarded-Email", email)
+            .send({ state: "closed", close_reason: "role_closed" });
+
+        const res = await req
+            .post(`/api/applications/${created.body.id}/generate`)
+            .set("X-Forwarded-Email", email)
+            .send({ task: "cover_letter" });
+        assert.equal(res.status, 200);
+
+        const prompt = JSON.stringify(lastRequest.messages);
+        assert.match(prompt, /Stage: interview/);
+        assert.match(prompt, /State: closed/);
+        assert.match(prompt, /Close reason: role_closed/);
+        assert.doesNotMatch(prompt, /Status:/);
     });
 
     test("POST /api/applications/:id/generate supports resume_tailor and interview_prep", async () => {
@@ -1149,7 +1230,11 @@ describe("MCP Server", () => {
 
         // Start MCP server on a random port
         const { startMcpServer } = require("../mcp");
+        // The suite makes more calls than the production limit allows per
+        // window; the limit itself is covered by its own test below.
+        process.env.RATE_LIMIT_MCP = "100000";
         mcpServer = startMcpServer(0);
+        delete process.env.RATE_LIMIT_MCP;
         await new Promise((resolve, reject) => {
             mcpServer.on("listening", resolve);
             mcpServer.on("error", reject);
@@ -1159,6 +1244,138 @@ describe("MCP Server", () => {
 
     after(() => {
         if (mcpServer) mcpServer.close();
+    });
+
+    // Drives tools over the real Streamable HTTP transport, so argument
+    // handling is the SDK's own rather than a handler called with trusted
+    // input. One session is shared: the MCP endpoint is rate limited.
+    const mcpHeaders = () => ({
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json, text/event-stream",
+        "Content-Type": "application/json",
+    });
+    let sharedSession;
+    let rpcId = 100;
+
+    async function rpc(method, params) {
+        if (!sharedSession) {
+            const init = await mcpReq
+                .post("/")
+                .set(mcpHeaders())
+                .send({
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "initialize",
+                    params: {
+                        protocolVersion: "2024-11-05",
+                        capabilities: {},
+                        clientInfo: { name: "test", version: "1.0" },
+                    },
+                });
+            assert.equal(init.status, 200);
+            sharedSession = init.headers["mcp-session-id"];
+        }
+        const res = await mcpReq
+            .post("/")
+            .set(mcpHeaders())
+            .set("Mcp-Session-Id", sharedSession)
+            .send({ jsonrpc: "2.0", id: rpcId++, method, params });
+        assert.equal(res.status, 200);
+        const dataLine = res.text
+            .trim()
+            .split("\n")
+            .find((l) => l.startsWith("data: "));
+        assert.ok(dataLine, "expected SSE data line");
+        return JSON.parse(dataLine.slice("data: ".length)).result;
+    }
+
+    const callTool = (name, args) => rpc("tools/call", { name, arguments: args });
+
+    async function mcpOwnedApp(extra = {}) {
+        const res = await req
+            .post("/api/applications")
+            .set("X-Forwarded-Email", "mcp-test@example.com")
+            .field("company_name", "StatusGone Co")
+            .field("role_title", "Engineer")
+            .field("stage", extra.stage ?? "applied");
+        assert.equal(res.status, 201);
+        return res.body;
+    }
+
+    test("a status argument fails loudly on list, create and update (AE3)", async () => {
+        const target = await mcpOwnedApp();
+        for (const [name, args] of [
+            ["list_applications", { status: "applied" }],
+            ["create_application", { company_name: "X", role_title: "Y", status: "applied" }],
+            ["update_application", { id: target.id, status: "offer" }],
+        ]) {
+            const result = await callTool(name, args);
+            assert.equal(result.isError, true, `${name} must not ignore status`);
+            assert.match(result.content[0].text, /stage, state, close_reason and record_type/);
+        }
+        const after = await req
+            .get(`/api/applications/${target.id}`)
+            .set("X-Forwarded-Email", "mcp-test@example.com");
+        assert.equal(after.body.stage, "applied", "the failed update changed nothing");
+    });
+
+    test("update_status is a tombstone that names update_application and changes nothing (AE2)", async () => {
+        const target = await mcpOwnedApp();
+        const result = await callTool("update_status", {
+            id: target.id,
+            status: "offer",
+        });
+        assert.equal(result.isError, true);
+        assert.match(result.content[0].text, /update_application/);
+        const after = await req
+            .get(`/api/applications/${target.id}`)
+            .set("X-Forwarded-Email", "mcp-test@example.com");
+        assert.equal(after.body.stage, "applied");
+        assert.equal(after.body.offer_at, null);
+    });
+
+    test("update_application closes with the real reason and no status comes back (AE1)", async () => {
+        const target = await mcpOwnedApp();
+        const result = await callTool("update_application", {
+            id: target.id,
+            state: "closed",
+            close_reason: "withdrawn",
+        });
+        assert.equal(result.isError, undefined);
+        const record = JSON.parse(result.content[0].text);
+        assert.equal(record.close_reason, "withdrawn");
+        assert.equal("status" in record, false);
+    });
+
+    test("create_application takes stage and record_type and stage wins (AE4)", async () => {
+        const result = await callTool("create_application", {
+            company_name: "Stage Wins Co",
+            role_title: "Engineer",
+            stage: "interview",
+            record_type: "lead",
+        });
+        assert.equal(result.isError, undefined, result.content?.[0]?.text);
+        const record = JSON.parse(result.content[0].text);
+        assert.equal(record.stage, "interview");
+        assert.equal(record.record_type, "application");
+        assert.equal(record.state, "open");
+    });
+
+    test("fields naming status returns records without it", async () => {
+        await mcpOwnedApp();
+        const result = await callTool("list_applications", {
+            fields: ["id", "status", "stage"],
+        });
+        const { items } = JSON.parse(result.content[0].text);
+        assert.ok(items.length > 0);
+        assert.ok(items.every((i) => !("status" in i) && "stage" in i));
+    });
+
+    test("tools/list still advertises update_status and no description teaches status", async () => {
+        const { tools } = await rpc("tools/list", {});
+        assert.ok(tools.map((t) => t.name).includes("update_status"));
+        const list = tools.find((t) => t.name === "list_applications");
+        assert.ok(!/"status"/.test(list.description), "the fields preset must not name status");
     });
 
     test("rejects requests without Bearer token", async () => {
@@ -1351,6 +1568,7 @@ describe("MCP Server", () => {
         const payload = JSON.parse(result.content[0].text);
         assert.equal(payload.application.id, appId);
         assert.equal(payload.application.company_name, "McpCo");
+        assert.equal("status" in payload.application, false);
         assert.equal(payload.job_description, "MCP job desc");
         assert.equal(payload.notes.length, 1);
         assert.equal(payload.notes[0].content, "MCP note");
@@ -2256,22 +2474,6 @@ describe("Audit Log", () => {
         assert.deepEqual(updateEntry.details.fields, ["company_name"]);
     });
 
-    test("PATCH /api/applications/:id/status creates an audit log entry", async () => {
-        const app = await createApp();
-        const res = await req
-            .patch(`/api/applications/${app.id}/status`)
-            .send({ status: "applied" });
-        assert.equal(res.status, 200);
-
-        const auditRes = await req.get(`/api/applications/${app.id}/audit-log`);
-        assert.equal(auditRes.status, 200);
-        const statusEntry = auditRes.body.find(
-            (e) => e.action === "update_status",
-        );
-        assert.ok(statusEntry);
-        assert.equal(statusEntry.details.status, "applied");
-    });
-
     test("POST /api/applications/:id/notes creates an audit log entry", async () => {
         const app = await createApp();
         const res = await req.post(`/api/applications/${app.id}/notes`).send({
@@ -2346,20 +2548,16 @@ describe("Audit Log", () => {
 
     test("audit log entries are sorted newest-first", async () => {
         const app = await createApp();
-        await req
-            .patch(`/api/applications/${app.id}/status`)
-            .send({ status: "applied" });
-        await req
-            .patch(`/api/applications/${app.id}/status`)
-            .send({ status: "responded" });
+        await req.put(`/api/applications/${app.id}`).send({ stage: "applied" });
+        await req.put(`/api/applications/${app.id}`).send({ stage: "responded" });
 
         const auditRes = await req.get(`/api/applications/${app.id}/audit-log`);
         assert.equal(auditRes.status, 200);
         assert.equal(auditRes.body.length, 3);
-        const statuses = auditRes.body.map((e) => e.action);
-        assert.deepEqual(statuses, [
-            "update_status",
-            "update_status",
+        const actions = auditRes.body.map((e) => e.action);
+        assert.deepEqual(actions, [
+            "update_application",
+            "update_application",
             "create_application",
         ]);
     });

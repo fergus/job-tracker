@@ -134,8 +134,8 @@
                     :applications="applications"
                     :showUser="showAllUsers"
                     :showClosed="showClosed"
-                    :statusVersion="statusVersion"
-                    @status-change="handleStatusChange"
+                    :writeVersion="writeVersion"
+                    @stage-change="handleStageChange"
                     @close-record="handleCloseRecord"
                     @select="openPanel"
                     @toggle-show-closed="toggleShowClosed"
@@ -214,10 +214,10 @@ import {
     fetchToday,
     createContact,
     updateContact,
-    updateStatus,
     updateApplication,
 } from "./api";
-import { isTerminal } from "./utils/timeline.js";
+import { isTerminal, CLOSE_REASON_LABELS } from "./utils/timeline.js";
+import { snapshotOf, restoreBody } from "./utils/recordState.js";
 import { useToast } from "./composables/useToast";
 import { storageGetBool, storageSet } from "./utils/storage.js";
 import { getErrorMessage } from "./utils/error.js";
@@ -287,7 +287,7 @@ const showSettings = ref(false);
 const contactId = ref(null);
 const compactHeader = ref(false);
 const logoTrigger = ref(0);
-const statusVersion = ref(0);
+const writeVersion = ref(0);
 const dragActive = ref(false);
 const settingsBtn = ref(null);
 
@@ -348,7 +348,7 @@ watch(
 );
 
 async function loadApplications() {
-    applications.value = await fetchApplications(null, showAllUsers.value);
+    applications.value = await fetchApplications(showAllUsers.value);
 }
 
 // The contact list is server-ordered (KTD1), so it is always replaced whole
@@ -612,9 +612,26 @@ async function refreshApplication(id) {
     }
 }
 
-// Close a record without claiming why. The drag gesture knows the record is
-// over; it does not know whether that was a rejection.
-async function handleCloseRecord(id, closeReason = "unresolved") {
+function undoAction(id, snapshot) {
+    return async () => {
+        try {
+            await updateApplication(id, restoreBody(snapshot));
+        } catch (undoErr) {
+            toast.error(
+                "Undo failed — " +
+                    (undoErr.response?.data?.error || undoErr.message),
+            );
+            await loadApplications();
+            return;
+        }
+        logoTrigger.value++;
+        await refreshApplication(id);
+    };
+}
+
+// Close a record with the reason the user picked.
+async function handleCloseRecord(id, closeReason) {
+    const before = snapshotOf(applications.value.find((x) => x.id === id));
     try {
         await updateApplication(id, {
             state: "closed",
@@ -626,50 +643,46 @@ async function handleCloseRecord(id, closeReason = "unresolved") {
                 (err.response?.data?.error || err.message),
         );
         await loadApplications();
-        statusVersion.value++;
+        writeVersion.value++;
         return;
     }
     logoTrigger.value++;
     await refreshApplication(id);
-    statusVersion.value++;
-    toast.success("Closed — set a reason in the panel");
+    writeVersion.value++;
+    const label = CLOSE_REASON_LABELS[closeReason] || closeReason;
+    toast.success(
+        `Closed — ${label}`,
+        before
+            ? { actionLabel: "Undo", action: undoAction(id, before) }
+            : undefined,
+    );
 }
 
-async function handleStatusChange(id, status) {
-    const prevStatus = applications.value.find((a) => a.id === id)?.status;
+// Move an open record to a stage, or reopen a closed one at it.
+async function handleStageChange(id, stage) {
+    const before = snapshotOf(applications.value.find((x) => x.id === id));
     try {
-        await updateStatus(id, status);
+        await updateApplication(id, { stage, state: "open" });
     } catch (err) {
         toast.error(
-            "Failed to update status — " +
+            "Failed to update stage — " +
                 (err.response?.data?.error || err.message),
         );
         await loadApplications();
-        statusVersion.value++;
+        writeVersion.value++;
         return;
     }
     logoTrigger.value++;
     await refreshApplication(id);
-    statusVersion.value++;
-    if (prevStatus && prevStatus !== status) {
-        const label = status.charAt(0).toUpperCase() + status.slice(1);
-        toast.success(`Moved to ${label}`, {
-            actionLabel: "Undo",
-            action: async () => {
-                try {
-                    await updateStatus(id, prevStatus);
-                } catch (undoErr) {
-                    toast.error(
-                        "Undo failed — " +
-                            (undoErr.response?.data?.error || undoErr.message),
-                    );
-                    await loadApplications();
-                    return;
-                }
-                logoTrigger.value++;
-                await refreshApplication(id);
-            },
-        });
+    writeVersion.value++;
+    if (before) {
+        const label = stage.charAt(0).toUpperCase() + stage.slice(1);
+        toast.success(
+            before.state === "closed"
+                ? `Reopened at ${label}`
+                : `Moved to ${label}`,
+            { actionLabel: "Undo", action: undoAction(id, before) },
+        );
     }
 }
 
@@ -774,7 +787,7 @@ async function runRefetch() {
     refetchInFlight = true;
     try {
         const scope = showAllUsers.value;
-        const next = await fetchApplications(null, scope);
+        const next = await fetchApplications(scope);
 
         // Toggling scope mid-flight means this response is for the wrong set
         // of users. setShowAll already issued its own load, so drop this one

@@ -11,10 +11,16 @@
     <p :class="['font-semibold font-condensed text-sm truncate transition-colors duration-200', quiet ? 'text-ink-3 hover:text-ink' : 'text-ink']">{{ application.company_name }}</p>
     <p :class="['text-xs truncate mt-1', quiet ? 'text-ink-3' : 'text-ink-2']">{{ application.role_title }}</p>
     <span
-      v-if="application.status === 'offer'"
+      v-if="application.state === 'open' && application.stage === 'offer'"
       class="inline-block mt-1.5 px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide"
       :style="{ backgroundColor: 'var(--stage-offer-bg)', color: 'var(--stage-offer-fg)' }"
     >Offer</span>
+    <span
+      v-if="application.state === 'closed' && application.close_reason"
+      class="inline-block mt-1.5 px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide"
+      data-testid="close-reason-badge"
+      :style="closeReasonStyle"
+    >{{ CLOSE_REASON_LABELS[application.close_reason] || application.close_reason }}</span>
     <p v-if="showUser" :class="['text-xs truncate mt-0.5', quiet ? 'text-ink-3 opacity-60' : 'text-ink-3']">{{ application.user_email }}</p>
     <!-- Hidden on narrow columns (<200px); shown when column is wide enough to breathe -->
     <div class="hidden @[200px]:flex items-center justify-between mt-3">
@@ -55,9 +61,19 @@
 <script setup>
 import { computed } from 'vue'
 import { cardSignal } from '../utils/cardSignal.js'
+import { CLOSE_REASON_LABELS } from '../utils/timeline.js'
 
 const props = defineProps({ application: Object, showUser: Boolean, quiet: Boolean })
 defineEmits(['select'])
 
 const signal = computed(() => cardSignal(props.application, Date.now()))
+
+// Accepted and rejected keep their own colours; every other reason is neutral,
+// so a lapse or a withdrawal is not drawn as a failure.
+const closeReasonStyle = computed(() => {
+  const tone = ['accepted', 'rejected'].includes(props.application.close_reason)
+    ? props.application.close_reason
+    : 'closed'
+  return { backgroundColor: `var(--stage-${tone}-bg)`, color: `var(--stage-${tone}-fg)` }
+})
 </script>

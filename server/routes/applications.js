@@ -4,7 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const db = require("../db");
 const svc = require("../services/applications");
-const { getOwnApp, attachNotes, withFollowUp } = svc;
+const { getOwnApp, attachNotes, withFollowUp, STATUS_REMOVED_MESSAGE } = svc;
 const { addNote, updateNote, deleteNote } = require("../services/notes");
 const { visibleStageNotes } = require("../services/stage-notes");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
@@ -53,9 +53,9 @@ router.get("/", (req, res) => {
         if (req.isAdmin && req.query.all === "true") {
             console.info("[admin] %s listed all applications", req.userEmail);
         }
+        svc.rejectLegacyStatus(req.query);
         res.json(
             svc.listApplications(req.userEmail, {
-                status: req.query.status,
                 state: req.query.state,
                 close_reason: req.query.close_reason,
                 record_type: req.query.record_type,
@@ -125,7 +125,7 @@ router.get("/:id/context", (req, res) => {
             .get(existing.user_email);
 
         res.json({
-            application: existing,
+            application: svc.toApiRecord(existing),
             notes,
             attachments,
             profile: profile || null,
@@ -145,6 +145,7 @@ router.post(
     ]),
     (req, res) => {
         try {
+            svc.rejectLegacyStatus(req.body);
             const data = { ...req.body };
             if (req.files?.cv?.[0]) {
                 data.cv_filename = req.files.cv[0].originalname;
@@ -177,6 +178,7 @@ router.post(
 // Update application fields (owner only)
 router.put("/:id", (req, res) => {
     try {
+        svc.rejectLegacyStatus(req.body);
         const result = svc.updateApplication(
             req.userEmail,
             req.params.id,
@@ -196,26 +198,10 @@ router.put("/:id", (req, res) => {
     }
 });
 
-// Change status (owner only)
+// Removed: a record's stage and close reason change through PUT /:id. Kept for
+// one release so an old client gets a clear 410 instead of a bare 404.
 router.patch("/:id/status", (req, res) => {
-    try {
-        const result = svc.updateStatus(
-            req.userEmail,
-            req.params.id,
-            req.body.status,
-        );
-        logAuditEvent({
-            userEmail: req.userEmail,
-            action: "update_status",
-            applicationId: parseInt(req.params.id, 10),
-            source: "rest",
-            authMethod: req.authMethod,
-            details: { status: req.body.status },
-        });
-        res.json(result);
-    } catch (e) {
-        handleError(res, e);
-    }
+    res.status(410).json({ error: STATUS_REMOVED_MESSAGE });
 });
 
 // Upload/replace CV (owner only)
@@ -252,9 +238,11 @@ router.post("/:id/cv", upload.single("cv"), (req, res) => {
     });
 
     res.json(
-        db
-            .prepare("SELECT * FROM applications WHERE id = ?")
-            .get(req.params.id),
+        svc.toApiRecord(
+            db
+                .prepare("SELECT * FROM applications WHERE id = ?")
+                .get(req.params.id),
+        ),
     );
 });
 
@@ -324,9 +312,11 @@ router.post("/:id/cover-letter", upload.single("cover_letter"), (req, res) => {
     });
 
     res.json(
-        db
-            .prepare("SELECT * FROM applications WHERE id = ?")
-            .get(req.params.id),
+        svc.toApiRecord(
+            db
+                .prepare("SELECT * FROM applications WHERE id = ?")
+                .get(req.params.id),
+        ),
     );
 });
 

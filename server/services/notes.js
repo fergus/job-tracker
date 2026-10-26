@@ -2,7 +2,7 @@
 const db = require("../db");
 const {
     ServiceError,
-    VALID_STATUSES,
+    NOTE_STAGES,
     getOwnApp,
     normaliseFollowUpDate,
     normaliseNextAction,
@@ -20,7 +20,7 @@ function addNote(
 
     if (!stage || !content)
         throw new ServiceError(400, "stage and content are required");
-    if (!VALID_STATUSES.includes(stage))
+    if (!NOTE_STAGES.includes(stage))
         throw new ServiceError(400, "Invalid stage");
     if (content.length > 10000)
         throw new ServiceError(
@@ -92,7 +92,7 @@ function updateNote(userEmail, appId, noteId, { content, stage }) {
     const values = [content, now];
 
     if (stage) {
-        if (!VALID_STATUSES.includes(stage)) {
+        if (!NOTE_STAGES.includes(stage)) {
             throw new ServiceError(400, "Invalid stage");
         }
         updates.push("stage = ?");

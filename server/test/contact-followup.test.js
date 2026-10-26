@@ -279,7 +279,7 @@ describe("who do I owe a touch", () => {
         const app = await as(req.post("/api/applications")).send({
             company_name: "Linked Co",
             role_title: "Engineer",
-            status: "interested",
+            stage: "interested",
         });
         const c = await mkContact({
             name: "Linked Person",

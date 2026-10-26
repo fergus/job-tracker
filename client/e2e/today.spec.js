@@ -19,7 +19,7 @@ function localToday() {
 
 async function seedApp(request, data) {
   const res = await request.post('/api/applications', {
-    data: { role_title: 'Engineer', status: 'applied', ...data },
+    data: { role_title: 'Engineer', stage: 'applied', ...data },
   })
   return res.json()
 }
@@ -58,7 +58,7 @@ test('roles, leads and people land in their groups, interleaved (AE1)', async ({
   const today = await serverToday(request)
   await seedApp(request, { company_name: 'TodayOverCo', next_action_at: addDays(today, -2), next_action: 'Chase the panel date' })
   await seedPerson(request, { name: 'Tamsin Ellery', employer: 'Hollow Talent', next_action_at: today })
-  await seedApp(request, { company_name: 'TodayLeadCo', status: 'interested', next_action_at: addDays(today, 5) })
+  await seedApp(request, { company_name: 'TodayLeadCo', stage: 'interested', next_action_at: addDays(today, 5) })
   await seedApp(request, { company_name: 'TodayFarCo', next_action_at: addDays(today, 9) })
 
   await openToday(page)
@@ -131,7 +131,7 @@ test('closing a role from the board clears its step, and reopening does not brin
   const today = await serverToday(request)
   const app = await seedApp(request, {
     company_name: 'TodayCloseCo',
-    status: 'interview',
+    stage: 'interview',
     next_action_at: addDays(today, -1),
     next_action: 'Chase feedback',
   })
@@ -152,6 +152,8 @@ test('closing a role from the board clears its step, and reopening does not brin
     await page.waitForTimeout(20)
   }
   await page.mouse.up()
+  // A drop on Closed asks for a reason first.
+  await page.getByTestId('close-reason-withdrawn').click()
   await page.waitForTimeout(500)
 
   const closed = await (await request.get(`/api/applications/${app.id}`)).json()

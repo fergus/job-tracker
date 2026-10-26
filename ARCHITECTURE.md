@@ -75,7 +75,7 @@ Two host-mounted volumes persist data across container restarts:
 
 The Express server (`server/index.js`) has two responsibilities:
 
-1. **REST API** at `/api/applications/*` — CRUD operations for applications, file uploads, status changes, and stage notes
+1. **REST API** at `/api/applications/*` — CRUD operations for applications, file uploads, stage and close changes, and stage notes
 2. **Static file server** — serves the pre-built Vue SPA from `client/dist/`, with a catch-all route for client-side routing
 
 ### Database Schema
@@ -96,7 +96,10 @@ erDiagram
         TEXT user_email FK
         TEXT company_name
         TEXT role_title
-        TEXT status
+        TEXT stage
+        TEXT state
+        TEXT close_reason
+        TEXT record_type
         TEXT job_description
         TEXT job_posting_url
         TEXT company_website_url
@@ -161,11 +164,11 @@ Stage notes and attachments cascade-delete when their parent application is dele
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/me` | Current user info (`email`, `isAdmin`) |
-| `GET` | `/api/applications` | List user's apps (filter by `?status=`, `?updated_since=`, admin: `?all=true`) |
+| `GET` | `/api/applications` | List user's apps (filter by `?state=`, `?close_reason=`, `?record_type=`, `?updated_since=`, admin: `?all=true`; a `?status=` is rejected with a 400) |
 | `GET` | `/api/applications/:id` | Get single application with notes |
 | `POST` | `/api/applications` | Create application (multipart form) |
 | `PUT` | `/api/applications/:id` | Update application fields |
-| `PATCH` | `/api/applications/:id/status` | Change status (auto-sets corresponding date field) |
+| `PATCH` | `/api/applications/:id/status` | Removed: returns 410 for one release. Change stage and close with `PUT /api/applications/:id` (`stage`, `state`, `close_reason`) |
 | `PATCH` | `/api/applications/:id/dates` | Manually edit stage date fields |
 | `DELETE` | `/api/applications/:id` | Delete application and all files (cascades) |
 | `GET` | `/api/applications/:id/attachments` | List attachments |

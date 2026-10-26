@@ -1,26 +1,26 @@
 {
     "name": "job-tracker-server",
-    "version": "0.24.0",
+    "version": "0.25.2",
     "private": true,
     "scripts": {
         "test": "node --test test/*.test.js test/*/*.test.js"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.31.0",
+        "@modelcontextprotocol/sdk": "^1.32.2",
         "better-sqlite3": "^13.0.3",
         "cors": "^2.8.6",
-        "express": "^5.2.1",
-        "express-rate-limit": "^8.7.0",
+        "express": "^5.3.0",
+        "express-rate-limit": "^8.7.1",
         "helmet": "^8.3.0",
         "mammoth": "^1.13.0",
         "morgan": "^1.12.1",
         "multer": "^2.4.0",
-        "openai": "^7.23.0",
+        "openai": "^7.32.0",
         "pdf-parse": "^2.4.5",
-        "zod": "^4.6.5"
+        "zod": "^4.6.7"
     },
     "devDependencies": {
-        "supertest": "^7.3.0"
+        "supertest": "^7.3.1"
     },
     "overrides": {
         "form-data": ">=4.0.6",

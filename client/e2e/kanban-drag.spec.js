@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { gotoPipeline } from './helpers.js'
+import { gotoPipeline, seedApp } from './helpers.js'
 
 // Sortable decides where a card lands from the dragover events it sees along
 // the way, so the pointer is walked to the target in steps. A single jump only
@@ -29,114 +29,187 @@ async function dragWithDelay(page, sourceLocator, targetLocator, delay = 150) {
   await page.mouse.up()
 }
 
-test('dragging offer card to closed column closes it without claiming a rejection', async ({ page, request }) => {
-  await request.post('/api/applications', {
-    data: { company_name: 'OfferCorp', role_title: 'Engineer', status: 'offer' },
-  })
+// Everything a spec closes stays in the shared in-memory DB, and an extra closed
+// card shifts the layout the show-older toggle test depends on, so each spec
+// removes the records it made.
+async function findApp(request, company) {
+  const apps = await (await request.get('/api/applications')).json()
+  return apps.find(a => a.company_name === company)
+}
+
+async function cleanup(request, ...companies) {
+  for (const company of companies) {
+    const app = await findApp(request, company)
+    if (app) await request.delete(`/api/applications/${app.id}`)
+  }
+}
+
+function column(page, label) {
+  return page.locator(`h3:has-text("${label}")`).locator('..').locator('..').locator('.bg-sunken').first()
+}
+
+test('dropping an open card on Closed asks for a reason and closes with the one picked', async ({ page, request }) => {
+  await seedApp(request, { company_name: 'OfferCorp', role_title: 'Engineer', stage: 'offer' })
 
   await gotoPipeline(page)
-
-  // Verify the card starts in the Offer column
   await expect(page.getByText('OfferCorp').first()).toBeVisible()
 
-  // Drag the offer card to the Closed column drop zone
-  const offerCard = page.getByText('OfferCorp').first()
-  const closedDropZone = page.getByTestId('closed-drop-zone')
-  await dragWithDelay(page, offerCard, closedDropZone)
+  await dragWithDelay(page, page.getByText('OfferCorp').first(), page.getByTestId('closed-drop-zone'))
 
-  // Wait for the close API call to complete
+  // Nothing is saved until a reason is chosen.
+  const picker = page.getByTestId('close-reason-picker')
+  await expect(picker).toBeVisible()
+  expect((await findApp(request, 'OfferCorp')).state).toBe('open')
+
+  await picker.getByTestId('close-reason-role_closed').click()
   await page.waitForTimeout(500)
 
-  // The drag says "this is over", not "they turned me down". The record closes
-  // with no reason claimed, and its stage is left where it actually got to.
-  const response = await request.get('/api/applications')
-  const apps = await response.json()
-  const offerApp = apps.find(a => a.company_name === 'OfferCorp')
-  expect(offerApp).toBeDefined()
-  expect(offerApp.state).toBe('closed')
-  expect(offerApp.close_reason).toBe('unresolved')
-  expect(offerApp.stage).toBe('offer')
-})
-
-test('dragging rejected card from closed to active column changes status', async ({ page, request }) => {
-  await request.post('/api/applications', {
-    data: { company_name: 'DragOutCorp', role_title: 'Engineer', status: 'rejected' },
-  })
-
-  await gotoPipeline(page)
-
-  // Verify the card starts in the Closed column
-  await expect(page.getByText('DragOutCorp').first()).toBeVisible()
-
-  // Drag the rejected card to the Interested column
-  const rejectedCard = page.getByText('DragOutCorp').first()
-  const interestedColumn = page.locator('h3:has-text("Interested")').locator('..').locator('..').locator('.bg-sunken').first()
-  await dragWithDelay(page, rejectedCard, interestedColumn)
-
-  // Wait for the status-change API call to complete
-  await page.waitForTimeout(500)
-
-  // Verify via API that the status was changed to interested
-  const response = await request.get('/api/applications')
-  const apps = await response.json()
-  const app = apps.find(a => a.company_name === 'DragOutCorp')
-  expect(app).toBeDefined()
-  expect(app.status).toBe('interested')
-})
-
-test('dragging an accepted card into Rejected records a rejection, not a no-op', async ({ page, request }) => {
-  await request.post('/api/applications', {
-    data: { company_name: 'AcceptedCorp', role_title: 'Engineer', status: 'accepted' },
-  })
-
-  await gotoPipeline(page)
-  await expect(page.getByText('AcceptedCorp').first()).toBeVisible()
-
-  const acceptedCard = page.getByText('AcceptedCorp').first()
-  // closed-drop-zone is the Rejected sub-list inside the Closed column.
-  const rejectedDropZone = page.getByTestId('closed-drop-zone')
-  await dragWithDelay(page, acceptedCard, rejectedDropZone)
-
-  await page.waitForTimeout(500)
-
-  // Correcting an acceptance to a rejection is an explicit judgement, so this
-  // is the one drag allowed to name a rejection. It must not silently do nothing.
-  const response = await request.get('/api/applications')
-  const apps = await response.json()
-  const app = apps.find(a => a.company_name === 'AcceptedCorp')
-  expect(app).toBeDefined()
+  const app = await findApp(request, 'OfferCorp')
   expect(app.state).toBe('closed')
-  expect(app.close_reason).toBe('rejected')
+  expect(app.close_reason).toBe('role_closed')
+  expect(app.stage).toBe('offer')
+  expect('status' in app).toBe(false)
+
+  // The card shows the real reason, not a rejection.
+  await expect(page.getByTestId('close-reason-badge').filter({ hasText: 'Role closed' }).first()).toBeVisible()
+  await cleanup(request, 'OfferCorp')
 })
 
-test('dragging an open card into Accepted records an acceptance, not a rejection', async ({ page, request }) => {
-  await request.post('/api/applications', {
-    data: { company_name: 'AcceptMeCorp', role_title: 'Engineer', status: 'offer' },
-  })
+test('the picker offers all seven reasons, including Accepted', async ({ page, request }) => {
+  await seedApp(request, { company_name: 'AcceptMeCorp', role_title: 'Engineer', stage: 'offer' })
 
   await gotoPipeline(page)
-  await expect(page.getByText('AcceptMeCorp').first()).toBeVisible()
+  await dragWithDelay(page, page.getByText('AcceptMeCorp').first(), page.getByTestId('closed-drop-zone'))
 
-  const openCard = page.getByText('AcceptMeCorp').first()
-  const acceptedDropZone = page.getByTestId('accepted-drop-zone')
-  await dragWithDelay(page, openCard, acceptedDropZone)
+  const picker = page.getByTestId('close-reason-picker')
+  await expect(picker).toBeVisible()
+  for (const reason of ['accepted', 'rejected', 'withdrawn', 'role_closed', 'lapsed', 'not_pursued', 'unresolved']) {
+    await expect(picker.getByTestId(`close-reason-${reason}`)).toBeVisible()
+  }
 
+  await picker.getByTestId('close-reason-accepted').click()
   await page.waitForTimeout(500)
 
-  // The drop target names the outcome. Closing as 'unresolved' re-derived
-  // status='rejected', so the card reappeared under Rejected and acceptance
-  // was unrepresentable from the board.
-  const response = await request.get('/api/applications')
-  const apps = await response.json()
-  const app = apps.find(a => a.company_name === 'AcceptMeCorp')
-  expect(app).toBeDefined()
+  const app = await findApp(request, 'AcceptMeCorp')
   expect(app.state).toBe('closed')
   expect(app.close_reason).toBe('accepted')
-  expect(app.status).toBe('accepted')
   expect(app.stage).toBe('offer')
+  await cleanup(request, 'AcceptMeCorp')
+})
 
-  // The suite shares one in-memory DB with no per-test reset, so leave the
-  // Closed column as we found it -- an extra closed card shifts the layout
-  // that the show-older toggle test depends on.
-  await request.delete(`/api/applications/${app.id}`)
+test('Escape on the picker saves nothing and the card returns to its column', async ({ page, request }) => {
+  await seedApp(request, { company_name: 'EscapeCorp', role_title: 'Engineer', stage: 'applied' })
+
+  await gotoPipeline(page)
+  const appliedColumn = column(page, 'Applied')
+  await expect(appliedColumn.getByText('EscapeCorp')).toBeVisible()
+
+  await dragWithDelay(page, page.getByText('EscapeCorp').first(), page.getByTestId('closed-drop-zone'))
+  await expect(page.getByTestId('close-reason-picker')).toBeVisible()
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('close-reason-picker')).toHaveCount(0)
+
+  await expect(appliedColumn.getByText('EscapeCorp')).toBeVisible()
+  const app = await findApp(request, 'EscapeCorp')
+  expect(app.state).toBe('open')
+  expect(app.close_reason).toBeNull()
+  await cleanup(request, 'EscapeCorp')
+})
+
+test('dragging a closed card to an open column reopens it at that stage', async ({ page, request }) => {
+  await seedApp(request, { company_name: 'DragOutCorp', role_title: 'Engineer', stage: 'applied' }, 'rejected')
+
+  await gotoPipeline(page)
+  await expect(page.getByText('DragOutCorp').first()).toBeVisible()
+
+  await dragWithDelay(page, page.getByText('DragOutCorp').first(), column(page, 'Responded'))
+  await page.waitForTimeout(500)
+
+  const app = await findApp(request, 'DragOutCorp')
+  expect(app.state).toBe('open')
+  expect(app.stage).toBe('responded')
+  expect(app.close_reason).toBeNull()
+  expect(app.closed_at).toBeNull()
+  expect(app.responded_at).toBeTruthy()
+  await cleanup(request, 'DragOutCorp')
+})
+
+test('reopening into the Interview column keeps an offer at offer', async ({ page, request }) => {
+  await seedApp(request, { company_name: 'OfferKeepCorp', role_title: 'Engineer', stage: 'offer' }, 'withdrawn')
+
+  await gotoPipeline(page)
+  await dragWithDelay(page, page.getByText('OfferKeepCorp').first(), column(page, 'Interview'))
+  await page.waitForTimeout(500)
+
+  const app = await findApp(request, 'OfferKeepCorp')
+  expect(app.state).toBe('open')
+  expect(app.stage).toBe('offer')
+  await cleanup(request, 'OfferKeepCorp')
+})
+
+test('moving a card between open stages stamps the stage date, and Undo puts it back', async ({ page, request }) => {
+  await seedApp(request, { company_name: 'StampCorp', role_title: 'Engineer', stage: 'interested' })
+
+  await gotoPipeline(page)
+  await dragWithDelay(page, page.getByText('StampCorp').first(), column(page, 'Applied'))
+  await page.waitForTimeout(500)
+
+  const moved = await findApp(request, 'StampCorp')
+  expect(moved.stage).toBe('applied')
+  expect(moved.applied_at).toBeTruthy()
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await page.waitForTimeout(500)
+
+  const restored = await findApp(request, 'StampCorp')
+  expect(restored.stage).toBe('interested')
+  expect(restored.state).toBe('open')
+  await cleanup(request, 'StampCorp')
+})
+
+test('Undo of a close restores the stage date and the follow-up the close cleared', async ({ page, request }) => {
+  const seeded = await seedApp(request, {
+    company_name: 'UndoCloseCorp',
+    role_title: 'Engineer',
+    stage: 'applied',
+    next_action_at: '2099-01-01',
+    next_action: 'Send references',
+  })
+  const before = await findApp(request, 'UndoCloseCorp')
+  expect(before.applied_at).toBeTruthy()
+
+  await gotoPipeline(page)
+  await dragWithDelay(page, page.getByText('UndoCloseCorp').first(), page.getByTestId('closed-drop-zone'))
+  await page.getByTestId('close-reason-picker').getByTestId('close-reason-lapsed').click()
+  await page.waitForTimeout(500)
+
+  const closed = await findApp(request, 'UndoCloseCorp')
+  expect(closed.state).toBe('closed')
+  expect(closed.next_action).toBeNull()
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await page.waitForTimeout(500)
+
+  const restored = await findApp(request, 'UndoCloseCorp')
+  expect(restored.state).toBe('open')
+  expect(restored.stage).toBe('applied')
+  expect(restored.applied_at).toBe(before.applied_at)
+  expect(restored.next_action).toBe('Send references')
+  expect(restored.next_action_at).toBe('2099-01-01')
+  await request.delete(`/api/applications/${seeded.id}`)
+})
+
+test('on a phone-width screen the Closed group lists closed cards with their reason', async ({ page, request }) => {
+  // A drag across the sideways-scrolling strip cannot be driven reliably, so the
+  // mobile drop target is covered by what it renders. It shares onClosedAdded
+  // with the desktop column, whose drop is exercised above.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await seedApp(request, { company_name: 'MobileSeedClosed', role_title: 'Engineer', stage: 'applied' }, 'lapsed')
+
+  await gotoPipeline(page)
+  const zone = page.getByTestId('closed-drop-zone-mobile')
+  await expect(zone.getByText('MobileSeedClosed')).toHaveCount(1)
+  await expect(zone.getByTestId('close-reason-badge')).toContainText('No response')
+  await cleanup(request, 'MobileSeedClosed')
 })
