@@ -137,7 +137,8 @@ test('closing a role from the board clears its step, and reopening does not brin
   })
 
   await gotoPipeline(page)
-  const card = page.getByText('TodayCloseCo').first()
+  // The board card, not the in-play rail chip that repeats an interview's company name.
+  const card = page.locator('[role="button"]').filter({ hasText: 'TodayCloseCo' }).first()
   const closedDropZone = page.getByTestId('closed-drop-zone')
   const from = await card.boundingBox()
   const to = await closedDropZone.boundingBox()

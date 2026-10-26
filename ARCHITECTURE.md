@@ -168,7 +168,6 @@ Stage notes and attachments cascade-delete when their parent application is dele
 | `GET` | `/api/applications/:id` | Get single application with notes |
 | `POST` | `/api/applications` | Create application (multipart form) |
 | `PUT` | `/api/applications/:id` | Update application fields |
-| `PATCH` | `/api/applications/:id/status` | Removed: returns 410 for one release. Change stage and close with `PUT /api/applications/:id` (`stage`, `state`, `close_reason`) |
 | `PATCH` | `/api/applications/:id/dates` | Manually edit stage date fields |
 | `DELETE` | `/api/applications/:id` | Delete application and all files (cascades) |
 | `GET` | `/api/applications/:id/attachments` | List attachments |

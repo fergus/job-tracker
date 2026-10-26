@@ -214,7 +214,6 @@ describe("U6 converting a pipeline row into a contact", () => {
             "id",
             "company_name",
             "role_title",
-            "status",
             "stage",
             "state",
             "record_type",

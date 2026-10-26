@@ -515,24 +515,6 @@ function createMcpServer() {
         },
     );
 
-    // Tombstone, removed next release: kept registered so an old client gets a
-    // clear error naming update_application rather than "tool not found". The
-    // schema is deliberately loose so any old call reaches the handler.
-    server.tool(
-        "update_status",
-        "Removed. Always returns an error and changes nothing: use update_application with stage, state and close_reason. This tool is deleted next release.",
-        {
-            id: z.number().int().positive().optional().describe("Application ID"),
-            status: z.string().optional().describe("Removed"),
-        },
-        async () => ({
-            content: [
-                { type: "text", text: `Error 410: ${svc.STATUS_REMOVED_MESSAGE}` },
-            ],
-            isError: true,
-        }),
-    );
-
     server.tool(
         "add_note",
         "Add a stage note to a job application. Logging a chase is the moment you know when to chase next, so set next_action_at in the same call rather than following up with update_application.",

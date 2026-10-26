@@ -35,7 +35,6 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     company_name TEXT NOT NULL,
     role_title TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'interested',
     job_description TEXT,
     job_posting_url TEXT,
     company_website_url TEXT,
@@ -178,8 +177,8 @@ if (!extractedJdCheck.some((c) => c.name === "extracted_jd")) {
 }
 
 // Migrate: the stage / state / close_reason / record_type columns that replace
-// the overloaded status column, which is left in place and no longer read or
-// written. All nullable with no defaults.
+// the overloaded status column (since dropped, see drop_legacy_status below).
+// All nullable with no defaults.
 const splitCheck = db.prepare("PRAGMA table_info(applications)").all();
 for (const col of ["stage", "state", "close_reason", "record_type"]) {
     if (!splitCheck.some((c) => c.name === col)) {
@@ -370,6 +369,24 @@ db.exec(
 db.exec(
     `CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT)`,
 );
+
+// Drop the legacy status column, unread and unwritten since the release that
+// removed it from the API. Marker-guarded so it runs once; a fresh database
+// never has the column.
+if (
+    !db.prepare("SELECT 1 FROM _migrations WHERE name = ?").get("drop_legacy_status")
+) {
+    const hasStatus = db
+        .prepare("PRAGMA table_info(applications)")
+        .all()
+        .some((c) => c.name === "status");
+    if (hasStatus) {
+        db.exec("ALTER TABLE applications DROP COLUMN status");
+    }
+    db.prepare(
+        "INSERT INTO _migrations (name, applied_at) VALUES (?, datetime('now'))",
+    ).run("drop_legacy_status");
+}
 
 // Migrate existing CV/cover-letter data into attachments table
 const alreadyRun = db

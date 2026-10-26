@@ -5,15 +5,16 @@
     tabindex="0"
     @keydown.enter="$emit('select', application)"
     @keydown.space.prevent="$emit('select', application)"
-    class="bg-panel rounded-lg border border-line p-3 @[200px]:p-4 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-[transform,box-shadow] duration-200 ease-out-quart"
+    :class="['bg-panel rounded-lg border border-line p-3 @[200px]:p-4 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-[transform,box-shadow] duration-200 ease-out-quart', landStage ? 'card-landed' : '']"
+    :style="landStage ? { '--land': `var(--stage-${landStage})` } : undefined"
   >
     <!-- Quiet cards brighten on hover so the muted company name becomes fully readable -->
-    <p :class="['font-semibold font-condensed text-sm truncate transition-colors duration-200', quiet ? 'text-ink-3 hover:text-ink' : 'text-ink']">{{ application.company_name }}</p>
+    <p :class="['font-semibold font-condensed text-base truncate transition-colors duration-200', quiet ? 'text-ink-3 hover:text-ink' : 'text-ink']">{{ application.company_name }}</p>
     <p :class="['text-xs truncate mt-1', quiet ? 'text-ink-3' : 'text-ink-2']">{{ application.role_title }}</p>
     <span
       v-if="application.state === 'open' && application.stage === 'offer'"
       class="inline-block mt-1.5 px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide"
-      :style="{ backgroundColor: 'var(--stage-offer-bg)', color: 'var(--stage-offer-fg)' }"
+      :style="{ backgroundColor: 'var(--stage-accepted)', color: 'var(--panel)' }"
     >Offer</span>
     <span
       v-if="application.state === 'closed' && application.close_reason"
@@ -63,7 +64,8 @@ import { computed } from 'vue'
 import { cardSignal } from '../utils/cardSignal.js'
 import { CLOSE_REASON_LABELS } from '../utils/timeline.js'
 
-const props = defineProps({ application: Object, showUser: Boolean, quiet: Boolean })
+// landStage: the stage this card was just dropped into, for the landing flash
+const props = defineProps({ application: Object, showUser: Boolean, quiet: Boolean, landStage: String })
 defineEmits(['select'])
 
 const signal = computed(() => cardSignal(props.application, Date.now()))

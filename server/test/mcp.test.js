@@ -312,15 +312,4 @@ describe("mcp application next step (Today queue U3/U4)", () => {
         assert.equal(out.next_action, null);
         assert.equal(out.next_action_at, null);
     });
-
-    test("update_status is a tombstone: it errors and leaves the step alone", async () => {
-        const a = mk({ next_action: "Chase", next_action_at: "2099-01-01" });
-        const result = await call("update_status", { id: a.id, status: "rejected" });
-        assert.equal(result.isError, true);
-        assert.match(result.content[0].text, /update_application/);
-        const read = parseResult(await call("get_application", { id: a.id }));
-        assert.equal(read.next_action, "Chase");
-        assert.equal(read.next_action_at, "2099-01-01");
-        assert.equal(read.state, "open");
-    });
 });

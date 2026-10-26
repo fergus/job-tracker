@@ -39,8 +39,8 @@ const NOTE_STAGES = [
 
 // --- Stage, state, close reason and record type ---------------------------
 //
-// The legacy `status` column is no longer read or written. It stays in the
-// table, untouched, until the release after this one drops it.
+// The legacy `status` column has been dropped; a record is described by these
+// fields.
 
 const VALID_STAGES = [
     "interested",
@@ -81,11 +81,6 @@ function evidencesApplication(stage) {
 
 const LEGACY_STATUS_MESSAGE =
     "status is no longer supported: use stage, state, close_reason and record_type";
-
-// Returned by the tombstones for the removed status write path (the
-// update_status MCP tool and PATCH /:id/status), which go in the next release.
-const STATUS_REMOVED_MESSAGE =
-    "Changing status is no longer supported and this route is removed next release: use update_application (PUT /api/applications/:id) with stage, state and close_reason";
 
 // A `status` argument fails rather than being ignored: silently returning
 // everything, or writing nothing, is how a caller keeps trusting a field that
@@ -930,7 +925,6 @@ module.exports = {
     VALID_CLOSE_REASONS,
     STAGE_DATE_MAP,
     LEGACY_STATUS_MESSAGE,
-    STATUS_REMOVED_MESSAGE,
     rejectLegacyStatus,
     toApiRecord,
     getOwnApp,
