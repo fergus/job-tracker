@@ -4,26 +4,26 @@
 :root {
     color-scheme: light dark;
 
-    /* Accent — amber-bronze, "tactical, forward, sharp" */
-    --accent: oklch(65% 0.18 52);
-    --accent-hover: oklch(57% 0.18 52);
-    --accent-fg: oklch(15% 0.012 52);
-    --accent-muted: oklch(96.5% 0.022 58);
+    /* Accent — signal indigo, "tactical, forward, sharp" */
+    --accent: oklch(52% 0.22 280);
+    --accent-hover: oklch(45% 0.22 280);
+    --accent-fg: oklch(98% 0.01 280);
+    --accent-muted: oklch(96% 0.025 280);
 
     /* Surface hierarchy */
-    --canvas: oklch(97.5% 0.007 58);
+    --canvas: oklch(98.5% 0.004 275);
     --panel: oklch(100% 0 0);
-    --raised: oklch(96% 0.008 58);
-    --sunken: oklch(93% 0.012 58);
+    --raised: oklch(96.5% 0.006 275);
+    --sunken: oklch(93.5% 0.01 275);
 
     /* Text hierarchy */
-    --ink: oklch(18% 0.012 58);
-    --ink-2: oklch(36% 0.01 58);
-    --ink-3: oklch(45% 0.008 58);
+    --ink: oklch(17% 0.02 275);
+    --ink-2: oklch(36% 0.018 275);
+    --ink-3: oklch(46% 0.014 275);
 
     /* Borders */
-    --line: oklch(88% 0.01 58);
-    --line-2: oklch(78% 0.01 58);
+    --line: oklch(90% 0.008 275);
+    --line-2: oklch(80% 0.01 275);
 
     /* Semantic */
     --success: oklch(52% 0.16 145);
@@ -31,83 +31,83 @@
     --danger-hover: oklch(42% 0.2 22);
 
     /* Stage bar colors */
-    --stage-interested: oklch(57% 0.04 240);
-    --stage-applied: oklch(55% 0.17 262);
-    --stage-responded: oklch(58% 0.15 165);
-    --stage-interview: oklch(62% 0.18 52);
-    --stage-offer: oklch(56% 0.18 148);
-    --stage-accepted: oklch(47% 0.2 148);
-    --stage-rejected: oklch(50% 0.14 18);
-    --stage-closed: oklch(57% 0.04 240);
+    --stage-interested: oklch(57% 0.025 275);
+    --stage-applied: oklch(58% 0.12 215);
+    --stage-responded: oklch(64% 0.15 75);
+    --stage-interview: oklch(58% 0.22 335);
+    --stage-offer: oklch(60% 0.17 150);
+    --stage-accepted: oklch(45% 0.16 150);
+    --stage-rejected: oklch(52% 0.15 20);
+    --stage-closed: oklch(64% 0.008 275);
 
     /* Stage badge pairs — bg / fg */
-    --stage-interested-bg: oklch(94% 0.015 240);
-    --stage-interested-fg: oklch(33% 0.08 240);
-    --stage-applied-bg: oklch(93% 0.04 262);
-    --stage-applied-fg: oklch(28% 0.15 262);
-    --stage-responded-bg: oklch(94% 0.03 165);
-    --stage-responded-fg: oklch(30% 0.12 165);
-    --stage-interview-bg: oklch(95% 0.035 52);
-    --stage-interview-fg: oklch(36% 0.16 52);
-    --stage-offer-bg: oklch(93% 0.04 148);
-    --stage-offer-fg: oklch(28% 0.16 148);
-    --stage-accepted-bg: oklch(92% 0.045 148);
-    --stage-accepted-fg: oklch(23% 0.16 148);
-    --stage-rejected-bg: oklch(95% 0.035 18);
-    --stage-rejected-fg: oklch(33% 0.12 18);
-    --stage-closed-bg: oklch(94% 0.015 240);
-    --stage-closed-fg: oklch(33% 0.08 240);
+    --stage-interested-bg: oklch(94% 0.01 275);
+    --stage-interested-fg: oklch(34% 0.03 275);
+    --stage-applied-bg: oklch(94% 0.03 215);
+    --stage-applied-fg: oklch(30% 0.09 215);
+    --stage-responded-bg: oklch(95% 0.05 90);
+    --stage-responded-fg: oklch(36% 0.1 80);
+    --stage-interview-bg: oklch(95% 0.03 335);
+    --stage-interview-fg: oklch(36% 0.17 335);
+    --stage-offer-bg: oklch(94% 0.045 150);
+    --stage-offer-fg: oklch(30% 0.12 150);
+    --stage-accepted-bg: oklch(91% 0.06 150);
+    --stage-accepted-fg: oklch(24% 0.11 150);
+    --stage-rejected-bg: oklch(95% 0.03 20);
+    --stage-rejected-fg: oklch(35% 0.12 20);
+    --stage-closed-bg: oklch(95% 0.004 275);
+    --stage-closed-fg: oklch(38% 0.012 275);
 }
 
 /* ─── Dark mode overrides ────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
     :root {
-        --accent: oklch(68% 0.18 52);
-        --accent-hover: oklch(74% 0.18 52);
-        --accent-fg: oklch(14% 0.012 52);
-        --accent-muted: oklch(24% 0.022 52);
+        --accent: oklch(72% 0.17 280);
+        --accent-hover: oklch(78% 0.17 280);
+        --accent-fg: oklch(14% 0.02 280);
+        --accent-muted: oklch(25% 0.05 280);
 
-        --canvas: oklch(14% 0.01 240);
-        --panel: oklch(18% 0.01 240);
-        --raised: oklch(22% 0.01 240);
-        --sunken: oklch(11% 0.01 240);
+        --canvas: oklch(15% 0.02 275);
+        --panel: oklch(19% 0.02 275);
+        --raised: oklch(23% 0.02 275);
+        --sunken: oklch(12% 0.02 275);
 
-        --ink: oklch(94% 0.006 240);
-        --ink-2: oklch(77% 0.006 240);
-        --ink-3: oklch(62% 0.006 240);
+        --ink: oklch(95% 0.008 275);
+        --ink-2: oklch(78% 0.01 275);
+        --ink-3: oklch(63% 0.01 275);
 
-        --line: oklch(28% 0.01 240);
-        --line-2: oklch(36% 0.01 240);
+        --line: oklch(29% 0.02 275);
+        --line-2: oklch(38% 0.02 275);
 
         --success: oklch(65% 0.14 145);
         --danger: oklch(62% 0.18 22);
         --danger-hover: oklch(70% 0.18 22);
 
-        --stage-interested: oklch(65% 0.04 240);
-        --stage-applied: oklch(62% 0.17 262);
-        --stage-responded: oklch(66% 0.15 165);
-        --stage-interview: oklch(70% 0.18 52);
-        --stage-offer: oklch(64% 0.18 148);
-        --stage-accepted: oklch(58% 0.2 148);
-        --stage-rejected: oklch(60% 0.14 18);
-        --stage-closed: oklch(65% 0.04 240);
+        --stage-interested: oklch(66% 0.025 275);
+        --stage-applied: oklch(68% 0.11 215);
+        --stage-responded: oklch(78% 0.15 85);
+        --stage-interview: oklch(70% 0.2 335);
+        --stage-offer: oklch(68% 0.16 150);
+        --stage-accepted: oklch(58% 0.17 150);
+        --stage-rejected: oklch(64% 0.15 20);
+        --stage-closed: oklch(68% 0.008 275);
 
-        --stage-interested-bg: oklch(24% 0.03 240);
-        --stage-interested-fg: oklch(72% 0.06 240);
-        --stage-applied-bg: oklch(22% 0.06 262);
-        --stage-applied-fg: oklch(72% 0.14 262);
-        --stage-responded-bg: oklch(22% 0.05 165);
-        --stage-responded-fg: oklch(72% 0.12 165);
-        --stage-interview-bg: oklch(24% 0.06 52);
-        --stage-interview-fg: oklch(78% 0.16 52);
-        --stage-offer-bg: oklch(22% 0.06 148);
-        --stage-offer-fg: oklch(72% 0.14 148);
-        --stage-accepted-bg: oklch(20% 0.07 148);
-        --stage-accepted-fg: oklch(68% 0.16 148);
-        --stage-rejected-bg: oklch(24% 0.05 18);
-        --stage-rejected-fg: oklch(72% 0.12 18);
-        --stage-closed-bg: oklch(24% 0.03 240);
-        --stage-closed-fg: oklch(72% 0.06 240);
+        --stage-interested-bg: oklch(24% 0.015 275);
+        --stage-interested-fg: oklch(76% 0.03 275);
+        --stage-applied-bg: oklch(23% 0.05 215);
+        --stage-applied-fg: oklch(78% 0.1 215);
+        --stage-responded-bg: oklch(25% 0.06 85);
+        --stage-responded-fg: oklch(82% 0.13 85);
+        --stage-interview-bg: oklch(25% 0.07 335);
+        --stage-interview-fg: oklch(80% 0.14 335);
+        --stage-offer-bg: oklch(23% 0.06 150);
+        --stage-offer-fg: oklch(76% 0.14 150);
+        --stage-accepted-bg: oklch(20% 0.07 150);
+        --stage-accepted-fg: oklch(70% 0.16 150);
+        --stage-rejected-bg: oklch(24% 0.05 20);
+        --stage-rejected-fg: oklch(74% 0.12 20);
+        --stage-closed-bg: oklch(26% 0.006 275);
+        --stage-closed-fg: oklch(72% 0.012 275);
     }
 }
 
