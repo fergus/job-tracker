@@ -271,7 +271,7 @@ const railGroups = computed(() => {
 
 // A faint wash of the stage colour over the neutral well, so the stage reads at board scale.
 function wellStyle(stage) {
-  return { backgroundColor: `color-mix(in oklch, var(--stage-${stage}-bg) 55%, var(--sunken))` }
+  return { backgroundColor: `color-mix(in oklab, var(--stage-${stage}-bg) 55%, var(--sunken))` }
 }
 
 const columns = reactive({
