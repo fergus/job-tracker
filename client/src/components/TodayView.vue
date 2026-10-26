@@ -3,7 +3,7 @@
     <!-- R5: nothing owed this week. Shown only after a load has actually
          succeeded, so a failed first load never reads as "you're clear". -->
     <div v-if="loaded && items.length === 0" class="text-center py-20">
-      <p class="text-ink-2 font-medium mb-1">Nothing owed this week</p>
+      <p class="font-condensed text-3xl font-semibold text-ink mb-2">Nothing owed this week</p>
       <p class="text-sm text-ink-3 max-w-md mx-auto">
         Follow-ups you set on roles and people land here as they come due. The
         pipeline and your people list are one click away.
@@ -12,51 +12,50 @@
 
     <!-- One scroll, a single column at every width: these are groups you read
          straight down, not columns you compare. -->
-    <div v-else-if="items.length > 0" class="flex flex-col gap-8">
+    <div v-else-if="items.length > 0" class="flex flex-col gap-10">
       <section v-for="group in groups" :key="group.key">
-        <h2
-          class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider mb-3 pb-2 border-b border-line"
-        >
-          {{ group.label }}
-        </h2>
+        <GroupHeader :label="group.label" :count="group.items.length" :tone="group.key" />
 
-        <ul class="flex flex-col">
+        <ul class="flex flex-col gap-2">
           <li
             v-for="item in group.items"
             :key="rowKey(item)"
-            class="border-b border-line/60 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3"
+            :class="[
+              'group min-w-0 bg-panel rounded-lg border flex flex-col sm:flex-row sm:items-center sm:pr-2 transition-[border-color,box-shadow] duration-200 ease-out-quart hover:shadow-md',
+              group.key === 'overdue' ? 'border-danger/40 hover:border-danger' : 'border-line hover:border-line-2',
+            ]"
           >
             <button
               type="button"
               @click="$emit('open', item)"
               :aria-label="rowLabel(item)"
-              class="flex-1 min-w-0 text-left min-h-[44px] py-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-0.5 sm:gap-4 transition-colors hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm px-2 -mx-2"
+              class="flex-1 min-w-0 text-left min-h-[56px] px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-6 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <span class="min-w-0 flex-1 truncate" :title="nameLine(item)">
+              <span class="min-w-0 flex-1" :title="nameLine(item)">
                 <!-- The kind in words, so a person and a role never differ by
                      colour alone. -->
                 <span
-                  class="inline-block w-12 text-[10px] font-semibold font-condensed uppercase tracking-wider text-ink-3"
+                  class="inline-block mb-1 px-1.5 py-0.5 rounded text-[11px] leading-none font-semibold font-condensed uppercase tracking-wider"
+                  :class="item.kind === 'contact' ? 'bg-accent-muted text-accent' : 'bg-sunken text-ink-2'"
                 >{{ kindLabel(item) }}</span>
-                <span class="text-sm font-medium text-ink">{{ item.title }}</span>
-                <span v-if="item.subtitle" class="text-sm text-ink-3">
-                  — {{ item.subtitle }}
-                </span>
-                <span v-if="showUser && item.user_email" class="text-xs text-ink-3">
-                  · {{ item.user_email }}
-                </span>
+                <span class="block truncate font-condensed font-semibold text-lg leading-tight text-ink">{{ item.title }}</span>
+                <span v-if="item.subtitle" class="block truncate text-sm text-ink-2">{{ item.subtitle }}</span>
+                <span v-if="showUser && item.user_email" class="block truncate text-xs text-ink-3">{{ item.user_email }}</span>
               </span>
               <span
-                class="min-w-0 shrink-0 sm:max-w-[50%] text-xs sm:text-right truncate"
-                :class="followUpTone(item.follow_up_state)"
+                class="min-w-0 shrink-0 sm:max-w-[45%] text-sm sm:text-right sm:line-clamp-2"
+                :class="[followUpTone(item.follow_up_state), item.follow_up_state === 'upcoming' ? '' : 'font-semibold']"
                 :title="owedLine(item)"
               >
                 {{ owedLine(item) }}
               </span>
             </button>
 
+            <!-- Where a pointer can hover, the snooze waits until the row is
+                 reached; touch and keyboard always see it. -->
             <SnoozeControl
               v-if="!readOnly"
+              class="px-3 sm:px-0 [@media(hover:hover)]:sm:opacity-0 [@media(hover:hover)]:sm:group-hover:opacity-100 [@media(hover:hover)]:sm:group-focus-within:opacity-100 transition-opacity duration-150"
               :subject="item.title"
               :disabled="pendingKey !== null"
               :pending="pendingKey === rowKey(item)"
@@ -73,6 +72,7 @@
 import { computed } from 'vue'
 import { groupToday, kindLabel, todayItemKey as rowKey } from '../utils/todayGroups.js'
 import { followUpProse, followUpTone } from '../utils/followUp.js'
+import GroupHeader from './GroupHeader.vue'
 import SnoozeControl from './SnoozeControl.vue'
 
 // The Today section. Items arrive already filtered, classified and ordered by

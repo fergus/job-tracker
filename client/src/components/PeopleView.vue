@@ -2,11 +2,11 @@
   <div class="max-w-screen-lg mx-auto px-4 py-4">
     <!-- R15: a persistent way in, so someone met at a meetup can be recorded
          without inventing a role to attach them to. -->
-    <div v-if="!readOnly" class="flex justify-end mb-4">
+    <div v-if="!readOnly" class="flex justify-end mb-6">
       <button
         type="button"
         @click="toggleCreate"
-        class="min-h-[44px] px-3 text-xs font-medium text-ink-3 hover:text-ink transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
+        class="min-h-[44px] px-4 text-sm font-medium text-ink border border-line-2 rounded-lg hover:border-accent hover:text-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         {{ creating ? 'Cancel' : '+ Add person' }}
       </button>
@@ -84,7 +84,7 @@
 
     <!-- R17: nobody in the list at all. Orienting, not congratulatory. -->
     <div v-if="contacts.length === 0 && !creating" class="text-center py-20">
-      <p class="text-ink-2 font-medium mb-1">No people yet</p>
+      <p class="font-condensed text-3xl font-semibold text-ink mb-2">No people yet</p>
       <p class="text-sm text-ink-3 max-w-md mx-auto mb-4">
         Recruiters, referrers, hiring managers — anyone worth staying in touch
         with. People you owe a reply surface first; everyone else sorts by how
@@ -103,52 +103,55 @@
     <!-- R2: one scroll, four groups, no filter control. R19: a single column
          at every width — the board's horizontal snap-scroller is for columns
          you compare, and these are groups you read straight down. -->
-    <div v-else-if="contacts.length > 0" class="flex flex-col gap-8">
+    <div v-else-if="contacts.length > 0" class="flex flex-col gap-10">
       <section v-for="group in groups" :key="group.key">
-        <h2
-          class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider mb-3 pb-2 border-b border-line"
-        >
-          {{ group.label }}
-        </h2>
+        <GroupHeader :label="group.label" :count="group.contacts.length" :tone="group.key" />
 
         <p v-if="group.contacts.length === 0" class="text-sm text-ink-3 py-2">
           Everyone in your list has a next action against them.
         </p>
 
-        <ul v-else class="flex flex-col">
+        <!-- The working list can run long, so it takes two columns once there
+             is room; the dated groups stay a single column you read down. -->
+        <ul
+          v-else
+          :class="['grid gap-2 grid-cols-[minmax(0,1fr)]', group.key === 'none' ? 'lg:grid-cols-[repeat(2,minmax(0,1fr))]' : '']"
+        >
           <li
             v-for="contact in group.contacts"
             :key="contact.id"
-            class="border-b border-line/60 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3"
+            :class="[
+              'group min-w-0 bg-panel rounded-lg border flex flex-col sm:flex-row sm:items-center sm:pr-2 transition-[border-color,box-shadow] duration-200 ease-out-quart hover:shadow-md',
+              group.key === 'overdue' ? 'border-danger/40 hover:border-danger' : 'border-line hover:border-line-2',
+            ]"
           >
             <button
               type="button"
               @click="$emit('open-contact', contact.id)"
               :aria-label="rowLabel(contact)"
-              class="flex-1 min-w-0 text-left min-h-[44px] py-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-0.5 sm:gap-4 transition-colors hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm px-2 -mx-2"
+              class="flex-1 min-w-0 text-left min-h-[56px] px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-6 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <!-- One line, ellipsed. A recruiter's full name and employer can
-                   each run past the row on their own, and letting them wrap
-                   turned a scannable list into a stack of paragraphs. -->
-              <span class="min-w-0 flex-1 truncate" :title="nameLine(contact)">
-                <span class="text-sm font-medium text-ink">{{ contact.name }}</span>
-                <span v-if="contact.employer" class="text-sm text-ink-3">
-                  — {{ contact.employer }}
-                </span>
+              <!-- Name over employer, each on one line and ellipsed. A
+                   recruiter's full name and employer can each run past the
+                   row on their own, and letting them wrap turned a scannable
+                   list into a stack of paragraphs. -->
+              <span class="min-w-0 flex-1" :title="nameLine(contact)">
+                <span class="block truncate font-condensed font-semibold text-lg leading-tight text-ink">{{ contact.name }}</span>
+                <span v-if="contact.employer" class="block truncate text-sm text-ink-2">{{ contact.employer }}</span>
               </span>
               <!-- Bounded so a long commitment cannot crowd out the name it
                    belongs to; the full wording is a hover away and in the
                    drawer. -->
-              <span class="min-w-0 shrink-0 sm:max-w-[45%] text-xs sm:text-right">
+              <span class="min-w-0 shrink-0 sm:max-w-[45%] text-sm sm:text-right">
                 <span
                   v-if="contact.follow_up_state"
-                  :class="followUpTone(contact.follow_up_state)"
+                  :class="[followUpTone(contact.follow_up_state), contact.follow_up_state === 'upcoming' ? '' : 'font-semibold']"
                   class="block truncate"
                   :title="followUpProse(contact.follow_up_state, contact.follow_up_days, contact.next_action)"
                 >
                   {{ followUpProse(contact.follow_up_state, contact.follow_up_days, contact.next_action) }}
                 </span>
-                <span class="block truncate text-ink-3">
+                <span class="block truncate text-xs text-ink-3">
                   {{ contactedProse(contact.days_since_contact) }}
                 </span>
               </span>
@@ -157,9 +160,11 @@
             <!-- R12: the only action on a row. Logging what actually happened
                  stays in the drawer, so the interaction history does not fill
                  up with one-tap stubs. R21: in all-users mode there is no
-                 write to make, so the control is absent rather than failing. -->
+                 write to make, so the control is absent rather than failing.
+                 Where a pointer can hover it waits until the row is reached. -->
             <SnoozeControl
               v-if="!readOnly && contact.follow_up_state"
+              class="px-3 sm:px-0 [@media(hover:hover)]:sm:opacity-0 [@media(hover:hover)]:sm:group-hover:opacity-100 [@media(hover:hover)]:sm:group-focus-within:opacity-100 transition-opacity duration-150"
               :subject="contact.name"
               :disabled="pendingId !== null"
               :pending="pendingId === contact.id"
@@ -176,6 +181,7 @@
 import { computed, reactive, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { groupContacts, contactedProse } from '../utils/contactGroups.js'
 import { followUpProse, followUpTone } from '../utils/followUp.js'
+import GroupHeader from './GroupHeader.vue'
 import SnoozeControl from './SnoozeControl.vue'
 
 // The People section. Contacts arrive already classified and ordered by the
