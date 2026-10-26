@@ -215,7 +215,7 @@ Content-Type: application/json
 
 Stages: `interested`, `applied`, `responded`, `interview`, `offer`. Close reasons: `accepted`, `rejected`, `withdrawn`, `role_closed`, `lapsed`, `not_pursued`, `unresolved`.
 
-A stage change sets the corresponding date field (e.g. `interview_at`) to the current time. A `status` argument is rejected with a 400, and `PATCH /api/applications/:id/status` returns 410; both go away next release.
+A stage change sets the corresponding date field (e.g. `interview_at`) to the current time. A `status` argument is rejected with a 400.
 
 #### Edit date fields
 

@@ -183,7 +183,7 @@ describe("U1 schema migration", () => {
         const row = db.prepare("SELECT * FROM applications WHERE id = 1").get();
         assert.equal(row.company_name, "Acme Corp");
         assert.equal(row.role_title, "Engineer");
-        assert.equal(row.status, "rejected");
+        assert.equal("status" in row, false, "the legacy status column is dropped");
         assert.equal(row.applied_at, "2026-01-01T00:00:00.000Z");
         assert.equal(row.updated_at, "2026-01-02T00:00:00.000Z");
         assert.equal(row.next_action_at, null, "no follow-up is invented for old rows");

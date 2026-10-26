@@ -4,7 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const db = require("../db");
 const svc = require("../services/applications");
-const { getOwnApp, attachNotes, withFollowUp, STATUS_REMOVED_MESSAGE } = svc;
+const { getOwnApp, attachNotes, withFollowUp } = svc;
 const { addNote, updateNote, deleteNote } = require("../services/notes");
 const { visibleStageNotes } = require("../services/stage-notes");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
@@ -196,12 +196,6 @@ router.put("/:id", (req, res) => {
     } catch (e) {
         handleError(res, e);
     }
-});
-
-// Removed: a record's stage and close reason change through PUT /:id. Kept for
-// one release so an old client gets a clear 410 instead of a bare 404.
-router.patch("/:id/status", (req, res) => {
-    res.status(410).json({ error: STATUS_REMOVED_MESSAGE });
 });
 
 // Upload/replace CV (owner only)

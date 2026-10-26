@@ -203,19 +203,6 @@ describe("Stage and close writes", () => {
 // ---------------------------------------------------------------------------
 
 describe("Removed status surface", () => {
-    test("PATCH /api/applications/:id/status returns 410 and changes nothing (AE2)", async () => {
-        const created = await createApp();
-        const res = await req
-            .patch(`/api/applications/${created.id}/status`)
-            .send({ status: "applied" });
-        assert.equal(res.status, 410);
-        assert.match(res.body.error, /update_application/);
-
-        const after = await req.get(`/api/applications/${created.id}`);
-        assert.equal(after.body.stage, "interested");
-        assert.equal(after.body.applied_at, null);
-    });
-
     test("GET /api/applications?status= errors rather than listing everything (AE3)", async () => {
         await createApp();
         const res = await req.get("/api/applications?status=applied");
@@ -1307,21 +1294,6 @@ describe("MCP Server", () => {
         assert.equal(after.body.stage, "applied", "the failed update changed nothing");
     });
 
-    test("update_status is a tombstone that names update_application and changes nothing (AE2)", async () => {
-        const target = await mcpOwnedApp();
-        const result = await callTool("update_status", {
-            id: target.id,
-            status: "offer",
-        });
-        assert.equal(result.isError, true);
-        assert.match(result.content[0].text, /update_application/);
-        const after = await req
-            .get(`/api/applications/${target.id}`)
-            .set("X-Forwarded-Email", "mcp-test@example.com");
-        assert.equal(after.body.stage, "applied");
-        assert.equal(after.body.offer_at, null);
-    });
-
     test("update_application closes with the real reason and no status comes back (AE1)", async () => {
         const target = await mcpOwnedApp();
         const result = await callTool("update_application", {
@@ -1359,9 +1331,9 @@ describe("MCP Server", () => {
         assert.ok(items.every((i) => !("status" in i) && "stage" in i));
     });
 
-    test("tools/list still advertises update_status and no description teaches status", async () => {
+    test("tools/list no longer advertises update_status and no description teaches status", async () => {
         const { tools } = await rpc("tools/list", {});
-        assert.ok(tools.map((t) => t.name).includes("update_status"));
+        assert.ok(!tools.map((t) => t.name).includes("update_status"));
         const list = tools.find((t) => t.name === "list_applications");
         assert.ok(!/"status"/.test(list.description), "the fields preset must not name status");
     });
