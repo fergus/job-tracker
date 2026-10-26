@@ -160,6 +160,21 @@
     animation: stage-stamp 380ms var(--ease-out-quart) forwards;
 }
 
+/* A dropped card lands in its new stage: a stamp plus one ring in the stage colour */
+@keyframes card-landed {
+    0% {
+        transform: scale(1.04);
+        box-shadow: 0 0 0 3px var(--land, var(--accent));
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+.card-landed {
+    animation: card-landed 520ms var(--ease-out-quart) both;
+}
+
 /* View crossfade (Board ↔ Table ↔ Timeline) */
 .view-enter-active {
     transition: opacity 180ms var(--ease-out-quart);

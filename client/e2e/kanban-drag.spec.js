@@ -45,16 +45,21 @@ async function cleanup(request, ...companies) {
 }
 
 function column(page, label) {
-  return page.locator(`h3:has-text("${label}")`).locator('..').locator('..').locator('.bg-sunken').first()
+  return page.locator(`h3:has-text("${label}")`).locator('..').locator('..').locator('[data-testid^="well-"]').first()
+}
+
+// The board card, not the offer rail chip that repeats an offer's company name.
+function card(page, company) {
+  return page.locator('[role="button"]').filter({ hasText: company }).first()
 }
 
 test('dropping an open card on Closed asks for a reason and closes with the one picked', async ({ page, request }) => {
   await seedApp(request, { company_name: 'OfferCorp', role_title: 'Engineer', stage: 'offer' })
 
   await gotoPipeline(page)
-  await expect(page.getByText('OfferCorp').first()).toBeVisible()
+  await expect(card(page, 'OfferCorp')).toBeVisible()
 
-  await dragWithDelay(page, page.getByText('OfferCorp').first(), page.getByTestId('closed-drop-zone'))
+  await dragWithDelay(page, card(page, 'OfferCorp'), page.getByTestId('closed-drop-zone'))
 
   // Nothing is saved until a reason is chosen.
   const picker = page.getByTestId('close-reason-picker')
@@ -79,7 +84,7 @@ test('the picker offers all seven reasons, including Accepted', async ({ page, r
   await seedApp(request, { company_name: 'AcceptMeCorp', role_title: 'Engineer', stage: 'offer' })
 
   await gotoPipeline(page)
-  await dragWithDelay(page, page.getByText('AcceptMeCorp').first(), page.getByTestId('closed-drop-zone'))
+  await dragWithDelay(page, card(page, 'AcceptMeCorp'), page.getByTestId('closed-drop-zone'))
 
   const picker = page.getByTestId('close-reason-picker')
   await expect(picker).toBeVisible()
@@ -139,7 +144,7 @@ test('reopening into the Interview column keeps an offer at offer', async ({ pag
   await seedApp(request, { company_name: 'OfferKeepCorp', role_title: 'Engineer', stage: 'offer' }, 'withdrawn')
 
   await gotoPipeline(page)
-  await dragWithDelay(page, page.getByText('OfferKeepCorp').first(), column(page, 'Interview'))
+  await dragWithDelay(page, card(page, 'OfferKeepCorp'), column(page, 'Interview'))
   await page.waitForTimeout(500)
 
   const app = await findApp(request, 'OfferKeepCorp')
