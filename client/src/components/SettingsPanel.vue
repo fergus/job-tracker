@@ -477,6 +477,55 @@
             </div>
           </section>
 
+          <!-- LinkedIn connections. A one-off import of the Connections.csv from
+               LinkedIn's data export; nothing is fetched from LinkedIn. -->
+          <section>
+            <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-3">LinkedIn connections</h3>
+            <p class="text-xs text-ink-3">
+              Import the Connections.csv from LinkedIn's data export (Settings &amp; Privacy &rarr; Data privacy &rarr; Get a copy of your data).
+              Roles and Today then show who you know at each company. Importing again refreshes the list without duplicating it.
+            </p>
+            <p v-if="connectionTotal !== null" class="text-sm font-medium text-ink mt-3" data-testid="connection-total">
+              {{ connectionTotal.toLocaleString() }} {{ connectionTotal === 1 ? 'connection' : 'connections' }} imported
+            </p>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <label
+                class="inline-flex items-center min-h-[44px] px-4 text-sm font-medium text-ink border border-line-2 rounded-lg cursor-pointer hover:border-accent hover:text-accent transition-colors focus-within:ring-2 focus-within:ring-accent"
+                :class="connectionBusy ? 'opacity-50 pointer-events-none' : ''"
+              >
+                {{ connectionBusy ? 'Importing...' : 'Choose Connections.csv' }}
+                <input type="file" accept=".csv,text/csv" class="sr-only" :disabled="connectionBusy" @change="onConnectionFile" data-testid="connection-file" />
+              </label>
+              <template v-if="connectionTotal">
+                <button
+                  v-if="!confirmClearConnections"
+                  type="button"
+                  @click="confirmClearConnections = true"
+                  :disabled="connectionBusy"
+                  class="min-h-[44px] px-3 text-sm text-ink-3 hover:text-danger transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
+                >Remove imported connections</button>
+                <template v-else>
+                  <button
+                    type="button"
+                    @click="onClearConnections"
+                    :disabled="connectionBusy"
+                    class="min-h-[44px] px-3 text-sm font-medium text-danger border border-danger rounded-lg disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >Remove all {{ connectionTotal.toLocaleString() }}</button>
+                  <button
+                    type="button"
+                    @click="confirmClearConnections = false"
+                    class="min-h-[44px] px-3 text-sm text-ink-3 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
+                  >Cancel</button>
+                </template>
+              </template>
+            </div>
+            <p v-if="connectionMessage" role="status" class="text-xs text-ink-2 mt-2">{{ connectionMessage }}</p>
+            <p v-if="connectionError" role="alert" class="text-xs text-danger mt-2">{{ connectionError }}</p>
+            <p v-if="confirmClearConnections" class="text-xs text-ink-3 mt-2">
+              People you already added from your connections stay on your list.
+            </p>
+          </section>
+
           <!-- Data Scope section (admins only) -->
           <section v-if="props.currentUser?.isAdmin">
             <h3 class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-3">Data Scope</h3>
@@ -575,7 +624,7 @@
 
 <script setup>
 import { ref, onMounted, watch, nextTick, onUnmounted } from 'vue'
-import { generateApiKey, listApiKeys, revokeApiKey, fetchProfile, updateProfile, fetchSettings, updateSettings } from '../api'
+import { generateApiKey, listApiKeys, revokeApiKey, fetchProfile, updateProfile, fetchSettings, updateSettings, fetchConnections, importConnections, clearConnections } from '../api'
 import { formatTimeAgo } from '../utils/date.js'
 import { getErrorMessage } from '../utils/error.js'
 
@@ -732,6 +781,57 @@ watch(profile, () => {
 const clearNextStepOnClose = ref(true)
 const settingsLoading = ref(true)
 const settingsSaving = ref(false)
+// --- LinkedIn connections ---
+const connectionTotal = ref(null)
+const connectionBusy = ref(false)
+const connectionMessage = ref('')
+const connectionError = ref('')
+const confirmClearConnections = ref(false)
+
+async function loadConnectionTotal() {
+  try {
+    connectionTotal.value = (await fetchConnections({ limit: 1 })).total
+  } catch {
+    connectionTotal.value = null
+  }
+}
+
+async function onConnectionFile(event) {
+  const input = event.target
+  const file = input.files?.[0]
+  if (!file) return
+  connectionBusy.value = true
+  connectionError.value = ''
+  connectionMessage.value = ''
+  try {
+    const result = await importConnections(await file.text())
+    const skipped = result.skipped ? `, ${result.skipped} skipped (no name or profile link)` : ''
+    connectionMessage.value = `${result.imported} added, ${result.updated} updated${skipped}.`
+    await loadConnectionTotal()
+  } catch (err) {
+    connectionError.value = getErrorMessage(err, 'Import failed. Check that this is the Connections.csv from LinkedIn.')
+  } finally {
+    connectionBusy.value = false
+    // Lets the same file be chosen again after a fix.
+    input.value = ''
+  }
+}
+
+async function onClearConnections() {
+  connectionBusy.value = true
+  connectionError.value = ''
+  try {
+    const { deleted } = await clearConnections()
+    connectionMessage.value = `Removed ${deleted} connections.`
+    confirmClearConnections.value = false
+    await loadConnectionTotal()
+  } catch (err) {
+    connectionError.value = getErrorMessage(err, 'Could not remove connections. Please try again.')
+  } finally {
+    connectionBusy.value = false
+  }
+}
+
 const settingsError = ref('')
 
 async function loadSettings() {
@@ -771,6 +871,7 @@ onMounted(() => {
   loadKeys()
   loadProfile()
   loadSettings()
+  loadConnectionTotal()
 })
 
 onUnmounted(() => {

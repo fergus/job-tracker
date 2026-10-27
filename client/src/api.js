@@ -203,3 +203,28 @@ export function unlinkContact(contactId, applicationId) {
 export function addContactNote(contactId, data) {
   return api.post(`/contacts/${contactId}/notes`, data).then((r) => r.data)
 }
+
+// --- LinkedIn connections ---
+
+// The export is plain CSV and runs past the JSON body limit, so it goes up as text.
+export function importConnections(csvText) {
+  return api
+    .post('/connections/import', csvText, { headers: { 'Content-Type': 'text/csv' } })
+    .then((r) => r.data)
+}
+
+export function fetchConnections(params = {}) {
+  return api.get('/connections', { params }).then((r) => r.data)
+}
+
+export function fetchConnectionsForApplication(applicationId) {
+  return api.get(`/connections/for-application/${applicationId}`).then((r) => r.data)
+}
+
+export function promoteConnection(id, data = {}) {
+  return api.post(`/connections/${id}/promote`, data).then((r) => r.data)
+}
+
+export function clearConnections() {
+  return api.delete('/connections').then((r) => r.data)
+}

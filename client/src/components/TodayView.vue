@@ -40,6 +40,9 @@
                 >{{ kindLabel(item) }}</span>
                 <span class="block truncate font-condensed font-semibold text-lg leading-tight text-ink">{{ item.title }}</span>
                 <span v-if="item.subtitle" class="block truncate text-sm text-ink-2">{{ item.subtitle }}</span>
+                <span v-if="item.connection_count" class="block truncate text-xs font-medium text-accent">
+                  You know {{ item.connection_count }} {{ item.connection_count === 1 ? 'person' : 'people' }} here
+                </span>
                 <span v-if="showUser && item.user_email" class="block truncate text-xs text-ink-3">{{ item.user_email }}</span>
               </span>
               <span
@@ -107,6 +110,9 @@ function nameLine(item) {
 }
 
 function rowLabel(item) {
-  return [kindLabel(item), nameLine(item), owedLine(item)].join('. ')
+  const know = item.connection_count
+    ? `You know ${item.connection_count} ${item.connection_count === 1 ? 'person' : 'people'} here`
+    : ''
+  return [kindLabel(item), nameLine(item), know, owedLine(item)].filter(Boolean).join('. ')
 }
 </script>

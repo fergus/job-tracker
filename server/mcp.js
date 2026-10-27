@@ -14,6 +14,7 @@ const db = require("./db");
 const svc = require("./services/applications");
 const notesSvc = require("./services/notes");
 const contactsSvc = require("./services/contacts");
+const connectionsSvc = require("./services/connections");
 const { visibleStageNotes } = require("./services/stage-notes");
 const { resolveApiKey } = require("./lib/apiKeySecret");
 const { uploadsDir } = require("./lib/files");
@@ -1370,6 +1371,94 @@ function createMcpServer() {
                     args.application_id,
                     args.relation,
                 );
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "list_connections",
+        "List the user's imported LinkedIn connections, newest connection first. Pass company to answer 'who do I know at X' (matched on the normalised employer name, so 'Acme Pty Ltd' finds 'Acme'); pass query to search name, employer and job title. Connections are not contacts: use promote_connection to turn one into a contact worth tracking.",
+        {
+            company: z
+                .string()
+                .max(200)
+                .optional()
+                .describe("Employer to match, e.g. the company_name of a record"),
+            query: z
+                .string()
+                .max(200)
+                .optional()
+                .describe("Substring over name, employer and position"),
+            limit: z.number().int().min(1).max(200).optional().describe("Page size (default 50)"),
+            offset: z.number().int().min(0).optional().describe("Rows to skip"),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = connectionsSvc.listConnections(userEmail, args);
+                return {
+                    content: [
+                        { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    server.tool(
+        "promote_connection",
+        "Turn a LinkedIn connection into a contact, optionally linking it to a record in one step. Promoting the same connection twice returns the same contact. Use this when the user decides to approach someone, not to bulk-import the network.",
+        {
+            connection_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Connection ID from list_connections"),
+            application_id: z
+                .number()
+                .int()
+                .positive()
+                .optional()
+                .describe("Application or lead to link the new contact to"),
+            relation: z
+                .string()
+                .max(100)
+                .optional()
+                .describe("How they relate to that record, e.g. referrer"),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                const result = connectionsSvc.promoteConnection(
+                    userEmail,
+                    args.connection_id,
+                    {
+                        application_id: args.application_id ?? null,
+                        relation: args.relation ?? null,
+                    },
+                );
+                if (args.application_id) {
+                    emitChange(userEmail, "updated", args.application_id);
+                }
                 return {
                     content: [
                         { type: "text", text: JSON.stringify(result, null, 2) },
