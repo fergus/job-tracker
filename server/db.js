@@ -293,6 +293,39 @@ db.exec(
     "CREATE INDEX IF NOT EXISTS idx_contacts_next_action ON contacts(user_email, next_action_at)",
 );
 
+// LinkedIn connections: the imported network, kept apart from contacts. A
+// connections export runs to thousands of rows, and nearly all of them are
+// people you will never chase; as contacts they would bury the working list.
+// A connection becomes a contact only when promoted. `company_key` is the
+// normalised company, so a record and a connection can be matched without
+// fuzzy guessing; the LinkedIn profile URL is the identity a re-import dedupes on.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS connections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    url TEXT NOT NULL,
+    email TEXT,
+    company TEXT,
+    company_key TEXT,
+    position TEXT,
+    connected_on TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (user_email, url)
+  )
+`);
+db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_connections_company ON connections(user_email, company_key)",
+);
+
+// A promoted connection leaves its mark on the contact it became, so promoting
+// twice reuses the contact and the panel can say who is already on the list.
+if (!db.prepare("PRAGMA table_info(contacts)").all().some((c) => c.name === "source_connection_id")) {
+    db.exec("ALTER TABLE contacts ADD COLUMN source_connection_id INTEGER");
+}
+
 // Row backups — the original row JSON of any row an operation removes, so a
 // destructive conversion can be undone. audit_log cannot serve this purpose:
 // it cascades on applications delete, so it vanishes with the row it documents.

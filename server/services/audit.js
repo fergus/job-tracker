@@ -11,6 +11,7 @@ const READ_ONLY_TOOLS = new Set([
     "get_application_context",
     "list_contacts",
     "get_contact",
+    "list_connections",
 ]);
 
 function logAuditEvent({

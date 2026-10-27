@@ -475,6 +475,49 @@
               </form>
             </div>
 
+            <!-- LinkedIn connections at this company. Shown only when the user
+                 has imported their network and someone works here. -->
+            <div v-if="connections.total > 0" class="mt-6 pt-5 border-t border-line" data-testid="connections-block">
+              <span class="text-xs font-medium text-ink-3 uppercase tracking-wide">
+                You know {{ connections.total }} {{ connections.total === 1 ? 'person' : 'people' }} at {{ panelApp.company_name }}
+              </span>
+              <ul class="mt-3 space-y-2">
+                <li v-for="c in visibleConnections" :key="c.id" class="flex items-center justify-between gap-2">
+                  <span class="min-w-0 text-sm text-ink">
+                    <a
+                      :href="c.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+                      :aria-label="`${c.name} on LinkedIn (opens in a new tab)`"
+                    >{{ c.name }}</a>
+                    <span v-if="c.position" class="text-ink-3 truncate"> &middot; {{ c.position }}</span>
+                  </span>
+                  <button
+                    v-if="c.contact_id"
+                    type="button"
+                    @click="emit('open-contact', c.contact_id)"
+                    class="text-xs shrink-0 text-ink-3 hover:text-accent min-h-[44px] px-2"
+                    :aria-label="`Open ${c.name}, already on your people list`"
+                  >On your list</button>
+                  <button
+                    v-else
+                    type="button"
+                    @click="onPromoteConnection(c)"
+                    :disabled="promotingId !== null"
+                    class="text-xs shrink-0 px-3 rounded border border-line text-ink hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                    :aria-label="`Add ${c.name} as a person on this record`"
+                  >Add as person</button>
+                </li>
+              </ul>
+              <button
+                v-if="connections.connections.length > CONNECTIONS_SHOWN"
+                type="button"
+                @click="showAllConnections = !showAllConnections"
+                class="mt-2 text-xs text-ink-3 hover:text-ink min-h-[44px]"
+              >{{ showAllConnections ? 'Show fewer' : `Show all ${connections.connections.length}` }}</button>
+            </div>
+
             <!-- Dates grid -->
             <details :open="datesOpen" @toggle="datesOpen = $event.target.open" class="group mt-6 pt-5 border-t border-line">
               <summary class="flex items-center justify-between cursor-pointer list-none select-none">
@@ -934,6 +977,7 @@ import {
   fetchAttachments, uploadAttachments, getAttachmentUrl, deleteAttachment,
   extractJd, fetchJd, generateDocument, fetchAuditLog,
   createContact, linkContact, unlinkContact,
+  fetchConnectionsForApplication, promoteConnection,
 } from '../api'
 import { computeSegments, stageColor, durationDays, STAGE_ORDER, CLOSE_REASON_LABELS } from '../utils/timeline'
 import { snapshotOf, restoreBody } from '../utils/recordState.js'
@@ -1015,6 +1059,51 @@ async function onAddContact() {
     return updated
   } catch (err) {
     toast.error('Failed to add contact — ' + getErrorMessage(err))
+  }
+}
+
+// --- LinkedIn connections at this record's company ---
+const CONNECTIONS_SHOWN = 5
+const connections = ref({ total: 0, connections: [] })
+const showAllConnections = ref(false)
+const promotingId = ref(null)
+const visibleConnections = computed(() =>
+  showAllConnections.value
+    ? connections.value.connections
+    : connections.value.connections.slice(0, CONNECTIONS_SHOWN),
+)
+
+// Quiet on failure: this is an aid, and a missing list must never get in the
+// way of the record. A stale answer for a record the panel has left is dropped.
+async function loadConnections() {
+  const id = props.panelApp?.id
+  showAllConnections.value = false
+  if (!id) {
+    connections.value = { total: 0, connections: [] }
+    return
+  }
+  try {
+    const result = await fetchConnectionsForApplication(id)
+    if (props.panelApp?.id === id) connections.value = result
+  } catch {
+    if (props.panelApp?.id === id) connections.value = { total: 0, connections: [] }
+  }
+}
+
+async function onPromoteConnection(connection) {
+  promotingId.value = connection.id
+  try {
+    const contact = await promoteConnection(connection.id, {
+      application_id: props.panelApp.id,
+      relation: 'LinkedIn connection',
+    })
+    emit('saved')
+    toast.success(`Added ${contact.name}`)
+    await loadConnections()
+  } catch (err) {
+    toast.error('Failed to add person — ' + getErrorMessage(err))
+  } finally {
+    promotingId.value = null
   }
 }
 
@@ -1106,6 +1195,7 @@ onMounted(() => {
   if (props.panelApp?.id) {
     loadAttachments()
     loadAuditLog()
+    loadConnections()
     newNoteStage.value = props.panelApp.stage
   }
 })
@@ -1154,6 +1244,7 @@ watch(() => props.panelApp?.id, (newId) => {
   if (newId) {
     loadAttachments()
     loadAuditLog()
+    loadConnections()
     newNoteStage.value = props.panelApp.stage
   } else {
     attachments.value = []

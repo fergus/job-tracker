@@ -313,3 +313,59 @@ describe("mcp application next step (Today queue U3/U4)", () => {
         assert.equal(out.next_action_at, null);
     });
 });
+
+describe("mcp connection tools", () => {
+    const EMAIL = "mcp-conn@example.com";
+    const connectionsSvc = require("../services/connections");
+
+    before(() => {
+        connectionsSvc.importConnections(
+            EMAIL,
+            [
+                "First Name,Last Name,URL,Email Address,Company,Position,Connected On",
+                "Ann,Lee,https://www.linkedin.com/in/ann-lee,,Acme Pty Ltd,Engineer,23 Oct 2026",
+            ].join("\n"),
+        );
+    });
+
+    async function call(name, args, email = EMAIL) {
+        const tool = tools()[name];
+        assert.ok(tool, `${name} is not registered`);
+        return (tool.handler ?? tool.callback)(args, authed(email));
+    }
+
+    test("list_connections finds people by company and is read-only for audit", async () => {
+        const { READ_ONLY_TOOLS } = require("../services/audit");
+        assert.ok(READ_ONLY_TOOLS.has("list_connections"));
+
+        const out = parseResult(await call("list_connections", { company: "Acme" }));
+        assert.equal(out.total, 1);
+        assert.equal(out.connections[0].name, "Ann Lee");
+    });
+
+    test("list_connections is scoped to the caller", async () => {
+        const out = parseResult(
+            await call("list_connections", { company: "Acme" }, "someone-else@example.com"),
+        );
+        assert.equal(out.total, 0);
+    });
+
+    test("promote_connection creates a contact once and returns an error for a stranger's id", async () => {
+        const { connections } = parseResult(await call("list_connections", {}));
+        const first = parseResult(
+            await call("promote_connection", { connection_id: connections[0].id }),
+        );
+        const again = parseResult(
+            await call("promote_connection", { connection_id: connections[0].id }),
+        );
+        assert.equal(first.id, again.id);
+
+        const stranger = await call(
+            "promote_connection",
+            { connection_id: connections[0].id },
+            "someone-else@example.com",
+        );
+        assert.equal(stranger.isError, true);
+        assert.match(stranger.content[0].text, /404/);
+    });
+});

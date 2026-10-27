@@ -7,6 +7,7 @@
 // boundary.
 
 const db = require("../db");
+const { connectionCounts, normaliseCompany } = require("./connections");
 const {
     todayInInstanceZone,
     toCalendarDate,
@@ -78,6 +79,15 @@ function listToday(userEmail, { all, isAdmin = false } = {}, now = new Date()) {
         )
         .all(bound, ...scopeParams)
         .map((row) => ({ kind: "contact", ...row }));
+
+    // How many of the user's LinkedIn connections work at each record's
+    // company, so a row can say "you know people there". Applications only:
+    // a contact is already someone you know.
+    const counts = connectionCounts(showAll ? null : userEmail);
+    for (const item of applications) {
+        item.connection_count =
+            counts.get(`${item.user_email}|${normaliseCompany(item.title)}`) || 0;
+    }
 
     return [...applications, ...contacts]
         .map((item) => {
