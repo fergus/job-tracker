@@ -22,7 +22,7 @@ This skill checks five categories:
 2. **npm security** — `npm audit --json` in both directories
 3. **GitHub Actions** — versions pinned in `.github/workflows/*.yml`
 4. **Docker images** — base image in `Dockerfile` and third-party images in `docker-compose.yml`
-5. **Impeccable skill** — `.claude/skills/impeccable/` (via GitHub raw check)
+5. **Impeccable plugin** — installed via the plugin marketplace (via GitHub raw check)
 
 ## Steps
 
@@ -62,11 +62,13 @@ For GitHub Actions, read all workflow files in `.github/workflows/` and extract 
 
 For Docker images, read `Dockerfile` for `FROM` lines and `docker-compose.yml` for `image:` lines.
 
-For the Impeccable skill, compare the local version against the latest on GitHub:
+For the Impeccable plugin (managed by Claude Code, not vendored in this repo), report the installed version against the latest on GitHub:
 ```bash
-local_version=$(grep -E '^version:' .claude/skills/impeccable/SKILL.md | sed 's/version: //')
+local_version=$(grep -A4 '"impeccable@impeccable"' ~/.claude/plugins/installed_plugins.json | grep -m1 '"version"' | sed 's/.*: "\(.*\)".*/\1/')
 remote_version=$(curl -s https://raw.githubusercontent.com/pbakaus/impeccable/main/.claude/skills/impeccable/SKILL.md | grep -E '^version:' | sed 's/version: //')
 ```
+
+The marketplace auto-updates the plugin, so a gap is normally transient. Report it; do not clone or copy anything into the repo.
 
 **The agent reads all npm JSON output directly. Do not pipe npm output to Python, jq, or any external script for parsing.**
 
@@ -164,30 +166,7 @@ For GitHub Actions version bumps, edit the `uses:` line in the workflow YAML.
 
 For Docker image bumps, edit the `FROM` line in `Dockerfile` or the `image:` line in `docker-compose.yml`.
 
-For the Impeccable skill (if approved), clone upstream and diff it against
-the local copy before touching anything:
-
-```bash
-root="$(git rev-parse --show-toplevel)"
-cd /tmp && rm -rf impeccable && git clone --depth 1 https://github.com/pbakaus/impeccable.git
-cd "$root"
-diff -rq /tmp/impeccable/.claude/skills/impeccable .claude/skills/impeccable
-```
-
-Read every changed file under `scripts/` before copying - that code runs
-locally, so it gets the same supply-chain scrutiny as an npm bump. Then
-replace the directory whole, so files deleted upstream are deleted here:
-
-```bash
-rm -rf .claude/skills/impeccable
-cp -r /tmp/impeccable/.claude/skills/impeccable .claude/skills/
-.claude/skills/impeccable/scripts/impeccable doctor
-```
-
-The update is done when `SKILL.md` frontmatter shows the new version and
-`doctor` reports no skill drift (project findings such as a legacy
-PRODUCT.md are separate follow-ups, not failures). Remove any
-`<post-update-cleanup>` section from `.claude/skills/impeccable/SKILL.md`.
+The Impeccable plugin is never applied from this skill. If it is behind, tell the user to run `/plugin` and update `impeccable@impeccable`; record it as a todo only if they decline.
 
 Track everything that was applied for the final summary.
 
@@ -233,7 +212,6 @@ git add \
   Dockerfile \
   docker-compose.yml \
   .github/workflows/*.yml \
-  .claude/skills/impeccable/ \
   todos/
 ```
 
