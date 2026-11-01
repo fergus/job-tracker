@@ -391,6 +391,20 @@ body {
 }
 
 /* Browser surfaces that would otherwise ship in the platform's colours */
+::placeholder {
+    color: var(--ink-3);
+    opacity: 1;
+}
+
+/* Any control that sets no focus style of its own gets the accent ring, not the
+   browser's. Utilities such as focus:outline-none still win, since they are
+   in a later layer. */
+@layer base {
+    :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+}
 ::selection {
     background-color: var(--accent);
     color: var(--accent-fg);
