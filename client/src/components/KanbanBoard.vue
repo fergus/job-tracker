@@ -107,7 +107,7 @@
           <button
             v-show="showClosed && olderCount > 0"
             @click="showOlder = !showOlder"
-            class="w-full text-xs text-ink-3 hover:text-ink py-1 transition-colors"
+            class="w-full min-h-[44px] text-xs text-ink-3 hover:text-ink py-1 transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {{ showOlder ? 'Show less' : `Show ${olderCount} older` }}
           </button>
@@ -134,7 +134,7 @@
         :aria-label="`Show ${closedCount} closed applications`"
         :disabled="dragActive"
         @click="handleToggle"
-        class="sticky top-0 z-10 w-full min-h-[44px] px-4 py-2 bg-panel border-b border-line text-sm font-medium text-ink-2 hover:text-ink transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed"
+        class="sticky top-0 z-10 w-full min-h-[44px] px-4 py-2 bg-panel border-b border-line text-sm font-medium text-ink-2 hover:text-ink transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
       >
         {{ closedCount }} closed
       </button>

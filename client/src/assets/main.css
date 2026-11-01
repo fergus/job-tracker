@@ -110,6 +110,17 @@
     --stage-rejected-fg: oklch(35% 0.12 20);
     --stage-closed-bg: oklch(95% 0.004 275);
     --stage-closed-fg: oklch(38% 0.012 275);
+
+    /* Label ink on a solid stage-colour bar (timeline segments), picked per
+       stage for >=4.5:1 against that stage colour */
+    --stage-interested-label: oklch(100% 0 0);
+    --stage-applied-label: oklch(17% 0.02 275);
+    --stage-responded-label: oklch(17% 0.02 275);
+    --stage-interview-label: oklch(100% 0 0);
+    --stage-offer-label: oklch(17% 0.02 275);
+    --stage-accepted-label: oklch(100% 0 0);
+    --stage-rejected-label: oklch(100% 0 0);
+    --stage-closed-label: oklch(17% 0.02 275);
 }
 
 /* ─── Dark mode overrides ────────────────────────────────────────── */
@@ -161,6 +172,15 @@
         --stage-rejected-fg: oklch(74% 0.12 20);
         --stage-closed-bg: oklch(26% 0.006 275);
         --stage-closed-fg: oklch(72% 0.012 275);
+
+        --stage-interested-label: oklch(14% 0.02 275);
+        --stage-applied-label: oklch(14% 0.02 275);
+        --stage-responded-label: oklch(14% 0.02 275);
+        --stage-interview-label: oklch(14% 0.02 275);
+        --stage-offer-label: oklch(14% 0.02 275);
+        --stage-accepted-label: oklch(14% 0.02 275);
+        --stage-rejected-label: oklch(14% 0.02 275);
+        --stage-closed-label: oklch(14% 0.02 275);
     }
 }
 

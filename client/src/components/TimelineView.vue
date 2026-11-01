@@ -101,7 +101,7 @@
         <div
           v-for="app in group.apps"
           :key="app.id"
-          class="flex items-center group cursor-pointer hover:bg-raised rounded transition-colors min-h-9"
+          class="flex items-center group cursor-pointer hover:bg-raised rounded transition-colors min-h-9 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           role="button"
           tabindex="0"
           :aria-label="`${app.company_name} — ${app.role_title}, currently ${currentLabel(app)}, started ${formatShortDate(app.created_at)}`"
@@ -152,15 +152,14 @@
               >
                 <span
                   v-if="seg.label"
-                  class="text-[10px] font-medium text-white/90 px-1 truncate"
-                  :style="{ textShadow: '0 1px 2px rgba(0,0,0,0.4)' }"
+                  class="text-[10px] font-medium px-1 truncate"
                 >
                   {{ seg.label }}
                 </span>
                 <!-- Checkmark for accepted -->
                 <svg
                   v-if="seg.stage === 'accepted'"
-                  class="w-3 h-3 text-white/90 ml-0.5 shrink-0"
+                  class="w-3 h-3 ml-0.5 shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -387,6 +386,8 @@ function segmentStyle(seg, app) {
       borderRight: `2px dashed ${colorVar}`,
       backgroundImage: `repeating-linear-gradient(90deg, ${colorAlpha} 0px, ${colorAlpha} 6px, transparent 6px, transparent 10px)`,
       backgroundColor: 'transparent',
+      // Mostly see-through, so the label reads against the row, not the stage colour
+      color: 'var(--ink)',
     }
   }
 
@@ -394,6 +395,7 @@ function segmentStyle(seg, app) {
     left: seg.left + '%',
     width: seg.width + '%',
     backgroundColor: colorVar,
+    color: `var(--stage-${seg.stage}-label, white)`,
   }
 
   if (isRejected(app)) {
