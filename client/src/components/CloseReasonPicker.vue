@@ -19,7 +19,7 @@
             :data-testid="`close-reason-${reason}`"
             :aria-pressed="current === reason"
             :class="[
-              'w-full text-left text-sm rounded px-2.5 py-2 border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors',
+              'w-full min-h-[44px] text-left text-sm rounded px-2.5 py-2 border focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors',
               current === reason
                 ? 'border-accent bg-accent-muted text-ink'
                 : 'border-line bg-raised text-ink-2 hover:text-ink hover:border-line-2',
@@ -32,7 +32,7 @@
       </ul>
       <button
         type="button"
-        class="mt-3 w-full text-xs text-ink-3 hover:text-ink py-1 transition-colors"
+        class="mt-2 w-full min-h-[44px] text-xs text-ink-3 hover:text-ink py-1 transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         data-testid="close-reason-cancel"
         @click="$emit('cancel')"
       >

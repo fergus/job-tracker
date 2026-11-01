@@ -38,13 +38,13 @@
               v-model="form.company_name"
               placeholder="Company name"
               aria-label="Company name"
-              class="w-full text-base font-semibold font-condensed text-ink bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 placeholder:text-ink-3/50 transition-colors"
+              class="w-full text-base font-semibold font-condensed text-ink bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 transition-colors"
             />
             <input
               v-model="form.role_title"
               placeholder="Role title"
               aria-label="Role title"
-              class="w-full text-sm text-ink-2 bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 mt-0.5 placeholder:text-ink-3/50 transition-colors"
+              class="w-full text-sm text-ink-2 bg-transparent border-b border-transparent focus:border-accent focus:outline-none py-0.5 mt-0.5 transition-colors"
             />
           </div>
           <button
@@ -69,20 +69,20 @@
             :aria-pressed="isStageActive(s)"
             :disabled="writingRecord"
             :class="[
-              isStageActive(s) ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1',
+              isStageActive(s) ? 'ring-2 ring-offset-1 py-1.5' : 'py-1',
               stampingStage === s ? 'stage-stamp' : ''
             ]"
-            :style="stagePillStyle(s)"
-            class="px-2.5 min-h-[44px] inline-flex items-center rounded-full text-xs font-medium capitalize transition-all duration-200"
+            :style="stagePillStyle(s, isStageActive(s))"
+            class="px-2.5 min-h-[44px] inline-flex items-center rounded-full text-xs font-medium capitalize bg-(--pill-bg) hover:bg-(--pill-bg-hover) transition-all duration-200"
           >{{ s }}</button>
           <button
             v-if="isEdit"
             @click="openClosePicker"
             :aria-pressed="record.state === 'closed'"
             data-testid="panel-close-action"
-            :class="record.state === 'closed' ? 'ring-2 ring-offset-1 opacity-100 py-1.5' : 'opacity-30 hover:opacity-60 py-1'"
-            :style="stagePillStyle('closed')"
-            class="px-2.5 min-h-[44px] inline-flex items-center rounded-full text-xs font-medium transition-all duration-200"
+            :class="record.state === 'closed' ? 'ring-2 ring-offset-1 py-1.5' : 'py-1'"
+            :style="stagePillStyle('closed', record.state === 'closed')"
+            class="px-2.5 min-h-[44px] inline-flex items-center rounded-full text-xs font-medium bg-(--pill-bg) hover:bg-(--pill-bg-hover) transition-all duration-200"
           >{{ record.state === 'closed' ? `Closed — ${closeReasonLabels[record.close_reason] || 'reason unknown'}` : 'Close' }}</button>
         </div>
         <!-- Create mode: a record starts open, as a lead unless the stage says otherwise -->
@@ -251,7 +251,7 @@
                   v-if="isEdit && form.job_posting_url && !form.job_description"
                   @click="onFetchJd"
                   :disabled="fetchingJd"
-                  class="text-xs text-accent hover:text-accent-hover font-medium inline-flex items-center gap-1.5 min-h-[28px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="text-xs text-accent hover:text-accent-hover font-medium inline-flex items-center gap-1.5 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <template v-if="fetchingJd">
                     <svg viewBox="0 0 64 64" class="w-4 h-4" aria-hidden="true">
@@ -1138,9 +1138,14 @@ const dates = [
   { key: 'closed_at', label: 'Closed' },
 ]
 
-function stagePillStyle(s) {
+// The stage you are not at keeps its full-strength label on a lighter fill, so
+// the bar reads as choices rather than as disabled controls.
+function stagePillStyle(s, active) {
   return {
-    backgroundColor: `var(--stage-${s}-bg)`,
+    '--pill-bg': active
+      ? `var(--stage-${s}-bg)`
+      : `color-mix(in oklab, var(--stage-${s}-bg) 45%, transparent)`,
+    '--pill-bg-hover': `var(--stage-${s}-bg)`,
     color: `var(--stage-${s}-fg)`,
     '--tw-ring-color': `var(--stage-${s})`,
   }

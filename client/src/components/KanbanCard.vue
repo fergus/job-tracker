@@ -5,7 +5,7 @@
     tabindex="0"
     @keydown.enter="$emit('select', application)"
     @keydown.space.prevent="$emit('select', application)"
-    :class="['bg-panel rounded-lg border border-line p-3 @[200px]:p-4 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-[transform,box-shadow] duration-200 ease-out-quart', landStage ? 'card-landed' : '']"
+    :class="['bg-panel rounded-lg border border-line p-3 @[200px]:p-4 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-[transform,box-shadow] duration-200 ease-out-quart focus:outline-none focus-visible:ring-2 focus-visible:ring-accent', landStage ? 'card-landed' : '']"
     :style="landStage ? { '--land': `var(--stage-${landStage})` } : undefined"
   >
     <!-- Quiet cards brighten on hover so the muted company name becomes fully readable -->

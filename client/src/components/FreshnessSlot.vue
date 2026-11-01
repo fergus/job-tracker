@@ -8,13 +8,19 @@
     Hidden below the `sm` breakpoint (R17): that is a viewport rule, not the
     `compactHeader` preference. The bar is the only surface on mobile.
   -->
+  <!--
+    The slot is always present and holds the width of the longest everyday
+    string (about 7.5rem), so the section nav beside it stays put when the
+    display moves between LIVE and SYNCED JUST NOW.
+  -->
   <span
-    v-if="display"
-    class="hidden sm:inline-flex items-center gap-1.5 text-xs text-ink-3 tabular-nums"
+    class="hidden sm:inline-flex items-center gap-1.5 min-w-[7.5rem] text-xs text-ink-3 tabular-nums"
   >
-    <span aria-hidden="true">&middot;</span>
-    <!-- R3: the absolute form stays reachable in every tier. -->
-    <span :title="absolute">{{ display }}</span>
+    <template v-if="display">
+      <span aria-hidden="true">&middot;</span>
+      <!-- R3: the absolute form stays reachable in every tier. -->
+      <span :title="absolute">{{ display }}</span>
+    </template>
   </span>
 </template>
 

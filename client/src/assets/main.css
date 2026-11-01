@@ -1,5 +1,58 @@
 @import "tailwindcss";
 
+/* ─── Fallback faces ────────────────────────────────────────────────
+   Barlow loads from Google Fonts with display=swap. These stand in until it
+   arrives, scaled to Barlow's measured widths and vertical metrics so the swap
+   does not move the layout. Values: Barlow's width over Arial's across one
+   sample string per weight; ascent and descent are Barlow's 1.0 / 0.2 em
+   divided by the size-adjust. Liberation Sans and Arimo are Arial's
+   metric-identical stand-ins on Linux, where local("Arial") finds nothing. */
+@font-face {
+    font-family: "Barlow Fallback";
+    font-weight: 400;
+    src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Arimo");
+    size-adjust: 96%;
+    ascent-override: 104.1%;
+    descent-override: 20.8%;
+    line-gap-override: 0%;
+}
+@font-face {
+    font-family: "Barlow Fallback";
+    font-weight: 500;
+    src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Arimo");
+    size-adjust: 97%;
+    ascent-override: 103.1%;
+    descent-override: 20.6%;
+    line-gap-override: 0%;
+}
+@font-face {
+    font-family: "Barlow Fallback";
+    font-weight: 600 700;
+    src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Arimo Bold");
+    size-adjust: 91.2%;
+    ascent-override: 109.7%;
+    descent-override: 21.9%;
+    line-gap-override: 0%;
+}
+@font-face {
+    font-family: "Barlow Condensed Fallback";
+    font-weight: 600;
+    src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Arimo Bold");
+    size-adjust: 73.8%;
+    ascent-override: 135.5%;
+    descent-override: 27.1%;
+    line-gap-override: 0%;
+}
+@font-face {
+    font-family: "Barlow Condensed Fallback";
+    font-weight: 700;
+    src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Arimo Bold");
+    size-adjust: 75.5%;
+    ascent-override: 132.4%;
+    descent-override: 26.5%;
+    line-gap-override: 0%;
+}
+
 /* ─── Design tokens ─────────────────────────────────────────────── */
 :root {
     color-scheme: light dark;
@@ -57,6 +110,17 @@
     --stage-rejected-fg: oklch(35% 0.12 20);
     --stage-closed-bg: oklch(95% 0.004 275);
     --stage-closed-fg: oklch(38% 0.012 275);
+
+    /* Label ink on a solid stage-colour bar (timeline segments), picked per
+       stage for >=4.5:1 against that stage colour */
+    --stage-interested-label: oklch(100% 0 0);
+    --stage-applied-label: oklch(17% 0.02 275);
+    --stage-responded-label: oklch(17% 0.02 275);
+    --stage-interview-label: oklch(100% 0 0);
+    --stage-offer-label: oklch(17% 0.02 275);
+    --stage-accepted-label: oklch(100% 0 0);
+    --stage-rejected-label: oklch(100% 0 0);
+    --stage-closed-label: oklch(17% 0.02 275);
 }
 
 /* ─── Dark mode overrides ────────────────────────────────────────── */
@@ -108,6 +172,15 @@
         --stage-rejected-fg: oklch(74% 0.12 20);
         --stage-closed-bg: oklch(26% 0.006 275);
         --stage-closed-fg: oklch(72% 0.012 275);
+
+        --stage-interested-label: oklch(14% 0.02 275);
+        --stage-applied-label: oklch(14% 0.02 275);
+        --stage-responded-label: oklch(14% 0.02 275);
+        --stage-interview-label: oklch(14% 0.02 275);
+        --stage-offer-label: oklch(14% 0.02 275);
+        --stage-accepted-label: oklch(14% 0.02 275);
+        --stage-rejected-label: oklch(14% 0.02 275);
+        --stage-closed-label: oklch(14% 0.02 275);
     }
 }
 
@@ -130,8 +203,8 @@
     --color-danger: var(--danger);
     --color-danger-hover: var(--danger-hover);
 
-    --font-sans: "Barlow", system-ui, sans-serif;
-    --font-condensed: "Barlow Condensed", system-ui, sans-serif;
+    --font-sans: "Barlow", "Barlow Fallback", system-ui, sans-serif;
+    --font-condensed: "Barlow Condensed", "Barlow Condensed Fallback", system-ui, sans-serif;
 }
 
 /* ─── Motion tokens ─────────────────────────────────────────────── */
@@ -315,4 +388,24 @@ html,
 body {
     background-color: var(--canvas);
     color: var(--ink);
+}
+
+/* Browser surfaces that would otherwise ship in the platform's colours */
+::placeholder {
+    color: var(--ink-3);
+    opacity: 1;
+}
+
+/* Any control that sets no focus style of its own gets the accent ring, not the
+   browser's. Utilities such as focus:outline-none still win, since they are
+   in a later layer. */
+@layer base {
+    :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+}
+::selection {
+    background-color: var(--accent);
+    color: var(--accent-fg);
 }
