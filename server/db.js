@@ -293,6 +293,12 @@ db.exec(
     "CREATE INDEX IF NOT EXISTS idx_contacts_next_action ON contacts(user_email, next_action_at)",
 );
 
+// Migrate: a person's LinkedIn profile. Nullable -- most people will never
+// have one -- and typed or filled on promotion, never inferred.
+if (!contactCols.some((c) => c.name === "linkedin_url")) {
+    db.exec("ALTER TABLE contacts ADD COLUMN linkedin_url TEXT");
+}
+
 // LinkedIn connections: the imported network, kept apart from contacts. A
 // connections export runs to thousands of rows, and nearly all of them are
 // people you will never chase; as contacts they would bury the working list.

@@ -313,6 +313,31 @@ describe("note hiding and edit columns", () => {
     });
 });
 
+describe("contacts.linkedin_url migration", () => {
+    test("an existing database gains the column, with existing people reading null", () => {
+        const dbPath = makeDbPath("linkedin");
+        bootStartup(dbPath);
+
+        // Put the database back into its pre-change shape with a person in it.
+        const old = new Database(dbPath);
+        old.exec("ALTER TABLE contacts DROP COLUMN linkedin_url");
+        old.prepare(
+            "INSERT INTO contacts (name, user_email) VALUES ('Before', 'a@example.com')",
+        ).run();
+        old.close();
+
+        bootStartup(dbPath);
+
+        const db = new Database(dbPath, { readonly: true });
+        assert.ok(columnsOf(db, "contacts").includes("linkedin_url"));
+        const row = db
+            .prepare("SELECT linkedin_url FROM contacts WHERE name = 'Before'")
+            .get();
+        assert.equal(row.linkedin_url, null);
+        db.close();
+    });
+});
+
 describe("U1 contact_links integrity", () => {
     let dbPath;
     let db;

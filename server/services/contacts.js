@@ -28,6 +28,7 @@ const LIMITS = {
     employer: 200,
     email: 320,
     phone: 50,
+    linkedin_url: 500,
     notes: 10000,
     relation: 100,
     next_action: 500,
@@ -40,6 +41,7 @@ const EDITABLE_FIELDS = [
     "employer",
     "email",
     "phone",
+    "linkedin_url",
     "notes",
     "last_contacted_at",
     "next_action_at",
@@ -84,6 +86,32 @@ function withFollowUp(contact) {
         follow_up_days: daysUntil(contact.next_action_at),
         days_since_contact: daysSince(contact.last_contacted_at),
     };
+}
+
+// A LinkedIn link is opened from the panel and written onto a phone card, so it
+// has to be a web address: anything else would become a clickable javascript:
+// link. The host is not restricted to linkedin.com -- a company page is fine.
+// Empty input means "none", stored as null.
+function normaliseLinkedinUrl(value) {
+    if (value === undefined || value === null) return null;
+    const trimmed = String(value).trim();
+    if (!trimmed) return null;
+    let url;
+    try {
+        url = new URL(trimmed);
+    } catch {
+        return undefined;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    return trimmed;
+}
+
+function validateLinkedinUrl(data) {
+    if (data.linkedin_url === undefined) return null;
+    if (normaliseLinkedinUrl(data.linkedin_url) === undefined) {
+        return "linkedin_url must be an http or https address";
+    }
+    return null;
 }
 
 function validateInputLengths(body, fields) {
@@ -218,12 +246,15 @@ function createContact(userEmail, data) {
     const dateError = validateDateFields(data);
     if (dateError) throw new ServiceError(400, dateError);
 
+    const linkError = validateLinkedinUrl(data);
+    if (linkError) throw new ServiceError(400, linkError);
+
     const result = db
         .prepare(
             `INSERT INTO contacts
-             (name, contact_role, employer, email, phone, notes,
+             (name, contact_role, employer, email, phone, linkedin_url, notes,
               last_contacted_at, next_action_at, next_action, user_email)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
             name,
@@ -231,6 +262,7 @@ function createContact(userEmail, data) {
             data.employer || null,
             data.email || null,
             data.phone || null,
+            normaliseLinkedinUrl(data.linkedin_url) ?? null,
             data.notes || null,
             toCalendarDate(data.last_contacted_at),
             toCalendarDate(data.next_action_at),
@@ -251,6 +283,9 @@ function updateContact(userEmail, id, data) {
     const dateError = validateDateFields(data);
     if (dateError) throw new ServiceError(400, dateError);
 
+    const linkError = validateLinkedinUrl(data);
+    if (linkError) throw new ServiceError(400, linkError);
+
     if (data.name !== undefined && !String(data.name).trim()) {
         throw new ServiceError(400, "name cannot be empty");
     }
@@ -260,7 +295,11 @@ function updateContact(userEmail, id, data) {
     for (const field of EDITABLE_FIELDS) {
         if (data[field] !== undefined) {
             updates.push(`${field} = ?`);
-            values.push(data[field]);
+            values.push(
+                field === "linkedin_url"
+                    ? normaliseLinkedinUrl(data[field])
+                    : data[field],
+            );
         }
     }
     if (updates.length === 0) throw new ServiceError(400, "No fields to update");
@@ -352,6 +391,9 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
     const lengthError = validateInputLengths({ ...data, name }, EDITABLE_FIELDS);
     if (lengthError) throw new ServiceError(400, lengthError);
 
+    const linkError = validateLinkedinUrl(data);
+    if (linkError) throw new ServiceError(400, linkError);
+
     // Two reads of the same table, deliberately. The backup exists to make the
     // conversion reversible, so it captures every row as it stood -- hidden
     // ones included, and carrying hidden_at with them, because restoring by
@@ -407,8 +449,8 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
 
         contactId = db
             .prepare(
-                `INSERT INTO contacts (name, contact_role, employer, email, phone, notes, user_email)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO contacts (name, contact_role, employer, email, phone, linkedin_url, notes, user_email)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             )
             .run(
                 name,
@@ -416,6 +458,7 @@ function convertApplicationToContact(userEmail, applicationId, data = {}) {
                 data.employer || null,
                 data.email || null,
                 data.phone || null,
+                normaliseLinkedinUrl(data.linkedin_url) ?? null,
                 carried || null,
                 userEmail,
             ).lastInsertRowid;
@@ -659,6 +702,7 @@ function deleteContactNote(userEmail, contactId, noteId) {
 }
 
 module.exports = {
+    normaliseLinkedinUrl,
     ServiceError,
     LIMITS,
     convertApplicationToContact,

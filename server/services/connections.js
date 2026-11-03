@@ -329,6 +329,12 @@ function promoteConnection(
             contact_role: connection.position,
             employer: connection.company,
             email: connection.email,
+            // An imported URL is only checked for being non-empty, so one the
+            // contact rules would refuse must not block the promotion itself;
+            // the notes line below still keeps the raw value.
+            linkedin_url: contactsSvc.normaliseLinkedinUrl(connection.url)
+                ? connection.url
+                : null,
             notes: `LinkedIn: ${connection.url}`,
         });
         db.prepare("UPDATE contacts SET source_connection_id = ? WHERE id = ?").run(

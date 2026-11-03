@@ -369,3 +369,36 @@ describe("mcp connection tools", () => {
         assert.match(stranger.content[0].text, /404/);
     });
 });
+
+describe("mcp contact tools carry linkedin_url", () => {
+    test("create, update and convert declare the field", () => {
+        const registered = tools();
+        for (const name of [
+            "create_contact",
+            "update_contact",
+            "convert_application_to_contact",
+        ]) {
+            const shape = registered[name].inputSchema.def.shape;
+            assert.ok(shape.linkedin_url, `${name} lacks linkedin_url`);
+        }
+    });
+
+    test("create_contact stores and update_contact clears it", async () => {
+        const registered = tools();
+        const created = parseResult(
+            await registered.create_contact.handler(
+                { name: "Mcp Linked", linkedin_url: "https://www.linkedin.com/in/mcp" },
+                authed(),
+            ),
+        );
+        assert.equal(created.linkedin_url, "https://www.linkedin.com/in/mcp");
+
+        const cleared = parseResult(
+            await registered.update_contact.handler(
+                { id: created.id, linkedin_url: null },
+                authed(),
+            ),
+        );
+        assert.equal(cleared.linkedin_url, null);
+    });
+});
