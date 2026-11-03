@@ -14,12 +14,19 @@ const settingsRouter = require('./routes/settings');
 const profileRouter = require('./routes/profile');
 const uploadsRouter = require('./routes/uploads');
 const eventsRouter = require('./routes/events');
+const carddav = require('./routes/carddav');
 
 const app = express();
 
 app.set('trust proxy', 1);
 
 app.use(morgan('short'));
+
+// The phone address book authenticates itself (Basic, a phone-only key) and
+// answers its own OPTIONS, so it is mounted ahead of the dev-only CORS layer
+// and the browser-auth middleware.
+app.all('/.well-known/carddav', carddav.wellKnown);
+app.use('/carddav', carddav.router);
 
 app.use(helmet({
   contentSecurityPolicy: {
