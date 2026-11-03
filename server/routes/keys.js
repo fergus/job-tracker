@@ -7,6 +7,9 @@ const router = express.Router();
 
 const MAX_KEYS_PER_USER = 20;
 const MAX_LABEL_LENGTH = 100;
+// A key with no scope is the long-standing full-access key. 'contacts' opens
+// only the phone address book.
+const VALID_SCOPES = new Set(["contacts"]);
 
 // POST /api/keys — generate a new API key
 router.post("/", requireOAuth, (req, res) => {
@@ -24,6 +27,13 @@ router.post("/", requireOAuth, (req, res) => {
         if (label.length === 0) label = null;
     } else {
         label = null;
+    }
+
+    let scope = req.body.scope;
+    if (scope === undefined || scope === null || scope === "") {
+        scope = null;
+    } else if (!VALID_SCOPES.has(scope)) {
+        return res.status(400).json({ error: "Unknown key scope" });
     }
 
     const { count } = db.countApiKeysByUser.get(req.userEmail);
@@ -45,7 +55,7 @@ router.post("/", requireOAuth, (req, res) => {
         .update(rawKey)
         .digest("hex");
 
-    const result = db.insertApiKey.run(req.userEmail, label, keyHash);
+    const result = db.insertApiKey.run(req.userEmail, label, keyHash, scope);
     const row = db.listApiKeysByUser
         .all(req.userEmail)
         .find((k) => k.id === result.lastInsertRowid);
@@ -53,6 +63,7 @@ router.post("/", requireOAuth, (req, res) => {
     res.status(201).json({
         id: result.lastInsertRowid,
         label: row ? row.label : label,
+        scope,
         created_at: row ? row.created_at : new Date().toISOString(),
         key: rawKey, // only time the raw key is returned
     });
@@ -66,6 +77,7 @@ router.get("/", requireOAuth, (req, res) => {
         keys.map((k) => ({
             id: k.id,
             label: k.label,
+            scope: k.scope ?? null,
             created_at: k.created_at,
             last_used_at: k.last_used_at,
         })),

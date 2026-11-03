@@ -1,6 +1,5 @@
-const crypto = require("crypto");
 const db = require("../db");
-const { apiKeySecret } = require("../lib/apiKeySecret");
+const { resolveApiKey } = require("../lib/apiKeySecret");
 
 const adminEmails = (process.env.ADMIN_EMAILS || "")
     .split(",")
@@ -52,26 +51,16 @@ function authMiddleware(req, res, next) {
 
     // 1. Bearer token → API key auth
     if (authHeader && authHeader.startsWith("Bearer ")) {
-        const rawToken = authHeader.slice(7);
-        const keyHash = crypto
-            .createHmac("sha256", apiKeySecret)
-            .update(rawToken)
-            .digest("hex");
-        const row = db.getApiKeyByHash.get(keyHash);
+        const userEmail = resolveApiKey(authHeader.slice(7));
 
-        if (!row) {
+        if (!userEmail) {
             console.warn("[auth] invalid API key from %s", req.ip);
             return res.status(401).json({ error: "Invalid API key" });
         }
 
-        req.userEmail = row.user_email;
+        req.userEmail = userEmail;
         req.isAdmin = false;
         req.authMethod = "api_key";
-
-        // Fire-and-forget last_used_at update
-        Promise.resolve()
-            .then(() => db.updateApiKeyLastUsed.run(row.id))
-            .catch(() => {});
 
         cachedUpsertUser(req.userEmail);
 
