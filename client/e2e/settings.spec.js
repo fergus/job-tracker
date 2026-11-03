@@ -49,3 +49,36 @@ test('with the switch off, closing a role keeps its next step', async ({ page, r
   expect(closed.next_action).toBe('Send references')
   expect(closed.next_action_at).toBe('2099-01-01')
 })
+
+test('a phone-only key is created once, marked in the list, and revocable', async ({
+  page,
+  request,
+}) => {
+  await openSettings(page)
+  await expect(page.getByRole('heading', { name: 'iPhone contacts' })).toBeVisible()
+  await expect(page.getByText(new RegExp(`Server:.*${new URL(page.url()).host}`))).toBeVisible()
+  await expect(page.getByText(/Use an https address/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Create phone key' }).click()
+  const dialog = page.getByRole('dialog', { name: 'API key generated' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Phone Key Generated')).toBeVisible()
+  const key = (await dialog.locator('code').innerText()).trim()
+  expect(key).toMatch(/^[0-9a-f]{64}$/)
+
+  // The key it shows really is phone-only: the REST API refuses it.
+  const rest = await request.get('/api/applications', {
+    headers: { Authorization: `Bearer ${key}` },
+  })
+  expect(rest.status()).toBe(401)
+
+  await dialog.getByRole('button', { name: "I've saved this key" }).click()
+  await expect(page.getByRole('button', { name: 'Create phone key' })).toBeFocused()
+
+  const row = page.getByRole('listitem').filter({ hasText: 'iPhone contacts' })
+  await expect(row.getByText('Phone only')).toBeVisible()
+
+  await row.getByRole('button', { name: 'Revoke' }).click()
+  await row.getByRole('button', { name: 'Yes' }).click()
+  await expect(page.getByRole('listitem').filter({ hasText: 'iPhone contacts' })).toHaveCount(0)
+})

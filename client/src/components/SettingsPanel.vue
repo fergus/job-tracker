@@ -415,7 +415,13 @@
               >
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-ink truncate">{{ key.label || 'Unnamed' }}</p>
+                    <p class="text-sm font-medium text-ink truncate">
+                      {{ key.label || 'Unnamed' }}
+                      <span
+                        v-if="key.scope === 'contacts'"
+                        class="ml-1 align-middle text-[11px] font-medium text-ink-2 border border-line rounded px-1.5 py-0.5"
+                      >Phone only</span>
+                    </p>
                     <p class="text-xs text-ink-3 mt-0.5">
                       Created {{ formatTimeAgo(key.created_at) }} ·
                       {{ key.last_used_at ? `Last used ${formatTimeAgo(key.last_used_at)}` : 'Never used' }}
@@ -443,6 +449,33 @@
                 </div>
               </li>
             </ul>
+          </section>
+
+          <!-- iPhone contacts. A phone-only key opens the read-only address
+               book and nothing else, so a key lost with the phone cannot reach
+               applications or notes. -->
+          <section aria-labelledby="phone-contacts-heading">
+            <h3 id="phone-contacts-heading" class="text-sm font-bold font-condensed tracking-wide text-ink-2 uppercase mb-1">iPhone contacts</h3>
+            <p class="text-xs text-ink-3 mb-3">
+              Show the people in your list who have an email or phone number in the iPhone Contacts app,
+              as an account of their own. It is read-only: changes made on the phone are not saved here.
+            </p>
+            <ol class="text-xs text-ink-2 space-y-1 mb-3 list-decimal pl-4">
+              <li>Create a phone-only key below and keep it for the next step.</li>
+              <li>On the iPhone: Settings, Contacts, Accounts, Add Account, Other, Add CardDAV Account.</li>
+              <li>
+                Server: <code class="font-mono text-ink">{{ phoneServer }}</code>.
+                User name: anything. Password: the phone-only key.
+              </li>
+            </ol>
+            <p class="text-xs text-ink-3 mb-3">Use an https address. The key is sent as the password.</p>
+            <button
+              ref="phoneBtn"
+              @click="generatePhoneKey"
+              :disabled="isGenerating"
+              class="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-fg px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap min-h-[44px]"
+            >{{ isGenerating ? 'Generating…' : 'Create phone key' }}</button>
+            <p v-if="phoneKeyError" role="alert" class="text-xs text-danger mt-2">{{ phoneKeyError }}</p>
           </section>
 
           <!-- Follow-ups section. Saved on toggle, apart from the profile's
@@ -591,7 +624,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 class="text-base font-semibold text-ink">API Key Generated</h3>
+            <h3 class="text-base font-semibold text-ink">{{ newKeyIsPhone ? 'Phone Key Generated' : 'API Key Generated' }}</h3>
             <p id="modal-desc" class="text-sm text-ink-3 mt-1">Copy this key now — it won't be shown again.</p>
           </div>
 
@@ -639,6 +672,7 @@ const panelRoot = ref(null)
 const modalRoot = ref(null)
 const modalCopyBtn = ref(null)
 const generateBtn = ref(null)
+const phoneBtn = ref(null)
 const visible = ref(false)
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -734,6 +768,10 @@ function sectionFilled(key) {
 
 const keys = ref([])
 const newKey = ref(null)
+const newKeyIsPhone = ref(false)
+const phoneKeyError = ref(null)
+// The address to type into the phone: the host this page was reached on.
+const phoneServer = window.location.origin
 const generateLabel = ref('')
 const generateError = ref(null)
 const isGenerating = ref(false)
@@ -915,6 +953,22 @@ async function generate() {
   }
 }
 
+async function generatePhoneKey() {
+  if (isGenerating.value) return
+  phoneKeyError.value = null
+  isGenerating.value = true
+  try {
+    const res = await generateApiKey('iPhone contacts', 'contacts')
+    newKeyIsPhone.value = true
+    newKey.value = res.key
+    await loadKeys()
+  } catch (err) {
+    phoneKeyError.value = getErrorMessage(err, 'Failed to create the phone key. Please try again.')
+  } finally {
+    isGenerating.value = false
+  }
+}
+
 async function confirmRevoke(id) {
   try {
     await revokeApiKey(id)
@@ -937,11 +991,13 @@ async function copyKey() {
 }
 
 function dismissModal() {
+  const wasPhone = newKeyIsPhone.value
   newKey.value = null
+  newKeyIsPhone.value = false
   copied.value = false
   copyAnnouncement.value = ''
   nextTick(() => {
-    generateBtn.value?.focus()
+    ;(wasPhone ? phoneBtn : generateBtn).value?.focus()
   })
 }
 
