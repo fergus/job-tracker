@@ -224,6 +224,20 @@ function listContacts(
     return rows.map((c) => withFollowUp({ ...c, links: linksForContact(c.id) }));
 }
 
+// Who gets a card on the phone: a person with an email or a phone number. This
+// reads the contacts table only, so an imported LinkedIn connection that has
+// not been promoted can never appear. Oldest first, a stable order.
+function listPhoneContacts(userEmail) {
+    return db
+        .prepare(
+            `SELECT * FROM contacts
+             WHERE user_email = ?
+               AND (TRIM(COALESCE(email, '')) <> '' OR TRIM(COALESCE(phone, '')) <> '')
+             ORDER BY id ASC`,
+        )
+        .all(userEmail);
+}
+
 function getContact(userEmail, id, { isAdmin = false } = {}) {
     const contact = isAdmin
         ? db.prepare("SELECT * FROM contacts WHERE id = ?").get(id)
@@ -703,6 +717,7 @@ function deleteContactNote(userEmail, contactId, noteId) {
 
 module.exports = {
     normaliseLinkedinUrl,
+    listPhoneContacts,
     ServiceError,
     LIMITS,
     convertApplicationToContact,
