@@ -278,3 +278,60 @@ describe("the proxy skip list lets the address book reach the app", () => {
         assert.ok(re.test("/.well-known/oauth-authorization-server"));
     });
 });
+
+describe("protocol edges", () => {
+    test("HEAD on a card returns its ETag and no body", async () => {
+        const { key } = await makeKey(OWNER);
+        const c = person(OWNER);
+        const res = await dav("HEAD", `${BOOK}${c.id}.vcf`, key);
+        assert.equal(res.status, 200);
+        assert.match(res.headers.etag, /^"[0-9a-f]{32}"$/);
+        assert.equal(res.text || "", "");
+    });
+
+    test("Depth 0 on the address book lists only itself, Depth 1 adds the cards", async () => {
+        const { key } = await makeKey(OWNER);
+        person(OWNER);
+        const zero = await dav("PROPFIND", BOOK, key, { depth: 0, body: PROPFIND_ETAGS });
+        assert.equal((zero.text.match(/<d:response>/g) || []).length, 1);
+        const one = await dav("PROPFIND", BOOK, key, { depth: 1, body: PROPFIND_ETAGS });
+        assert.equal((one.text.match(/<d:response>/g) || []).length, 2);
+    });
+
+    test("a PROPFIND with no body answers with the full property set", async () => {
+        const { key } = await makeKey(OWNER);
+        const res = await dav("PROPFIND", BOOK, key, { depth: 0 });
+        assert.equal(res.status, 207);
+        assert.match(res.text, /getctag/);
+        assert.match(res.text, /resourcetype/);
+    });
+
+    test("an unknown property comes back in a 404 propstat, not an error", async () => {
+        const { key } = await makeKey(OWNER);
+        const body = `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:no-such-prop/></d:prop></d:propfind>`;
+        const res = await dav("PROPFIND", BOOK, key, { depth: 0, body });
+        assert.equal(res.status, 207);
+        assert.match(res.text, /displayname/);
+        assert.match(res.text, /404 Not Found/);
+        assert.match(res.text, /no-such-prop/);
+    });
+
+    test("an unsupported report is a 403 and a report on a non-book path is a 404", async () => {
+        const { key } = await makeKey(OWNER);
+        const sync = `<?xml version="1.0"?><d:sync-collection xmlns:d="DAV:"><d:sync-token/></d:sync-collection>`;
+        assert.equal((await dav("REPORT", BOOK, key, { body: sync })).status, 403);
+        assert.equal((await dav("REPORT", "/carddav/home/", key, { body: QUERY })).status, 404);
+    });
+
+    test("a malformed Basic header is a 401, not a crash", async () => {
+        for (const header of ["Basic", "Basic !!!", "Basic " + Buffer.from("no-colon-here").toString("base64"), "Bearer abc"]) {
+            const res = await req.propfind("/carddav/").set("Authorization", header);
+            assert.equal(res.status, 401, header);
+        }
+    });
+
+    test("the well-known address answers any method with a redirect", async () => {
+        const res = await req.propfind("/.well-known/carddav");
+        assert.ok([301, 308].includes(res.status), `status ${res.status}`);
+    });
+});

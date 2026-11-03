@@ -110,6 +110,27 @@ describe("the card", () => {
         assert.equal(unescapeText(prop(card, "FN")), name);
     });
 
+    test("a semicolon and a comma are escaped on the wire, and a name keeps five N components", () => {
+        const c = person({ name: "Jo; Anne, Smith" });
+        const card = renderVCard(contactsSvc.getContact(USER, c.id), {});
+        const fn = lines(card).find((l) => l.startsWith("FN:"));
+        assert.equal(fn, "FN:Jo\\; Anne\\, Smith");
+        const n = lines(card).find((l) => l.startsWith("N:")).slice(2);
+        // Split on semicolons that are not escaped: exactly five components.
+        assert.equal(n.split(/(?<!\\);/).length, 5, n);
+    });
+
+    test("a stored address holding a line break cannot add properties to the card", () => {
+        const c = person();
+        db.prepare("UPDATE contacts SET linkedin_url = ? WHERE id = ?").run(
+            "https://a.example/x\r\nTEL:999",
+            c.id,
+        );
+        const card = renderVCard(contactsSvc.getContact(USER, c.id), {});
+        assert.equal(card.match(/BEGIN:VCARD/g).length, 1);
+        assert.equal(lines(card).filter((l) => /^TEL/.test(l)).length, 0);
+    });
+
     test("a value longer than 75 octets is folded and unfolds to the original", () => {
         const employer = "Ünïcödé ".repeat(20).trim();
         const c = person({ employer });

@@ -15,7 +15,7 @@ const MAX_OCTETS = 75;
 function escapeText(value) {
     return String(value)
         .replace(/\\/g, "\\\\")
-        .replace(/;/g, "\;")
+        .replace(/;/g, "\\;")
         .replace(/,/g, "\\,")
         .replace(/\r\n|\r|\n/g, "\\n");
 }
@@ -78,7 +78,9 @@ function renderVCard(contact, { baseUrl } = {}) {
     let item = 0;
     if (contact.linkedin_url) {
         item += 1;
-        rows.push(`item${item}.URL:${contact.linkedin_url}`);
+        // Defence in depth: rows saved before the address was normalised on
+        // write may still hold a raw value.
+        rows.push(`item${item}.URL:${String(contact.linkedin_url).replace(/[\r\n]+/g, "")}`);
         rows.push(`item${item}.X-ABLabel:LinkedIn`);
     }
     if (baseUrl) {

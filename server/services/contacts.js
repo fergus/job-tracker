@@ -103,7 +103,10 @@ function normaliseLinkedinUrl(value) {
         return undefined;
     }
     if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
-    return trimmed;
+    // The parsed address, not the typed text: the URL parser drops tabs and
+    // line breaks and percent-encodes the rest, so a value cannot carry a
+    // newline into a vCard line.
+    return url.href;
 }
 
 // For a value that arrives from somewhere else (an imported connection): the

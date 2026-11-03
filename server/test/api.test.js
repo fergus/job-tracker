@@ -2662,9 +2662,9 @@ describe("phone-only keys", () => {
         assert.equal(res.body.scope, "contacts");
     });
 
-    test("an unknown scope is refused", async () => {
-        const res = await createScoped(owner, "admin");
-        assert.equal(res.status, 400);
+    test("an unknown or empty scope is refused, never read as full access", async () => {
+        assert.equal((await createScoped(owner, "admin")).status, 400);
+        assert.equal((await createScoped(owner, "")).status, 400);
     });
 
     test("a key created without a scope stays full access", async () => {

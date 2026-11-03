@@ -773,6 +773,15 @@ describe("linkedin_url on a contact", () => {
         assert.equal(blank.body.linkedin_url, null, "empty clears, not stores empty");
     });
 
+    test("a line break in the address cannot survive into the stored value", async () => {
+        const res = await createContact(OWNER, {
+            name: "Injected",
+            linkedin_url: "https://a.example/x\r\nTEL:999",
+        });
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        assert.doesNotMatch(res.body.linkedin_url, /[\r\n]/);
+    });
+
     test("a contact with no LinkedIn URL reads null", async () => {
         const created = await createContact(OWNER, { name: "No Link" });
         assert.equal(created.body.linkedin_url, null);

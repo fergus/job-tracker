@@ -30,7 +30,7 @@ router.post("/", requireOAuth, (req, res) => {
     }
 
     let scope = req.body.scope;
-    if (scope === undefined || scope === null || scope === "") {
+    if (scope === undefined || scope === null) {
         scope = null;
     } else if (!VALID_SCOPES.has(scope)) {
         return res.status(400).json({ error: "Unknown key scope" });
