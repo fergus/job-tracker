@@ -106,6 +106,14 @@ function normaliseLinkedinUrl(value) {
     return trimmed;
 }
 
+// For a value that arrives from somewhere else (an imported connection): the
+// address if it would pass every rule above, otherwise null, so the caller can
+// carry on without it instead of failing.
+function usableLinkedinUrl(value) {
+    const url = normaliseLinkedinUrl(value);
+    return url && url.length <= LIMITS.linkedin_url ? url : null;
+}
+
 function validateLinkedinUrl(data) {
     if (data.linkedin_url === undefined) return null;
     if (normaliseLinkedinUrl(data.linkedin_url) === undefined) {
@@ -716,7 +724,7 @@ function deleteContactNote(userEmail, contactId, noteId) {
 }
 
 module.exports = {
-    normaliseLinkedinUrl,
+    usableLinkedinUrl,
     listPhoneContacts,
     ServiceError,
     LIMITS,

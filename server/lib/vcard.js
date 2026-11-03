@@ -106,4 +106,4 @@ function collectionTag(entries) {
     return sha(ordered.map((e) => `${e.id}:${e.etag}`).join("|"));
 }
 
-module.exports = { renderVCard, etagFor, collectionTag, escapeText };
+module.exports = { renderVCard, etagFor, collectionTag };

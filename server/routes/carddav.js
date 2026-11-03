@@ -11,7 +11,6 @@
 
 const express = require("express");
 const rateLimit = require("express-rate-limit");
-const db = require("../db");
 const { resolveApiKeyWithScope } = require("../lib/apiKeySecret");
 const { renderVCard, etagFor, collectionTag } = require("../lib/vcard");
 const contactsSvc = require("../services/contacts");
