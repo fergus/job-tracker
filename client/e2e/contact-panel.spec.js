@@ -138,3 +138,56 @@ test('clearing the commitment removes it rather than blanking the display', asyn
   expect(saved.next_action).toBe(null)
   expect(saved.follow_up_state).toBe(null)
 })
+
+test('a LinkedIn URL entered in the panel is saved, shown as a link, and can be cleared', async ({
+  page,
+  request,
+}) => {
+  const { contact } = await openContactPanel(page, request, {
+    company: 'LinkCo',
+    person: 'Ines Varga',
+  })
+
+  const field = page.getByLabel('LinkedIn', { exact: true })
+  await field.fill('https://www.linkedin.com/in/ines-varga')
+  await page.getByRole('button', { name: 'Save contact' }).click()
+  await expect(page.getByText('Contact saved')).toBeVisible()
+
+  const saved = await request.get(`/api/contacts/${contact.id}`).then((r) => r.json())
+  expect(saved.linkedin_url).toBe('https://www.linkedin.com/in/ines-varga')
+
+  const link = page.getByRole('link', { name: /Ines Varga on LinkedIn/ })
+  await expect(link).toHaveAttribute('href', 'https://www.linkedin.com/in/ines-varga')
+  await expect(link).toHaveAttribute('target', '_blank')
+  await expect(link).toHaveAttribute('rel', /noopener/)
+
+  await field.fill('')
+  await page.getByRole('button', { name: 'Save contact' }).click()
+  await expect(page.getByRole('link', { name: /on LinkedIn/ })).toHaveCount(0)
+  const cleared = await request.get(`/api/contacts/${contact.id}`).then((r) => r.json())
+  expect(cleared.linkedin_url).toBeNull()
+})
+
+test('a link from a phone card opens that person and drops the parameter', async ({
+  page,
+  request,
+}) => {
+  const contact = await request
+    .post('/api/contacts', { data: { name: 'Pia Lindgren', email: 'pia@example.com' } })
+    .then((r) => r.json())
+
+  await page.goto(`/?contact=${contact.id}`)
+  await expect(page.getByRole('dialog', { name: 'Contact: Pia Lindgren' })).toBeVisible()
+  expect(new URL(page.url()).searchParams.has('contact')).toBe(false)
+
+  // A refresh must not reopen it.
+  await page.reload()
+  await page.waitForTimeout(400)
+  await expect(page.getByRole('dialog', { name: 'Contact: Pia Lindgren' })).toHaveCount(0)
+})
+
+test('a link to a person that does not exist opens nothing usable', async ({ page }) => {
+  await page.goto('/?contact=999999')
+  await expect(page.getByText(/Could not load this contact/)).toBeVisible()
+  expect(new URL(page.url()).searchParams.has('contact')).toBe(false)
+})
