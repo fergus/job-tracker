@@ -36,6 +36,7 @@ OIDC_CLIENT_ID=your-client-id
 OIDC_CLIENT_SECRET=your-client-secret
 PUBLIC_URL=https://your-domain.com
 COOKIE_SECRET=   # generate with: openssl rand -base64 32 | tr -- '+/' '-_'
+SERVER_API_KEY_SECRET=   # required; generate with: openssl rand -hex 32
 LISTEN_PORT=3000
 ```
 

@@ -5,7 +5,8 @@ let apiKeySecret;
 if (process.env.NODE_ENV === "production") {
     if (!process.env.SERVER_API_KEY_SECRET) {
         throw new Error(
-            "SERVER_API_KEY_SECRET environment variable is required in production",
+            "SERVER_API_KEY_SECRET environment variable is required in production. " +
+                "Add SERVER_API_KEY_SECRET=<value> to your .env file (generate one with: openssl rand -hex 32), then restart.",
         );
     }
     apiKeySecret = process.env.SERVER_API_KEY_SECRET;
