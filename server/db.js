@@ -163,6 +163,12 @@ db.exec(`
   )
 `);
 
+// Migrate: a key can be limited to one surface. Null is the long-standing
+// full-access key; 'contacts' opens only the phone address book.
+if (!db.prepare("PRAGMA table_info(api_keys)").all().some((c) => c.name === "scope")) {
+    db.exec("ALTER TABLE api_keys ADD COLUMN scope TEXT");
+}
+
 db.exec(
     "CREATE INDEX IF NOT EXISTS idx_api_keys_user_email ON api_keys(user_email)",
 );
@@ -292,6 +298,12 @@ for (const col of ["last_contacted_at", "next_action_at", "next_action"]) {
 db.exec(
     "CREATE INDEX IF NOT EXISTS idx_contacts_next_action ON contacts(user_email, next_action_at)",
 );
+
+// Migrate: a person's LinkedIn profile. Nullable -- most people will never
+// have one -- and typed or filled on promotion, never inferred.
+if (!contactCols.some((c) => c.name === "linkedin_url")) {
+    db.exec("ALTER TABLE contacts ADD COLUMN linkedin_url TEXT");
+}
 
 // LinkedIn connections: the imported network, kept apart from contacts. A
 // connections export runs to thousands of rows, and nearly all of them are
@@ -589,13 +601,13 @@ if (!backfillRan) {
 
 // API key prepared statements
 db.insertApiKey = db.prepare(
-    `INSERT INTO api_keys (user_email, label, key_hash) VALUES (?, ?, ?)`,
+    `INSERT INTO api_keys (user_email, label, key_hash, scope) VALUES (?, ?, ?, ?)`,
 );
 db.getApiKeyByHash = db.prepare(
-    `SELECT id, user_email FROM api_keys WHERE key_hash = ?`,
+    `SELECT id, user_email, scope FROM api_keys WHERE key_hash = ?`,
 );
 db.listApiKeysByUser = db.prepare(
-    `SELECT id, label, created_at, last_used_at FROM api_keys WHERE user_email = ? ORDER BY created_at ASC`,
+    `SELECT id, label, scope, created_at, last_used_at FROM api_keys WHERE user_email = ? ORDER BY created_at ASC`,
 );
 db.deleteApiKey = db.prepare(
     `DELETE FROM api_keys WHERE id = ? AND user_email = ?`,

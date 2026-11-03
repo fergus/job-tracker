@@ -20,7 +20,10 @@ if (process.env.NODE_ENV === "production") {
         "dev-fallback-secret-do-not-use-in-production";
 }
 
-function resolveApiKey(rawToken) {
+// Look a raw token up and say who it belongs to and what it may open. Both
+// Bearer REST auth and the phone address book go through here, so the scope
+// check cannot be forgotten in one of them.
+function resolveApiKeyWithScope(rawToken) {
     const keyHash = createHmac("sha256", apiKeySecret)
         .update(rawToken)
         .digest("hex");
@@ -29,7 +32,15 @@ function resolveApiKey(rawToken) {
     Promise.resolve()
         .then(() => db.updateApiKeyLastUsed.run(row.id))
         .catch(() => {});
-    return row.user_email;
+    return { user_email: row.user_email, scope: row.scope ?? null };
 }
 
-module.exports = { apiKeySecret, resolveApiKey };
+// A general-purpose key only: a scoped key (the phone's) opens nothing here,
+// and is indistinguishable from an unknown one to the caller.
+function resolveApiKey(rawToken) {
+    const key = resolveApiKeyWithScope(rawToken);
+    if (!key || key.scope !== null) return null;
+    return key.user_email;
+}
+
+module.exports = { apiKeySecret, resolveApiKey, resolveApiKeyWithScope };

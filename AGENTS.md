@@ -181,7 +181,7 @@ SQLite with WAL mode and foreign keys enabled.
 
 - `users` — `email`, `first_seen_at`, `last_seen_at`
 - `applications` — job details, dates, salary, location, CV/cover letter paths, `user_email`, plus the split fields: `stage` (how far it got), `state` (`open`/`closed`), `close_reason`, and `record_type` (`application`/`lead`)
-- `contacts` — people in the search (recruiters, referrers, hiring managers), scoped by `user_email`
+- `contacts` — people in the search (recruiters, referrers, hiring managers), scoped by `user_email`. `linkedin_url` is an optional `http(s)` address (max 500 chars, empty means null), set by hand, by `create_contact`/`update_contact`/`convert_application_to_contact`, or from the connection's profile URL on promotion; a connection whose imported URL fails that check still promotes, with it null
 - `connections` — the user's imported LinkedIn network (from the data export's `Connections.csv`), scoped by `user_email` and deduped on the profile URL. Kept apart from `contacts` on purpose: an export is thousands of rows and nearly all are people the user will never chase. `company_key` is the normalised employer (lower-case, punctuation folded, legal-form words such as `Pty Ltd` dropped) and is how a record's company matches a connection; matching is exact on that key, never fuzzy. A connection becomes a contact only when promoted, which stamps `contacts.source_connection_id` so promoting twice reuses the contact.
 - `contact_links` — joins a contact to a record with a `relation`; cascade-deletes from both sides
 - `contact_notes` — interaction log per contact: `content` plus `occurred_at` (when it happened, not when it was typed), `updated_at` (null until the note is corrected) and `hidden_at`; cascade-deletes with the contact
@@ -189,7 +189,7 @@ SQLite with WAL mode and foreign keys enabled.
 - `stage_notes` — per-application notes with stage and markdown content, plus `updated_at` and `hidden_at`
 - **Deleting a note of either kind is a hide, not a delete.** Both note tables carry a nullable `hidden_at`, and a delete stamps it rather than removing the row. A hidden note is absent from every read — the API, MCP, the context assembled for document generation, and the prose carried across when an application is converted into a contact — and no tool, endpoint or flag brings it back. The row surviving *is* the recovery story; getting one back means going into the database by hand. Every stage-note read goes through `visibleStageNotes` / `visibleStageNote` in `server/services/stage-notes.js`, so add new readers there rather than writing a fresh `SELECT`. The one deliberate exception is the conversion backup, which captures every row including hidden ones, because a backup that omits them would not make the conversion reversible.
 - `attachments` — generic file attachments (cascade-delete with application)
-- `api_keys` — hashed keys per user, with label and last-used tracking
+- `api_keys` — hashed keys per user, with label and last-used tracking. `scope` is null for a full-access key and `contacts` for a phone-only key, which only the CardDAV routes accept
 - `_migrations` — tracks one-shot data migrations
 
 ---
@@ -200,6 +200,14 @@ Auth middleware (`server/middleware/auth.js`) supports two methods:
 
 1. **Bearer token (API key)**: `Authorization: Bearer <token>`. The token is HMAC-SHA256 hashed with `SERVER_API_KEY_SECRET` and looked up in `api_keys`. Sets `req.userEmail`, `req.isAdmin = false`, `req.authMethod = 'api_key'`. Cannot be used for key management endpoints.
 2. **OAuth (browser)**: Production requires `X-Forwarded-User` and `X-Forwarded-Email` headers (injected by oauth2-proxy). Dev falls back to `dev@localhost` if headers are absent. Sets `req.isAdmin` based on `ADMIN_EMAILS` env var.
+
+### Phone address book (CardDAV)
+
+`/carddav/` (and the `/.well-known/carddav` redirect) is a read-only CardDAV address book of the People list for an iPhone. It is mounted in `server/app.js` **before** `authMiddleware` and authenticates itself: HTTP Basic, username ignored, password a key with `scope = 'contacts'`. A full-access key, an unknown key or none gets a 401 Basic challenge; every write method gets 403. It reaches the app because `docker-compose.yml` adds `carddav(/.*)?` and `\.well-known/carddav` to the end-anchored `OAUTH2_PROXY_SKIP_AUTH_ROUTES` pattern; a test runs that real pattern against sample paths, so keep the whole subtree matching.
+
+**Every place that looks up a key must enforce scope.** `server/lib/apiKeySecret.js` owns it: `resolveApiKey` (used by REST Bearer auth in `middleware/auth.js` and by MCP) returns null for a scoped key, and `resolveApiKeyWithScope` is what the address book uses. Never query `db.getApiKeyByHash` directly from a new caller.
+
+A person gets a card when their email or phone is non-empty (`listPhoneContacts` in `services/contacts.js`); the card (`lib/vcard.js`) shows name, role, employer, email, phone, LinkedIn URL and a `<PUBLIC_URL or request origin>/?contact=<id>` link, and nothing from notes or follow-ups. Its ETag hashes what it shows, so no timestamp may be added to a card.
 
 ### Security Practices
 

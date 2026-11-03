@@ -110,8 +110,10 @@ export function deleteAttachment(appId, attachmentId) {
         .then((r) => r.data);
 }
 
-export function generateApiKey(label) {
-    return api.post("/keys", { label: label || null }).then((r) => r.data);
+export function generateApiKey(label, scope) {
+    return api
+        .post("/keys", { label: label || null, ...(scope ? { scope } : {}) })
+        .then((r) => r.data);
 }
 
 export function listApiKeys() {

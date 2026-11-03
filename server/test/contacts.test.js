@@ -745,3 +745,82 @@ describe("U5 interaction edit and delete over REST", () => {
         assert.equal(del.status, 404);
     });
 });
+
+describe("linkedin_url on a contact", () => {
+    test("is stored on create, returned, and cleared by null or an empty string", async () => {
+        const created = await createContact(OWNER, {
+            name: "Linked Person",
+            linkedin_url: "https://www.linkedin.com/in/jane",
+        });
+        assert.equal(created.status, 201, JSON.stringify(created.body));
+        assert.equal(created.body.linkedin_url, "https://www.linkedin.com/in/jane");
+
+        const cleared = await as(OWNER)(
+            req.put(`/api/contacts/${created.body.id}`),
+        ).send({ linkedin_url: null });
+        assert.equal(cleared.status, 200);
+        assert.equal(cleared.body.linkedin_url, null);
+
+        const set = await as(OWNER)(
+            req.put(`/api/contacts/${created.body.id}`),
+        ).send({ linkedin_url: "https://www.linkedin.com/in/jane2" });
+        assert.equal(set.body.linkedin_url, "https://www.linkedin.com/in/jane2");
+
+        const blank = await as(OWNER)(
+            req.put(`/api/contacts/${created.body.id}`),
+        ).send({ linkedin_url: "" });
+        assert.equal(blank.status, 200);
+        assert.equal(blank.body.linkedin_url, null, "empty clears, not stores empty");
+    });
+
+    test("a line break in the address cannot survive into the stored value", async () => {
+        const res = await createContact(OWNER, {
+            name: "Injected",
+            linkedin_url: "https://a.example/x\r\nTEL:999",
+        });
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        assert.doesNotMatch(res.body.linkedin_url, /[\r\n]/);
+    });
+
+    test("a contact with no LinkedIn URL reads null", async () => {
+        const created = await createContact(OWNER, { name: "No Link" });
+        assert.equal(created.body.linkedin_url, null);
+    });
+
+    test("only http and https URLs of reasonable length are accepted", async () => {
+        for (const bad of [
+            "javascript:alert(1)",
+            "ftp://example.com/x",
+            "linkedin.com/in/jane",
+            "https://example.com/" + "a".repeat(500),
+        ]) {
+            const res = await createContact(OWNER, {
+                name: "Bad Link",
+                linkedin_url: bad,
+            });
+            assert.equal(res.status, 400, `accepted ${bad.slice(0, 30)}`);
+        }
+        const created = await createContact(OWNER, { name: "Fine" });
+        const upd = await as(OWNER)(
+            req.put(`/api/contacts/${created.body.id}`),
+        ).send({ linkedin_url: "javascript:alert(1)" });
+        assert.equal(upd.status, 400);
+    });
+
+    test("another user's contact cannot be given a LinkedIn URL", async () => {
+        const created = await createContact(OWNER, { name: "Mine" });
+        const res = await as(OTHER)(
+            req.put(`/api/contacts/${created.body.id}`),
+        ).send({ linkedin_url: "https://www.linkedin.com/in/x" });
+        assert.equal(res.status, 404);
+    });
+
+    test("converting a pipeline row can carry a LinkedIn URL", async () => {
+        const application = await createApp(OWNER, { company_name: "Jane Recruiter" });
+        const res = await as(OWNER)(
+            req.post(`/api/contacts/convert/${application.id}`),
+        ).send({ linkedin_url: "https://www.linkedin.com/in/jane" });
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        assert.equal(res.body.linkedin_url, "https://www.linkedin.com/in/jane");
+    });
+});

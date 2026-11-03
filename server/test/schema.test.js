@@ -313,6 +313,58 @@ describe("note hiding and edit columns", () => {
     });
 });
 
+describe("contacts.linkedin_url migration", () => {
+    test("an existing database gains the column, with existing people reading null", () => {
+        const dbPath = makeDbPath("linkedin");
+        bootStartup(dbPath);
+
+        // Put the database back into its pre-change shape with a person in it.
+        const old = new Database(dbPath);
+        old.exec("ALTER TABLE contacts DROP COLUMN linkedin_url");
+        old.prepare(
+            "INSERT INTO contacts (name, user_email) VALUES ('Before', 'a@example.com')",
+        ).run();
+        old.close();
+
+        bootStartup(dbPath);
+
+        const db = new Database(dbPath, { readonly: true });
+        assert.ok(columnsOf(db, "contacts").includes("linkedin_url"));
+        const row = db
+            .prepare("SELECT linkedin_url FROM contacts WHERE name = 'Before'")
+            .get();
+        assert.equal(row.linkedin_url, null);
+        db.close();
+    });
+});
+
+describe("api_keys.scope migration", () => {
+    test("existing keys gain a null scope and stay full access", () => {
+        const dbPath = makeDbPath("keyscope");
+        bootStartup(dbPath);
+
+        const old = new Database(dbPath);
+        old.exec("ALTER TABLE api_keys DROP COLUMN scope");
+        old.prepare(
+            "INSERT OR IGNORE INTO users (email, first_seen_at, last_seen_at) VALUES ('k@example.com', 'x', 'x')",
+        ).run();
+        old.prepare(
+            "INSERT INTO api_keys (user_email, label, key_hash) VALUES ('k@example.com', 'old', 'hash-old')",
+        ).run();
+        old.close();
+
+        bootStartup(dbPath);
+
+        const db = new Database(dbPath, { readonly: true });
+        assert.ok(columnsOf(db, "api_keys").includes("scope"));
+        const row = db
+            .prepare("SELECT scope FROM api_keys WHERE label = 'old'")
+            .get();
+        assert.equal(row.scope, null);
+        db.close();
+    });
+});
+
 describe("U1 contact_links integrity", () => {
     let dbPath;
     let db;

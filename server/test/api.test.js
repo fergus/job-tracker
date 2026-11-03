@@ -2640,3 +2640,104 @@ describe("File cleanup", () => {
         );
     });
 });
+
+// ---------------------------------------------------------------------------
+// Phone-only keys: a key scoped to the contacts address book
+// ---------------------------------------------------------------------------
+
+describe("phone-only keys", () => {
+    const owner = "phonekey@example.com";
+
+    async function createScoped(email = owner, scope = "contacts") {
+        return req
+            .post("/api/keys")
+            .set("X-Forwarded-Email", email)
+            .send({ label: "phone", scope });
+    }
+
+    test("POST /api/keys with scope contacts stores it and returns the key once", async () => {
+        const res = await createScoped();
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        assert.ok(res.body.key);
+        assert.equal(res.body.scope, "contacts");
+    });
+
+    test("an unknown or empty scope is refused, never read as full access", async () => {
+        assert.equal((await createScoped(owner, "admin")).status, 400);
+        assert.equal((await createScoped(owner, "")).status, 400);
+    });
+
+    test("a key created without a scope stays full access", async () => {
+        const res = await req
+            .post("/api/keys")
+            .set("X-Forwarded-Email", owner)
+            .send({ label: "full" });
+        assert.equal(res.status, 201);
+        assert.equal(res.body.scope, null);
+    });
+
+    test("GET /api/keys lists each key's scope and never a hash", async () => {
+        const email = "phonekey-list@example.com";
+        await createScoped(email);
+        await req.post("/api/keys").set("X-Forwarded-Email", email).send({});
+        const res = await req.get("/api/keys").set("X-Forwarded-Email", email);
+        assert.equal(res.status, 200);
+        assert.deepEqual(
+            res.body.map((k) => k.scope).sort(),
+            ["contacts", null],
+        );
+        for (const k of res.body) assert.equal(k.key_hash, undefined);
+    });
+
+    test("a phone-only key is refused as a Bearer token on the REST API", async () => {
+        const { body } = await createScoped("phonekey-rest@example.com");
+        const res = await req
+            .get("/api/applications")
+            .set("Authorization", `Bearer ${body.key}`);
+        assert.equal(res.status, 401);
+        assert.deepEqual(res.body, { error: "Invalid API key" });
+
+        const unknown = await req
+            .get("/api/applications")
+            .set("Authorization", "Bearer not-a-real-key");
+        assert.deepEqual(res.body, unknown.body, "same answer as an unknown key");
+    });
+
+    test("a phone-only key cannot manage keys or read the profile either", async () => {
+        const { body } = await createScoped("phonekey-mgmt@example.com");
+        for (const path of ["/api/keys", "/api/me", "/api/contacts"]) {
+            const res = await req
+                .get(path)
+                .set("Authorization", `Bearer ${body.key}`);
+            assert.equal(res.status, 401, path);
+        }
+        const create = await req
+            .post("/api/keys")
+            .set("Authorization", `Bearer ${body.key}`)
+            .send({ scope: "contacts" });
+        assert.equal(create.status, 401);
+    });
+
+    test("a full-access key still works on REST exactly as before", async () => {
+        const created = await req
+            .post("/api/keys")
+            .set("X-Forwarded-Email", "phonekey-full@example.com")
+            .send({ label: "full" });
+        const res = await req
+            .get("/api/me")
+            .set("Authorization", `Bearer ${created.body.key}`);
+        assert.equal(res.status, 200);
+        assert.equal(res.body.email, "phonekey-full@example.com");
+    });
+
+    test("revoking a phone-only key removes it from the list", async () => {
+        const email = "phonekey-revoke@example.com";
+        const { body } = await createScoped(email);
+        const del = await req
+            .delete(`/api/keys/${body.id}`)
+            .set("X-Forwarded-Email", email);
+        assert.equal(del.status, 204);
+        const list = await req.get("/api/keys").set("X-Forwarded-Email", email);
+        assert.equal(list.body.length, 0);
+    });
+});

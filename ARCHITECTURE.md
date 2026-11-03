@@ -146,6 +146,7 @@ erDiagram
         TEXT user_email FK
         TEXT label
         TEXT key_hash
+        TEXT scope
         TEXT created_at
         TEXT last_used_at
         TEXT expires_at
@@ -182,20 +183,35 @@ Stage notes and attachments cascade-delete when their parent application is dele
 | `PUT` | `/api/applications/:id/notes/:noteId` | Update a stage note |
 | `DELETE` | `/api/applications/:id/notes/:noteId` | Delete a stage note |
 | `GET` | `/api/keys` | List API keys (OAuth only) |
-| `POST` | `/api/keys` | Generate a new API key (OAuth only, max 20 per user) |
+| `POST` | `/api/keys` | Generate a new API key (OAuth only, max 20 per user; `scope: "contacts"` makes a phone-only key) |
 | `DELETE` | `/api/keys/:id` | Revoke an API key (OAuth only) |
 
 ### User Scoping & Authorization
 
 All API requests pass through auth middleware (`server/middleware/auth.js`) which supports two auth methods:
 
-**Bearer token (API key):** If an `Authorization: Bearer <token>` header is present, the token is HMAC-SHA256 hashed with `SERVER_API_KEY_SECRET` and looked up in the `api_keys` table. On match, `req.userEmail` is set from the stored row and `last_used_at` is updated asynchronously. API key auth cannot be used to manage keys themselves (generating or revoking requires OAuth).
+**Bearer token (API key):** If an `Authorization: Bearer <token>` header is present, the token is HMAC-SHA256 hashed with `SERVER_API_KEY_SECRET` and looked up in the `api_keys` table through `resolveApiKey` (`server/lib/apiKeySecret.js`), which refuses a scoped (phone-only) key exactly as it refuses an unknown one. On match, `req.userEmail` is set from the stored row and `last_used_at` is updated asynchronously. API key auth cannot be used to manage keys themselves (generating or revoking requires OAuth).
 
 **OAuth (browser):** In production, both `X-Forwarded-User` and `X-Forwarded-Email` headers must be present (set by oauth2-proxy). In dev mode, falls back to `dev@localhost` when absent. The user is upserted into the `users` table on every request.
 
 In both cases, `req.isAdmin` is set by checking the email against the `ADMIN_EMAILS` env var.
 
 All application queries are scoped to `user_email = ?` by default. Admin users can view all applications via `?all=true` but cannot edit or delete other users' data.
+
+### Phone address book (CardDAV)
+
+`/carddav/` serves the People list to an iPhone as a read-only CardDAV address book, so the people appear as an account of their own, apart from Outlook and iCloud. It is mounted ahead of the browser sign-in in `server/app.js` and authenticates itself: HTTP Basic, username ignored, password a phone-only key (an `api_keys` row with `scope = 'contacts'`). A full-access key, an unknown key or none gets a `401` with a Basic challenge, and every write method gets `403`. Reads are scoped to the key's owner.
+
+| Path | What it is |
+|------|------------|
+| `/.well-known/carddav` | Redirects (301) to `/carddav/`; no credential needed |
+| `/carddav/` | Root; points at the principal |
+| `/carddav/principal/` | The principal; points at the address-book home |
+| `/carddav/home/` | The home that holds the address book |
+| `/carddav/home/contacts/` | The address book (`PROPFIND`, `REPORT` query and multiget) |
+| `/carddav/home/contacts/<id>.vcf` | One person's card (`GET`) |
+
+A person gets a card when they have an email or a phone number. Cards are vCard 3.0 (`server/lib/vcard.js`); a card's ETag is a hash of what it shows and the address book's tag hashes every card, so editing notes or follow-ups does not make the phone re-read. The proxy must let these paths through: `docker-compose.yml` adds `carddav(/.*)?` and `\.well-known/carddav` to `OAUTH2_PROXY_SKIP_AUTH_ROUTES`.
 
 ## Frontend
 

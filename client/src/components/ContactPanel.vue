@@ -158,6 +158,25 @@
                 />
               </div>
               <div>
+                <label for="contact-linkedin" class="block text-xs text-ink-3 mb-1">LinkedIn</label>
+                <input
+                  id="contact-linkedin"
+                  v-model="form.linkedin_url"
+                  type="url"
+                  maxlength="500"
+                  placeholder="https://linkedin.com/in/..."
+                  class="w-full text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                />
+                <a
+                  v-if="contact?.linkedin_url"
+                  :href="contact.linkedin_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-block mt-1 text-xs text-ink-3 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+                  :aria-label="`${contact.name} on LinkedIn (opens in a new tab)`"
+                >Open profile</a>
+              </div>
+              <div>
                 <label for="contact-notes" class="block text-xs text-ink-3 mb-1">Notes</label>
                 <p class="text-xs text-ink-3 mb-1">
                   A standing description of who they are, not a log. Interactions go below.
@@ -320,6 +339,7 @@ const EDITABLE = [
   'employer',
   'email',
   'phone',
+  'linkedin_url',
   'notes',
   'next_action_at',
   'next_action',

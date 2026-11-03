@@ -369,3 +369,54 @@ describe("mcp connection tools", () => {
         assert.match(stranger.content[0].text, /404/);
     });
 });
+
+describe("mcp contact tools carry linkedin_url", () => {
+    test("create, update and convert declare the field", () => {
+        const registered = tools();
+        for (const name of [
+            "create_contact",
+            "update_contact",
+            "convert_application_to_contact",
+        ]) {
+            const shape = registered[name].inputSchema.def.shape;
+            assert.ok(shape.linkedin_url, `${name} lacks linkedin_url`);
+        }
+    });
+
+    test("create_contact stores and update_contact clears it", async () => {
+        const registered = tools();
+        const created = parseResult(
+            await registered.create_contact.handler(
+                { name: "Mcp Linked", linkedin_url: "https://www.linkedin.com/in/mcp" },
+                authed(),
+            ),
+        );
+        assert.equal(created.linkedin_url, "https://www.linkedin.com/in/mcp");
+
+        const cleared = parseResult(
+            await registered.update_contact.handler(
+                { id: created.id, linkedin_url: null },
+                authed(),
+            ),
+        );
+        assert.equal(cleared.linkedin_url, null);
+    });
+});
+
+describe("mcp refuses phone-only keys", () => {
+    test("a contacts-scoped key does not resolve for MCP", () => {
+        const crypto = require("node:crypto");
+        const db = require("../db");
+        const { apiKeySecret, resolveApiKey } = require("../lib/apiKeySecret");
+        const email = "mcp-scoped@example.com";
+        const raw = "mcp-scoped-token-" + Date.now();
+        const hash = crypto.createHmac("sha256", apiKeySecret).update(raw).digest("hex");
+        db.prepare(
+            "INSERT OR IGNORE INTO users (email, first_seen_at, last_seen_at) VALUES (?, ?, ?)",
+        ).run(email, new Date().toISOString(), new Date().toISOString());
+        db.prepare(
+            "INSERT INTO api_keys (user_email, label, key_hash, scope) VALUES (?, 'p', ?, 'contacts')",
+        ).run(email, hash);
+        assert.equal(resolveApiKey(raw), null);
+    });
+});

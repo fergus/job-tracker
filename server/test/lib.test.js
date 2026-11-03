@@ -17,7 +17,11 @@ const db = require("../db");
 const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
 const { isValidUrl } = require("../lib/validation");
 const { uploadsDir, safePath, safeDeleteFile } = require("../lib/files");
-const { apiKeySecret, resolveApiKey } = require("../lib/apiKeySecret");
+const {
+    apiKeySecret,
+    resolveApiKey,
+    resolveApiKeyWithScope,
+} = require("../lib/apiKeySecret");
 
 // ---------------------------------------------------------------------------
 // lib/mime.js
@@ -160,9 +164,31 @@ describe("lib/apiKeySecret", () => {
             `INSERT OR IGNORE INTO users (email, first_seen_at, last_seen_at) VALUES (?, ?, ?)`,
         ).run(email, new Date().toISOString(), new Date().toISOString());
 
-        db.insertApiKey.run(email, "lib-test", keyHash);
+        db.insertApiKey.run(email, "lib-test", keyHash, null);
 
         const resolved = resolveApiKey(rawToken);
         assert.equal(resolved, email);
+    });
+
+    test("a contacts-scoped key resolves with its scope, and not through resolveApiKey", () => {
+        const email = "test-lib-scoped@example.com";
+        const rawToken = "my-scoped-token-" + Date.now();
+        const keyHash = crypto
+            .createHmac("sha256", apiKeySecret)
+            .update(rawToken)
+            .digest("hex");
+        db.prepare(
+            `INSERT OR IGNORE INTO users (email, first_seen_at, last_seen_at) VALUES (?, ?, ?)`,
+        ).run(email, new Date().toISOString(), new Date().toISOString());
+        db.prepare(
+            "INSERT INTO api_keys (user_email, label, key_hash, scope) VALUES (?, ?, ?, 'contacts')",
+        ).run(email, "scoped", keyHash);
+
+        assert.equal(resolveApiKey(rawToken), null, "scoped key is not a general key");
+        assert.deepEqual(resolveApiKeyWithScope(rawToken), {
+            user_email: email,
+            scope: "contacts",
+        });
+        assert.equal(resolveApiKeyWithScope("nope-not-a-key"), null);
     });
 });

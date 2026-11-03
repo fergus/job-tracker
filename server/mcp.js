@@ -1308,6 +1308,11 @@ function createMcpServer() {
             employer: z.string().max(200).optional().describe("Who they work for"),
             email: z.string().max(320).optional().describe("Email address"),
             phone: z.string().max(50).optional().describe("Phone number"),
+            linkedin_url: z
+                .string()
+                .max(500)
+                .optional()
+                .describe("LinkedIn profile address (http or https)"),
             notes: z.string().max(10000).optional().describe("Free-text notes"),
             next_action_at: z
                 .string()
@@ -1490,6 +1495,12 @@ function createMcpServer() {
                 .describe("Who they work for"),
             email: z.string().max(320).nullable().optional().describe("Email address"),
             phone: z.string().max(50).nullable().optional().describe("Phone number"),
+            linkedin_url: z
+                .string()
+                .max(500)
+                .nullable()
+                .optional()
+                .describe("LinkedIn profile address (http or https). Null clears it."),
             notes: z
                 .string()
                 .max(10000)
@@ -1614,6 +1625,11 @@ function createMcpServer() {
             employer: z.string().max(200).optional().describe("Who they work for"),
             email: z.string().max(320).optional().describe("Email address"),
             phone: z.string().max(50).optional().describe("Phone number"),
+            linkedin_url: z
+                .string()
+                .max(500)
+                .optional()
+                .describe("LinkedIn profile address (http or https)"),
             notes: z
                 .string()
                 .max(10000)

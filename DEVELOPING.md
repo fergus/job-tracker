@@ -347,7 +347,7 @@ Key management requires browser (OAuth) authentication — Bearer token auth is 
 GET /api/keys
 ```
 
-Returns an array of `{ id, label, created_at, last_used_at }` (key hashes are never returned).
+Returns an array of `{ id, label, scope, created_at, last_used_at }` (key hashes are never returned). `scope` is `null` for a full-access key and `"contacts"` for a phone-only key.
 
 #### Generate key
 
@@ -356,9 +356,10 @@ POST /api/keys
 Content-Type: application/json
 
 { "label": "my-script" }   # label is optional, max 100 chars
+{ "label": "iPhone", "scope": "contacts" }   # a phone-only key
 ```
 
-Returns `201` with `{ id, label, created_at, key }`. The `key` field is the raw token — it is only returned once.
+Returns `201` with `{ id, label, scope, created_at, key }`. The `key` field is the raw token — it is only returned once. `scope` is optional; the only accepted value is `contacts`, which makes a key that opens the phone address book and is refused everywhere else (REST Bearer auth and MCP).
 
 #### Revoke key
 
@@ -367,6 +368,21 @@ DELETE /api/keys/:id
 ```
 
 Returns `204`.
+
+### Phone address book
+
+`/carddav/` is a read-only CardDAV address book of the People list. Use a phone-only key as the Basic-auth password (any username):
+
+```bash
+curl -s -u iphone:$PHONE_KEY -X PROPFIND -H 'Depth: 1' http://localhost:3000/carddav/home/contacts/
+curl -s -u iphone:$PHONE_KEY http://localhost:3000/carddav/home/contacts/12.vcf
+```
+
+Writes (`PUT`, `DELETE`, `PROPPATCH`, ...) return `403`. See `ARCHITECTURE.md` for the path layout.
+
+### Contacts and LinkedIn
+
+A contact carries an optional `linkedin_url` (an `http` or `https` address, at most 500 characters; `null` or an empty string clears it) on create, update, convert and the MCP contact tools. Promoting a LinkedIn connection sets it from the connection's profile URL.
 
 ## Frontend Conventions
 

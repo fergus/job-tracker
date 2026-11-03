@@ -553,6 +553,18 @@ function openContact(id) {
     contactId.value = id;
 }
 
+// A card on the phone links back here as /?contact=<id>. Open that person once
+// and drop the parameter, so a refresh does not reopen it.
+function openContactFromLink() {
+    const url = new URL(window.location.href);
+    const raw = url.searchParams.get("contact");
+    if (raw === null) return;
+    url.searchParams.delete("contact");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    const id = Number(raw);
+    if (Number.isInteger(id) && id > 0) openContact(id);
+}
+
 // The drawer is reachable from two places now. Saving from the application
 // panel has to refresh that record; saving from People has no record behind it
 // and must refresh the contact list instead.
@@ -880,6 +892,7 @@ onMounted(async () => {
     compactHeader.value = storageGetBool(COMPACT_KEY, isMobile);
     document.addEventListener("visibilitychange", refreshOnFocus);
     currentUser.value = await fetchMe();
+    openContactFromLink();
     loadApplications();
     // Today is the default section, so it never passes through setSection.
     refreshToday();

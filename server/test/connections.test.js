@@ -272,6 +272,39 @@ describe("POST /api/connections/:id/promote", () => {
         assert.equal(after.contact_id, res.body.id);
     });
 
+    test("copies the connection's profile URL into linkedin_url", async () => {
+        await importCsv(csv(ALICE));
+        const alice = await firstConnection("Alice");
+        const res = await as(req.post(`/api/connections/${alice.id}/promote`)).send({});
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        assert.equal(res.body.linkedin_url, "https://www.linkedin.com/in/alice");
+    });
+
+    test("a connection whose imported URL is not http(s) still promotes, with no link", async () => {
+        await importCsv(csv(ALICE));
+        const alice = await firstConnection("Alice");
+        db.prepare("UPDATE connections SET url = ? WHERE id = ?").run(
+            "ftp://odd.example/alice",
+            alice.id,
+        );
+        const res = await as(req.post(`/api/connections/${alice.id}/promote`)).send({});
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        assert.equal(res.body.name, "Alice Nguyen");
+        assert.equal(res.body.linkedin_url, null);
+    });
+
+    test("a connection whose imported URL is over the length limit still promotes, with no link", async () => {
+        await importCsv(csv(ALICE));
+        const alice = await firstConnection("Alice");
+        db.prepare("UPDATE connections SET url = ? WHERE id = ?").run(
+            "https://www.linkedin.com/in/" + "a".repeat(600),
+            alice.id,
+        );
+        const res = await as(req.post(`/api/connections/${alice.id}/promote`)).send({});
+        assert.equal(res.status, 201, JSON.stringify(res.body));
+        assert.equal(res.body.linkedin_url, null);
+    });
+
     test("promoting twice reuses the contact", async () => {
         await importCsv(csv(ALICE));
         const alice = await firstConnection("Alice");
