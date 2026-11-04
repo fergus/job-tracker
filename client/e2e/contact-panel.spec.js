@@ -191,3 +191,25 @@ test('a link to a person that does not exist opens nothing usable', async ({ pag
   await expect(page.getByText(/Could not load this contact/)).toBeVisible()
   expect(new URL(page.url()).searchParams.has('contact')).toBe(false)
 })
+
+test('after saving, the panel is clean and closing does not warn', async ({ page, request }) => {
+  await openContactPanel(page, request, { company: 'CleanCo', person: 'Sam Okafor' })
+
+  const prompts = []
+  page.on('dialog', (dialog) => {
+    prompts.push(dialog.message())
+    dialog.accept()
+  })
+
+  await page.getByLabel('Next touch date', { exact: true }).fill('2099-01-15')
+  await page.getByRole('button', { name: 'Save contact' }).click()
+  await expect(page.getByText('Contact saved').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save contact' })).toBeDisabled()
+
+  await page
+    .getByRole('dialog', { name: 'Contact: Sam Okafor' })
+    .getByRole('button', { name: 'Close contact' })
+    .click()
+  await expect(page.getByRole('dialog', { name: 'Contact: Sam Okafor' })).toHaveCount(0)
+  expect(prompts).toEqual([])
+})

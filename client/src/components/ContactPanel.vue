@@ -346,7 +346,9 @@ const EDITABLE = [
 ]
 
 const form = reactive(Object.fromEntries(EDITABLE.map((f) => [f, ''])))
-let original = {}
+// A ref, not a plain variable: saving re-seeds the form with values equal to
+// what was typed, so only a reactive snapshot lets isDirty re-evaluate.
+const original = ref({})
 
 const newNote = reactive({
   content: '',
@@ -371,14 +373,14 @@ const followUpLabel = computed(() =>
   ),
 )
 
-const isDirty = computed(() => EDITABLE.some((f) => form[f] !== original[f]))
+const isDirty = computed(() => EDITABLE.some((f) => form[f] !== original.value[f]))
 
 function hydrate(data) {
   contact.value = data
   for (const field of EDITABLE) {
     form[field] = data[field] ?? ''
   }
-  original = { ...form }
+  original.value = { ...form }
 }
 
 async function load() {
@@ -403,7 +405,7 @@ function clearNextTouch() {
 function payloadFromForm() {
   const patch = {}
   for (const field of EDITABLE) {
-    if (form[field] === original[field]) continue
+    if (form[field] === original.value[field]) continue
     patch[field] = form[field] === '' ? null : form[field]
   }
   return patch
