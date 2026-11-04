@@ -72,7 +72,7 @@ function renderVCard(contact, { baseUrl } = {}) {
         rows.push(`EMAIL;TYPE=INTERNET:${escapeText(contact.email.trim())}`);
     }
     if (contact.phone && contact.phone.trim()) {
-        rows.push(`TEL;TYPE=VOICE:${escapeText(contact.phone.trim())}`);
+        rows.push(`TEL;TYPE=CELL:${escapeText(contact.phone.trim())}`);
     }
     // Grouped URL + label is how Apple's Contacts shows a named link.
     let item = 0;
