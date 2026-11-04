@@ -173,8 +173,8 @@
                     :href="contact.linkedin_url"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="shrink-0 p-1.5 text-ink-3 hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
-                    title="Open link"
+                    class="shrink-0 -my-1 -mr-1.5 w-11 h-11 inline-flex items-center justify-center text-ink-3 hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
+                    title="Open LinkedIn profile"
                     :aria-label="`${contact.name} on LinkedIn (opens in a new tab)`"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
