@@ -92,6 +92,8 @@ describe("the card", () => {
         assert.equal(prop(card, "TITLE"), "Recruiter");
         assert.equal(prop(card, "EMAIL"), "jane@example.com");
         assert.equal(prop(card, "TEL"), "0400 111 222");
+        // iOS labels TYPE=CELL "mobile"; TYPE=VOICE shows up as "voice".
+        assert.ok(lines(card).includes("TEL;TYPE=CELL:0400 111 222"));
         const urls = lines(card).filter((l) => /\.?URL:/i.test(l));
         assert.ok(urls.some((l) => l.endsWith("https://www.linkedin.com/in/jane")));
         assert.ok(urls.some((l) => l.endsWith(`https://jobs.example.com/?contact=${c.id}`)));
