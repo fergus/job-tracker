@@ -159,22 +159,29 @@
               </div>
               <div>
                 <label for="contact-linkedin" class="block text-xs text-ink-3 mb-1">LinkedIn</label>
-                <input
-                  id="contact-linkedin"
-                  v-model="form.linkedin_url"
-                  type="url"
-                  maxlength="500"
-                  placeholder="https://linkedin.com/in/..."
-                  class="w-full text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-                />
-                <a
-                  v-if="contact?.linkedin_url"
-                  :href="contact.linkedin_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="inline-block mt-1 text-xs text-ink-3 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
-                  :aria-label="`${contact.name} on LinkedIn (opens in a new tab)`"
-                >Open profile</a>
+                <div class="flex items-center gap-1">
+                  <input
+                    id="contact-linkedin"
+                    v-model="form.linkedin_url"
+                    type="url"
+                    maxlength="500"
+                    placeholder="https://linkedin.com/in/..."
+                    class="flex-1 min-w-0 text-sm border border-line bg-raised rounded-lg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                  />
+                  <a
+                    v-if="contact?.linkedin_url"
+                    :href="contact.linkedin_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="shrink-0 -my-1 -mr-1.5 w-11 h-11 inline-flex items-center justify-center text-ink-3 hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
+                    title="Open LinkedIn profile"
+                    :aria-label="`${contact.name} on LinkedIn (opens in a new tab)`"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </div>
               </div>
               <div>
                 <label for="contact-notes" class="block text-xs text-ink-3 mb-1">Notes</label>
