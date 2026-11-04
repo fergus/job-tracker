@@ -12,8 +12,11 @@ CLAUDE.md
 .aider*
 smb-share/
 
-.claude/settings.local.json
-.claude/skills/fs-next/.cache/
+# Local agent tooling (kept on disk, not tracked)
+.claude/
+.kimi/
+.context/
+.impeccable/
 
 # Playwright output
 test-results/
