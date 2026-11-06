@@ -34,6 +34,21 @@ Review the release notes for 10.14.0 first — if it promotes a rule to `error`
 under a preset the project uses, either fix the findings or pin the preset rule
 back off in the flat config.
 
+**Audit note (2026-11-06):** `npm audit` in `client/` reports a moderate
+**GHSA-g3hv-75wg-m249** finding — `minimatch` has a potential denial of service
+via globparts amplification, range `>=7.0.0 <11.0.1`, present here as
+`minimatch@10.2.6` pulled in by `eslint@10.13.0` and
+`@eslint/config-array@0.23.5`. The fixed release is `11.0.1`, a **major** bump
+that ESLint 10 does not accept, so npm's suggested resolution is to *downgrade*
+to `eslint@9.39.5` — which is not a fix, it is a rollback, and it is why
+`npm audit fix --force` must not be run in this tree.
+
+Do not open a separate todo for this: it is the same toolchain and it closes
+when ESLint ships a release that moves `minimatch` to 11.x. Take the 10.14.0
+bump now; re-check `npm audit` after each subsequent ESLint release and close
+this todo once the minimatch finding is gone rather than when 10.14.0 lands.
+Dev-only tooling, no runtime exposure.
+
 - **Effort**: Small | **Risk**: Low (dev dependency; verified by lint + client build)
 
 ## Acceptance Criteria
