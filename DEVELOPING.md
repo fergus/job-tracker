@@ -44,7 +44,7 @@ job-tracker/
 ├── .github/workflows/
 │   └── build.yml            # CI build + GHCR publish
 ├── ARCHITECTURE.md          # System architecture docs
-└── README.md                # User-facing setup guide
+└── README.md                # Pitch and quick start; full user guide in docs/guide/
 ```
 
 ## Local Development Setup

@@ -71,6 +71,8 @@ job-tracker/
 └── docs/                    # Architecture diagrams, screenshots, planning docs, documented solutions (docs/solutions/)
 ```
 
+`docs/guide/` — the user and operator guide (install, using the app, MCP tools, data flows, iPhone contacts). `README.md` is a short pitch plus quick start that links here; when a change alters user-visible behavior, configuration or an MCP tool, update the matching guide page, not the README.
+
 `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
 
 ---
