@@ -2,6 +2,7 @@
 
 - **Priority:** p3
 - **Created:** 2026-11-06
+- **Updated:** 2026-11-08 (latest tag not re-verified this run: GitHub release lookups were denied; todo still stands)
 - **Category:** Maintenance (Docker image, auth)
 
 ## Problem
