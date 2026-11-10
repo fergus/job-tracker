@@ -5,6 +5,7 @@
     <button
       v-if="!floatingOpen"
       type="button"
+      :disabled="disabled"
       class="sm:hidden size-11 flex items-center justify-center rounded-lg text-ink-3 hover:bg-sunken transition-colors"
       aria-label="Search people and roles"
       @click="openFloating"
@@ -53,6 +54,7 @@
             :aria-expanded="showResults ? 'true' : 'false'"
             :aria-controls="listId"
             :aria-activedescendant="activeId"
+            :disabled="disabled"
             :class="[
               'text-sm border border-line bg-raised rounded-lg px-3 py-2 min-h-[44px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent',
               floatingOpen ? 'flex-1 min-w-0' : 'w-44 md:w-56 lg:w-72',
@@ -162,6 +164,8 @@ const props = defineProps({
   peopleFailed: { type: Boolean, default: false },
   // A record panel covers the header, so search has to float above it.
   panelOpen: { type: Boolean, default: false },
+  // Held while a board card is being dragged: nothing may open over the board.
+  disabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['open-search', 'select'])
@@ -237,6 +241,7 @@ async function openFloating() {
 
 /** Ctrl/Cmd+K: focus the header field, or float the box when it is hidden. */
 function open() {
+  if (props.disabled) return
   if (!wide.value || props.panelOpen) return openFloating()
   input.value?.focus()
   input.value?.select()

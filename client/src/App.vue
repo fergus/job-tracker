@@ -44,6 +44,7 @@
                         :peopleLoading="peopleLoading"
                         :peopleFailed="peopleFailed"
                         :panelOpen="showPanel || contactId !== null"
+                        :disabled="dragActive"
                         @open-search="handleSearchOpen"
                         @select="openFromSearch"
                     />
@@ -598,11 +599,21 @@ async function handleSearchOpen() {
 // dropped silently. A different record in the application panel is closed
 // through the panel's own path and reopened fresh, because switching it in
 // place would carry a typed note or queued files over to the new record.
-// Whatever the outcome, the search box then gets out of the way.
+// Whatever the outcome, the search box then gets out of the way and hands
+// focus back, so a pick that opened nothing leaves the user inside the panel
+// they were in. A newly opened panel takes focus itself when it mounts.
+// A second pick while one is still settling is ignored, so a typed note is
+// never saved twice.
+let searchPickInFlight = false;
 async function openFromSearch(item) {
-    if (dragActive.value) return;
-    await openSearchResult(item);
-    headerSearch.value?.dismiss();
+    if (dragActive.value || searchPickInFlight) return;
+    searchPickInFlight = true;
+    try {
+        await openSearchResult(item);
+    } finally {
+        searchPickInFlight = false;
+    }
+    headerSearch.value?.dismiss({ restoreFocus: true });
 }
 
 async function openSearchResult(item) {
@@ -621,7 +632,7 @@ async function openSearchResult(item) {
     if (showPanel.value) {
         // The prompt for unsaved edits lives in the panel, so the search box
         // has to be out of its way before the panel is asked.
-        headerSearch.value?.dismiss();
+        headerSearch.value?.dismiss({ restoreFocus: true });
         if (applicationPanelRef.value && !(await applicationPanelRef.value.prepareSwitch())) {
             return;
         }

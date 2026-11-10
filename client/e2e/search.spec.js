@@ -103,16 +103,43 @@ test('unsaved contact edits are kept when the user cancels the switch', async ({
   await expect(drawer).toBeVisible()
   await drawer.getByLabel('Employer', { exact: true }).fill('Unsaved Employer')
 
-  page.once('dialog', (d) => d.dismiss())
+  const asked = page.waitForEvent('dialog').then((d) => d.dismiss())
   await page.keyboard.press('Control+k')
   await page.keyboard.type('quellbright')
   await pick(page, /Quellbright/)
+  await asked
 
-  await expect(drawer).toBeVisible()
   await expect(drawer.getByLabel('Employer', { exact: true })).toHaveValue('Unsaved Employer')
   await expect(appDialog(page, 'Quellbright')).toHaveCount(0)
+  // Focus is back in the drawer, so its own Escape still reaches it.
+  page.once('dialog', (d) => d.accept())
+  await page.keyboard.press('Escape')
+  await expect(drawer).toBeHidden()
 
   await cleanup(request, { apps: [app], contacts: [person] })
+})
+
+test('a half-typed interaction is kept when the user cancels the switch', async ({ page, request }) => {
+  const first = await seedContact(request, { name: 'Sorrel Ambry' })
+  const second = await seedContact(request, { name: 'Tamsin Hollick' })
+
+  await page.goto('/')
+  await searchBox(page).fill('ambry')
+  await pick(page, /Sorrel Ambry/)
+  const drawer = contactDialog(page, 'Sorrel Ambry')
+  await expect(drawer).toBeVisible()
+  await drawer.getByLabel('What happened').fill('Called about the panel date')
+
+  const asked = page.waitForEvent('dialog').then((d) => d.dismiss())
+  await page.keyboard.press('Control+k')
+  await page.keyboard.type('hollick')
+  await pick(page, /Tamsin Hollick/)
+  await asked
+
+  await expect(drawer.getByLabel('What happened')).toHaveValue('Called about the panel date')
+  await expect(contactDialog(page, 'Tamsin Hollick')).toHaveCount(0)
+
+  await cleanup(request, { contacts: [first, second] })
 })
 
 test('switching roles saves a typed note to the role it was written on', async ({ page, request }) => {

@@ -461,14 +461,16 @@ async function logInteraction() {
   }
 }
 
-// Whether the drawer may close: true when nothing is unsaved or the user
-// agrees to drop it. Search asks this before opening another record over it.
+// Whether search may replace the drawer with another record: true when nothing
+// is unsaved or the user agrees to drop it. A half-typed interaction counts,
+// because the call being logged is often the reason for searching.
 function confirmClose() {
-  return !isDirty.value || confirm('You have unsaved changes. Close anyway?')
+  const draft = newNote.content.trim() !== ''
+  return !(isDirty.value || draft) || confirm('You have unsaved changes. Close anyway?')
 }
 
 function requestClose() {
-  if (!confirmClose()) return
+  if (isDirty.value && !confirm('You have unsaved changes. Close anyway?')) return
   emit('close')
 }
 
