@@ -461,10 +461,18 @@ async function logInteraction() {
   }
 }
 
+// Whether the drawer may close: true when nothing is unsaved or the user
+// agrees to drop it. Search asks this before opening another record over it.
+function confirmClose() {
+  return !isDirty.value || confirm('You have unsaved changes. Close anyway?')
+}
+
 function requestClose() {
-  if (isDirty.value && !confirm('You have unsaved changes. Close anyway?')) return
+  if (!confirmClose()) return
   emit('close')
 }
+
+defineExpose({ confirmClose })
 
 function handleKeydown(event) {
   if (event.key === 'Escape') {
