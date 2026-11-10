@@ -19,11 +19,11 @@ export const GROUP_LIMIT = 8
 const PHONE_CHARS = /^[\d\s+()\-.]+$/
 const MIN_PHONE_DIGITS = 3
 
-/** Lowercase and strip accents, so "Zoe" finds "Zoë". */
+/** Lowercase and strip accents, so "Zoe" finds "Zoe" written with a diaeresis. */
 function fold(value) {
   return String(value ?? '')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
 }
 

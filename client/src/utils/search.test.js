@@ -43,9 +43,9 @@ describe('matching people', () => {
     assert.deepEqual(peopleNames(searchRecords('RECRUIT', [], people)), ['Ana Lee'])
   })
 
-  test('strips accents so Zoe finds Zoë', () => {
-    const r = searchRecords('Zoe', [], [contact(1, 'Zoë Park')])
-    assert.deepEqual(peopleNames(r), ['Zoë Park'])
+  test('strips accents so Zoe finds the accented spelling', () => {
+    const r = searchRecords('Zoe', [], [contact(1, 'Zo\u00eb Park')])
+    assert.deepEqual(peopleNames(r), ['Zo\u00eb Park'])
   })
 
   test('ranks names that start with the query above names that contain it', () => {
