@@ -11,6 +11,13 @@ const contactDialog = (page, name) => page.getByRole('dialog', { name: `Contact:
 const appDialog = (page, company) =>
   page.getByRole('dialog', { name: new RegExp(`Edit application .* ${company}$`) })
 
+// People load the first time search opens, so wait for the result to be
+// listed before pressing Enter rather than racing that load.
+async function pick(page, name) {
+  await expect(results(page).getByRole('option', { name })).toBeVisible()
+  await page.keyboard.press('Enter')
+}
+
 async function seedContact(request, data) {
   return (await request.post('/api/contacts', { data })).json()
 }
@@ -52,7 +59,7 @@ test('Ctrl+K reaches the field on Pipeline and a role opens without leaving the 
   await page.keyboard.press('Control+k')
   await expect(searchBox(page)).toBeFocused()
   await page.keyboard.type('zentra')
-  await page.keyboard.press('Enter')
+  await pick(page, /Zentravo/)
 
   await expect(appDialog(page, 'Zentravo')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Pipeline', exact: true })).toHaveAttribute('aria-current', /.+/)
@@ -66,7 +73,7 @@ test('with a role open, search floats above it and a person stacks over the role
 
   await page.goto('/')
   await searchBox(page).fill('morvane')
-  await page.keyboard.press('Enter')
+  await pick(page, /Morvane/)
   await expect(appDialog(page, 'Morvane')).toBeVisible()
 
   await page.keyboard.press('Control+k')
@@ -74,7 +81,7 @@ test('with a role open, search floats above it and a person stacks over the role
   await expect(floating).toBeVisible()
   await expect(searchBox(page)).toBeFocused()
   await page.keyboard.type('fendrick')
-  await page.keyboard.press('Enter')
+  await pick(page, /Ilse Fendrick/)
 
   await expect(contactDialog(page, 'Ilse Fendrick')).toBeVisible()
   await expect(floating).toBeHidden()
@@ -91,7 +98,7 @@ test('unsaved contact edits are kept when the user cancels the switch', async ({
 
   await page.goto('/')
   await searchBox(page).fill('tollet')
-  await page.keyboard.press('Enter')
+  await pick(page, /Bram Tollet/)
   const drawer = contactDialog(page, 'Bram Tollet')
   await expect(drawer).toBeVisible()
   await drawer.getByLabel('Employer', { exact: true }).fill('Unsaved Employer')
@@ -99,7 +106,7 @@ test('unsaved contact edits are kept when the user cancels the switch', async ({
   page.once('dialog', (d) => d.dismiss())
   await page.keyboard.press('Control+k')
   await page.keyboard.type('quellbright')
-  await page.keyboard.press('Enter')
+  await pick(page, /Quellbright/)
 
   await expect(drawer).toBeVisible()
   await expect(drawer.getByLabel('Employer', { exact: true })).toHaveValue('Unsaved Employer')
@@ -114,14 +121,14 @@ test('switching roles saves a typed note to the role it was written on', async (
 
   await page.goto('/')
   await searchBox(page).fill('arnhollow')
-  await page.keyboard.press('Enter')
+  await pick(page, /Arnhollow/)
   const panel = appDialog(page, 'Arnhollow')
   await expect(panel).toBeVisible()
   await panel.getByPlaceholder(/Add a note/).fill('Spoke to the hiring manager')
 
   await page.keyboard.press('Control+k')
   await page.keyboard.type('brevitane')
-  await page.keyboard.press('Enter')
+  await pick(page, /Brevitane/)
 
   const next = appDialog(page, 'Brevitane')
   await expect(next).toBeVisible()
@@ -141,14 +148,14 @@ test('switching roles with unsaved edits raises the prompt and stays put', async
 
   await page.goto('/')
   await searchBox(page).fill('corvantis')
-  await page.keyboard.press('Enter')
+  await pick(page, /Corvantis/)
   const panel = appDialog(page, 'Corvantis')
   await expect(panel).toBeVisible()
   await panel.getByLabel('Role title').fill('Staff Engineer')
 
   await page.keyboard.press('Control+k')
   await page.keyboard.type('delmorrow')
-  await page.keyboard.press('Enter')
+  await pick(page, /Delmorrow/)
 
   await expect(panel.getByText('Unsaved changes')).toBeVisible()
   await expect(panel.getByLabel('Role title')).toHaveValue('Staff Engineer')
@@ -167,6 +174,7 @@ test('arrow keys, no-match and Escape', async ({ page, request }) => {
   await expect(results(page).getByRole('option')).toHaveCount(0)
 
   await searchBox(page).fill('fennimore')
+  await expect(results(page).getByRole('option')).toHaveCount(2)
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Enter')
   await expect(appDialog(page, 'Fennimore Two')).toBeVisible()

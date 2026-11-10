@@ -598,36 +598,30 @@ async function handleSearchOpen() {
 // dropped silently. A different record in the application panel is closed
 // through the panel's own path and reopened fresh, because switching it in
 // place would carry a typed note or queued files over to the new record.
+// Whatever the outcome, the search box then gets out of the way.
 async function openFromSearch(item) {
     if (dragActive.value) return;
-    const search = headerSearch.value;
+    await openSearchResult(item);
+    headerSearch.value?.dismiss();
+}
 
+async function openSearchResult(item) {
     if (contactId.value !== null) {
-        if (item.kind === "person" && item.id === contactId.value) {
-            search?.dismiss();
-            return;
-        }
-        if (contactPanelRef.value && !contactPanelRef.value.confirmClose()) {
-            search?.dismiss();
-            return;
-        }
+        if (item.kind === "person" && item.id === contactId.value) return;
+        if (contactPanelRef.value && !contactPanelRef.value.confirmClose()) return;
     }
 
     if (item.kind === "person") {
         contactId.value = item.id;
-        search?.dismiss();
         return;
     }
 
     contactId.value = null;
-    if (showPanel.value && panelApp.value?.id === item.id) {
-        search?.dismiss();
-        return;
-    }
+    if (showPanel.value && panelApp.value?.id === item.id) return;
     if (showPanel.value) {
-        // The prompt for unsaved edits lives in the panel, so get the search
-        // box out of its way whatever the answer.
-        search?.dismiss();
+        // The prompt for unsaved edits lives in the panel, so the search box
+        // has to be out of its way before the panel is asked.
+        headerSearch.value?.dismiss();
         if (applicationPanelRef.value && !(await applicationPanelRef.value.prepareSwitch())) {
             return;
         }
@@ -635,7 +629,6 @@ async function openFromSearch(item) {
         await nextTick();
     }
     openPanel(item.record);
-    search?.dismiss();
 }
 
 // Ctrl+K (Cmd+K on macOS) reaches search from any view. Settings is a task of
