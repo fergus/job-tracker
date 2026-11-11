@@ -37,6 +37,17 @@
                     class="order-3 w-full sm:order-2 sm:w-auto sm:ml-4 sm:mr-auto"
                 />
                 <div class="flex items-center gap-3 order-2 sm:order-3">
+                    <HeaderSearch
+                        ref="headerSearch"
+                        :applications="applications"
+                        :contacts="contacts"
+                        :peopleLoading="peopleLoading"
+                        :peopleFailed="peopleFailed"
+                        :panelOpen="showPanel || contactId !== null"
+                        :disabled="dragActive"
+                        @open-search="handleSearchOpen"
+                        @select="openFromSearch"
+                    />
                     <!-- Show/Hide Closed toggle -->
                     <button
                         v-show="section === 'applications' && closedCount > 0"
@@ -169,6 +180,7 @@
         <!-- Application panel -->
         <ApplicationPanel
             v-if="showPanel"
+            ref="applicationPanelRef"
             :panelApp="panelApp"
             :totalApplications="pipelineCount"
             @close="closePanel"
@@ -178,6 +190,7 @@
         />
         <ContactPanel
             v-if="contactId"
+            ref="contactPanelRef"
             :key="contactId"
             :contactId="contactId"
             :readOnly="showAllUsers"
@@ -250,6 +263,7 @@ import { todayItemKey } from "./utils/todayGroups.js";
 import TimelineView from "./components/TimelineView.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
 import ToastContainer from "./components/ToastContainer.vue";
+import HeaderSearch from "./components/HeaderSearch.vue";
 
 const ApplicationPanel = defineAsyncComponent(() =>
     import("./components/ApplicationPanel.vue")
@@ -290,6 +304,14 @@ const logoTrigger = ref(0);
 const writeVersion = ref(0);
 const dragActive = ref(false);
 const settingsBtn = ref(null);
+const headerSearch = ref(null);
+const applicationPanelRef = ref(null);
+const contactPanelRef = ref(null);
+// People are only fetched when a view needs them. Search needs them from any
+// view, so its first use loads them; until that lands the result list says
+// people are loading rather than that nobody matches.
+const peopleLoading = ref(false);
+const peopleFailed = ref(false);
 
 const showClosed = ref(storageGetBool(SHOW_CLOSED_KEY, true));
 
@@ -551,6 +573,83 @@ function closePanel() {
 // it, so closing it returns you to the record you came from.
 function openContact(id) {
     contactId.value = id;
+}
+
+// Contacts are not on the live stream, so each search refreshes them in the
+// background. Only a first load with nothing held shows loading or failure.
+async function handleSearchOpen() {
+    if (peopleLoading.value) return;
+    const empty = contacts.value.length === 0;
+    if (empty) {
+        peopleLoading.value = true;
+        peopleFailed.value = false;
+    }
+    const ok = await loadContacts();
+    peopleLoading.value = false;
+    if (ok) {
+        peopleFailed.value = false;
+    } else if (contacts.value.length === 0) {
+        peopleFailed.value = true;
+        toast.error("Error loading contacts -- people cannot be searched");
+    }
+}
+
+// Open a search result over whatever view is showing. Nothing opens mid-drag.
+// An open contact drawer is asked to close first so unsaved edits are never
+// dropped silently. A different record in the application panel is closed
+// through the panel's own path and reopened fresh, because switching it in
+// place would carry a typed note or queued files over to the new record.
+// Whatever the outcome, the search box then gets out of the way and hands
+// focus back, so a pick that opened nothing leaves the user inside the panel
+// they were in. A newly opened panel takes focus itself when it mounts.
+// A second pick while one is still settling is ignored, so a typed note is
+// never saved twice.
+let searchPickInFlight = false;
+async function openFromSearch(item) {
+    if (dragActive.value || searchPickInFlight) return;
+    searchPickInFlight = true;
+    try {
+        await openSearchResult(item);
+    } finally {
+        searchPickInFlight = false;
+    }
+    headerSearch.value?.dismiss({ restoreFocus: true });
+}
+
+async function openSearchResult(item) {
+    if (contactId.value !== null) {
+        if (item.kind === "person" && item.id === contactId.value) return;
+        if (contactPanelRef.value && !contactPanelRef.value.confirmClose()) return;
+    }
+
+    if (item.kind === "person") {
+        contactId.value = item.id;
+        return;
+    }
+
+    contactId.value = null;
+    if (showPanel.value && panelApp.value?.id === item.id) return;
+    if (showPanel.value) {
+        // The prompt for unsaved edits lives in the panel, so the search box
+        // has to be out of its way before the panel is asked.
+        headerSearch.value?.dismiss({ restoreFocus: true });
+        if (applicationPanelRef.value && !(await applicationPanelRef.value.prepareSwitch())) {
+            return;
+        }
+        showPanel.value = false;
+        await nextTick();
+    }
+    openPanel(item.record);
+}
+
+// Ctrl+K (Cmd+K on macOS) reaches search from any view. Settings is a task of
+// its own rather than a view, so the shortcut stays out of its way.
+function handleGlobalKeydown(event) {
+    if (event.key.toLowerCase() !== "k") return;
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    if (showSettings.value) return;
+    event.preventDefault();
+    headerSearch.value?.open();
 }
 
 // A card on the phone links back here as /?contact=<id>. Open that person once
@@ -891,6 +990,7 @@ onMounted(async () => {
     const isMobile = window.innerWidth < 768;
     compactHeader.value = storageGetBool(COMPACT_KEY, isMobile);
     document.addEventListener("visibilitychange", refreshOnFocus);
+    document.addEventListener("keydown", handleGlobalKeydown);
     currentUser.value = await fetchMe();
     openContactFromLink();
     loadApplications();
@@ -906,6 +1006,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     document.removeEventListener("visibilitychange", refreshOnFocus);
+    document.removeEventListener("keydown", handleGlobalKeydown);
     if (announcementTimer !== null) clearTimeout(announcementTimer);
     liveUpdates.value?.stop();
     dayRollover?.stop();

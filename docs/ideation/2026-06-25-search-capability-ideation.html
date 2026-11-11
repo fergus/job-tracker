@@ -1,965 +1,402 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ideation: Search Capability — Job Tracker</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: Search Capability - Job Tracker</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+*, *::before, *::after { box-sizing: border-box; }
 :root {
-  --bg: #0f1117;
-  --surface: #181c27;
-  --surface-2: #1e2333;
-  --border: #2a2f45;
-  --border-light: #232840;
-  --ink: #e8eaf2;
-  --ink-2: #9ba3bf;
-  --ink-3: #5c6380;
-  --accent: #6366f1;
-  --accent-soft: #1e1f3a;
-  --accent-text: #a5b4fc;
-  --green: #22c55e;
-  --green-soft: #0f2a1a;
-  --green-text: #86efac;
-  --amber: #f59e0b;
-  --amber-soft: #2a1f08;
-  --amber-text: #fcd34d;
-  --red: #ef4444;
-  --red-soft: #2a0f0f;
-  --red-text: #fca5a5;
-  --teal: #14b8a6;
-  --teal-soft: #0a2520;
-  --teal-text: #5eead4;
-  --purple: #a855f7;
-  --purple-soft: #1e1030;
-  --purple-text: #d8b4fe;
+  --bg: #0f1117; --surface: #181c27; --surface-2: #1e2333; --border: #2a2f45;
+  --ink: #e8eaf2; --ink-2: #b4bbd3; --ink-3: #7d84a3;
+  --accent-soft: #1e1f3a; --accent-text: #a5b4fc;
+  --green-soft: #0f2a1a; --green-text: #86efac;
+  --amber-soft: #2a1f08; --amber-text: #fcd34d;
+  --red-soft: #2a0f0f; --red-text: #fca5a5;
+  --teal-soft: #0a2520; --teal-text: #5eead4;
   --code-bg: #141824;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --mono: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 15px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  --mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 }
-
-body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--ink);
-  line-height: 1.65;
-  padding: 2rem 1rem 5rem;
-}
-
-.container { max-width: 920px; margin-inline: auto; }
-
-/* ── Header ── */
-.doc-header {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 1.75rem;
-  margin-bottom: 2rem;
-}
-.eyebrow {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent-text);
-  margin-bottom: 0.6rem;
-}
-h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  margin-bottom: 0.85rem;
-}
-.meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1.25rem;
-  font-size: 0.78rem;
-  color: var(--ink-3);
-}
-.meta-row span { display: flex; align-items: center; gap: 0.3rem; }
-.meta-row .mv { color: var(--ink-2); font-weight: 500; }
-
-/* ── Stats strip ── */
-.stats-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 0.65rem;
-  margin-bottom: 2.5rem;
-}
-.stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.875rem 1rem;
-  text-align: center;
-}
-.stat-num {
-  font-size: 1.55rem;
-  font-weight: 700;
-  color: var(--accent-text);
-  line-height: 1;
-  margin-bottom: 0.3rem;
-}
-.stat-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-/* ── Sections ── */
-section { margin-bottom: 3rem; }
-h2 {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-/* ── Grounding context ── */
-.grounding-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.65rem;
-}
-@media (max-width: 600px) { .grounding-grid { grid-template-columns: 1fr; } }
-.ground-block {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 0.875rem 1rem;
-}
-.ground-block dt {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin-bottom: 0.4rem;
-}
-.ground-block dd {
-  font-size: 0.83rem;
-  color: var(--ink-2);
-  line-height: 1.55;
-}
-.ground-block code {
-  font-family: var(--mono);
-  font-size: 0.78em;
-  background: var(--code-bg);
-  color: var(--accent-text);
-  border-radius: 3px;
-  padding: 0.1em 0.3em;
-}
-
-/* ── Axes ── */
-.axes-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-.axis-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.3rem 0.75rem;
-  font-size: 0.78rem;
-  font-family: var(--mono);
-  color: var(--ink-2);
-}
-.axis-num { color: var(--accent-text); font-weight: 600; font-size: 0.72rem; }
-
-/* ── Jump list ── */
-.jump-list {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.875rem 1.1rem;
-  margin-bottom: 1.5rem;
-}
-.jump-list a {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.2rem 0;
-  font-size: 0.83rem;
-  color: var(--ink-2);
-  text-decoration: none;
-  transition: color 0.12s;
-}
-.jump-list a:hover { color: var(--accent-text); }
-.jr { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-3); min-width: 1.6rem; }
-.ja { font-family: var(--mono); font-size: 0.68rem; margin-left: auto; color: var(--ink-3); }
-
-/* ── Idea cards ── */
-article.idea-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  margin-bottom: 1.25rem;
-  overflow: hidden;
-}
-article.idea-card:target { border-color: var(--accent); }
-
-.card-header {
-  padding: 1.25rem 1.4rem 1rem;
-  border-bottom: 1px solid var(--border-light);
-}
-.rank-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-.rank-badge {
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--ink-3);
-}
-.chip {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 5px;
-  padding: 0.18rem 0.55rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  border: 1px solid transparent;
-}
-.chip-axis { background: var(--surface-2); color: var(--ink-2); border-color: var(--border); font-family: var(--mono); }
-.chip-conf-h { background: var(--green-soft); color: var(--green-text); }
-.chip-conf-m { background: var(--amber-soft); color: var(--amber-text); }
-.chip-cx-s { background: var(--accent-soft); color: var(--accent-text); }
-.chip-cx-m { background: var(--purple-soft); color: var(--purple-text); }
-
-.card-title {
-  font-size: 1.07rem;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-}
-
-.card-body { padding: 1.25rem 1.4rem; }
-
-.idea-field { margin-bottom: 1rem; }
-.idea-field:last-child { margin-bottom: 0; }
-.field-label {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin-bottom: 0.35rem;
-}
-.idea-field p {
-  font-size: 0.875rem;
-  color: var(--ink-2);
-  line-height: 1.7;
-  max-width: 72ch;
-}
-.idea-field code {
-  font-family: var(--mono);
-  font-size: 0.8em;
-  background: var(--code-bg);
-  color: var(--accent-text);
-  border-radius: 3px;
-  padding: 0.1em 0.35em;
-}
-
-.basis-block {
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
-  font-size: 0.82rem;
-  font-family: var(--mono);
-  color: var(--ink-2);
-  line-height: 1.6;
-  max-width: 72ch;
-}
-.basis-type { color: var(--accent-text); font-weight: 600; }
-
-.downside-block {
-  background: var(--amber-soft);
-  border: 1px solid #3a2a08;
-  border-radius: 6px;
-  padding: 0.65rem 1rem;
-  font-size: 0.83rem;
-  color: var(--amber-text);
-  line-height: 1.5;
-  max-width: 72ch;
-}
-
-/* ── Diagrams ── */
-.diagram-wrap {
-  margin: 1.1rem 0 0.5rem;
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.25rem;
-  overflow-x: auto;
-}
-
-/* ── Rejection table ── */
-.rejection-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.83rem;
-}
-.rejection-table th {
-  text-align: left;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-.rejection-table td {
-  padding: 0.6rem 0.75rem;
-  color: var(--ink-2);
-  border-bottom: 1px solid var(--border-light);
-  vertical-align: top;
-}
-.rejection-table td:first-child { color: var(--ink-3); font-family: var(--mono); font-size: 0.75rem; white-space: nowrap; }
-.rejection-table td:nth-child(2) { color: var(--ink); font-weight: 500; }
-.rejection-table tr.axis-gap td { color: var(--amber-text); font-style: italic; }
-
-/* ── Footer ── */
-footer.composition-signal {
-  margin-top: 4rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.75rem;
-  color: var(--ink-3);
-}
-footer.composition-signal code {
-  font-family: var(--mono);
-  font-size: 0.85em;
-  color: var(--ink-2);
-}
+body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--ink); line-height: 1.65; font-size: 15px; padding: 2rem 1rem 5rem; }
+.container { max-width: 760px; margin-inline: auto; }
+.wide { max-width: 100%; overflow-x: auto; }
+h1 { font-size: 1.8rem; line-height: 1.2; margin: 0.4rem 0 0.8rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.25rem; margin: 3rem 0 1rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 0 0 0.6rem; }
+h4 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); margin: 1.4rem 0 0.4rem; }
+p, li, dd { color: var(--ink-2); }
+code { font-family: var(--mono); font-size: 0.85em; background: var(--code-bg); color: var(--accent-text); border-radius: 3px; padding: 0.05em 0.3em; }
+a { color: var(--accent-text); }
+.eyebrow { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-text); }
+.header-meta { color: var(--ink-3); font-size: 0.85rem; }
+.header-meta strong { color: var(--ink-2); font-weight: 600; }
+details.docmeta { margin: 1rem 0 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.9rem; font-size: 0.85rem; }
+details.docmeta dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; margin: 0.6rem 0 0.2rem; }
+details.docmeta dt { font-family: var(--mono); color: var(--ink-3); }
+details.docmeta dd { margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.6rem; margin: 1.5rem 0; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem; text-align: center; }
+.stat b { display: block; font-size: 1.5rem; color: var(--accent-text); line-height: 1.1; }
+.stat span { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.ground dl { margin: 0; }
+.ground dt { font-weight: 700; color: var(--ink); margin-top: 0.9rem; }
+.ground dd { margin: 0.2rem 0 0; }
+.ground ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+ol.axes { padding-left: 1.3rem; }
+ol.axes li { margin-bottom: 0.3rem; }
+nav.jump ol { padding-left: 1.3rem; columns: 2; column-gap: 2rem; font-size: 0.9rem; }
+@media (max-width: 600px) { nav.jump ol { columns: 1; } }
+article.idea { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem 1.3rem; margin: 1.4rem 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.8rem; }
+.chip { font-size: 0.72rem; font-weight: 600; border-radius: 999px; padding: 0.15rem 0.6rem; background: var(--surface-2); color: var(--ink-2); }
+.chip.axis { background: var(--accent-soft); color: var(--accent-text); }
+.chip.conf { background: var(--green-soft); color: var(--green-text); }
+.chip.cx { background: var(--amber-soft); color: var(--amber-text); }
+.chip.src { background: var(--teal-soft); color: var(--teal-text); }
+article.idea dl { margin: 0; }
+article.idea dt { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: 0.9rem; }
+article.idea dd { margin: 0.25rem 0 0; }
+article.idea dd ul { margin: 0.2rem 0 0; padding-left: 1.2rem; }
+figure { margin: 1rem 0 0.4rem; }
+figure svg { width: 100%; height: auto; display: block; }
+figcaption { font-size: 0.8rem; color: var(--ink-3); margin-top: 0.3rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; vertical-align: top; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--border); color: var(--ink-2); }
+th { color: var(--ink); font-weight: 600; }
+.verdict-cut { color: var(--red-text); }
+.verdict-merge { color: var(--teal-text); }
+footer.composition-signal { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--ink-3); }
 </style>
 </head>
 <body>
 <div class="container">
 
-<!-- ── Header ── -->
-<header class="doc-header">
-  <p class="eyebrow">Ideation · Repo-grounded</p>
-  <h1>Search Capability — Job Tracker</h1>
-  <div class="meta-row">
-    <span><span class="mv">2026-06-25</span></span>
-    <span>Focus: <span class="mv">need search capability</span></span>
-    <span>Mode: <span class="mv">repo-grounded</span></span>
-    <span>Topic: <span class="mv">search-capability</span></span>
-  </div>
+<header>
+  <h1>Ideation: Search Capability - Job Tracker</h1>
+  <p class="header-meta"><strong>Date:</strong> <time datetime="2026-11-07">2026-11-07</time> (first composed 2026-06-25) &middot; <strong>Focus:</strong> search through the user's data to surface relevant records, in the app and for MCP agents (Linear project "Job Tracker Search")</p>
 </header>
 
-<!-- ── Stats strip ── -->
-<div class="stats-strip" role="region" aria-label="Summary statistics">
-  <div class="stat-card"><div class="stat-num">7</div><div class="stat-label">Ranked ideas</div></div>
-  <div class="stat-card"><div class="stat-num">37</div><div class="stat-label">Raw candidates</div></div>
-  <div class="stat-card"><div class="stat-num">5</div><div class="stat-label">Ideation frames</div></div>
-  <div class="stat-card"><div class="stat-num">5</div><div class="stat-label">Topic axes</div></div>
-  <div class="stat-card"><div class="stat-num">1</div><div class="stat-label">Refuted</div></div>
+<details class="docmeta">
+  <summary>Document metadata</summary>
+  <dl>
+    <dt>topic</dt><dd>search-capability</dd>
+    <dt>mode</dt><dd>repo-grounded</dd>
+    <dt>prior_version</dt><dd>2026-06-25 (run 6246c50c); June ranking carried forward below</dd>
+  </dl>
+</details>
+
+<div class="stats">
+  <div class="stat"><b>7</b><span>Ranked ideas</span></div>
+  <div class="stat"><b>46</b><span>Raw candidates</span></div>
+  <div class="stat"><b>23</b><span>After dedupe</span></div>
+  <div class="stat"><b>6</b><span>Frames</span></div>
+  <div class="stat"><b>5</b><span>Topic axes</span></div>
 </div>
 
-<!-- ── Grounding Context ── -->
-<section id="grounding">
-  <h2>Grounding Context</h2>
-  <div class="grounding-grid">
-    <dl class="ground-block">
-      <dt>Codebase</dt>
-      <dd>Vue 3 + Express 5, SQLite WAL (<code>better-sqlite3</code> v12.11.1), Docker single-image, oauth2-proxy. MCP server port 3001 with 14 tools.</dd>
-    </dl>
-    <dl class="ground-block">
-      <dt>Current search state</dt>
-      <dd>No text search. Status toggle (<code>showClosed</code>), <code>updated_since</code>, and <code>company_name LIKE</code> in service — but <code>company_name</code> is silently dropped at the REST route.</dd>
-    </dl>
-    <dl class="ground-block">
-      <dt>Schema (searchable dark data)</dt>
-      <dd><code>extracted_jd</code> (full JD text), <code>attachments.extracted_text</code> (CV/doc text), <code>stage_notes.content</code> (per-stage interview notes), <code>audit_log</code> (every mutation). All stored; none queryable.</dd>
-    </dl>
-    <dl class="ground-block">
-      <dt>Key constraints</dt>
-      <dd>KanbanBoard receives raw applications (Sortable.js requires this); TimelineView receives pre-filtered <code>displayApplications</code>. Any new filter must respect this split. Drag-active guard required.</dd>
-    </dl>
-    <dl class="ground-block">
-      <dt>Past learnings</dt>
-      <dd>Double-array-scan risk: multiple computed scans over <code>applications</code> caused perf issues — use one combined pass. Panel must close synchronously (not <code>nextTick</code>) when filter removes its application.</dd>
-    </dl>
-    <dl class="ground-block">
-      <dt>External signals</dt>
-      <dd>SQLite FTS5 fully supported by <code>better-sqlite3</code>. <code>minisearch</code> best for pure client-side. Filter chip pattern (Linear/Jira) validated for tabular records. JobSync (closest analog) has no search.</dd>
-    </dl>
-  </div>
+<p>June's ideation covered roles and their notes only. Since then the app gained people, contact notes, LinkedIn connections, Today, the stage/state/close-reason split and an agent-first pitch. This refresh re-grounds search against that app. It replaces the June ranking, which is kept in <a href="#june-ranking">Prior Ranking (June 2026)</a> for reference.</p>
+
+<section id="grounding-context">
+<h2>Grounding Context</h2>
+<div class="ground">
+<h3>Codebase Context</h3>
+<dl>
+  <dt>Stack</dt>
+  <dd>Vue 3 single-page app with no router, Express 5, SQLite in WAL mode via better-sqlite3, one Docker image behind oauth2-proxy. A separate MCP server (<code>server/mcp.js</code>) on its own port with Bearer API keys. A live-update stream via <code>emitChange</code> in <code>server/lib/events.js</code>.</dd>
+
+  <dt>Text that holds what a user would search for</dt>
+  <dd><ul>
+    <li><code>applications</code>: company, role title, job description, posting and company URLs, interview notes, prep work, extracted JD, location, next action (<code>server/db.js:34-53</code> plus later migrations).</li>
+    <li><code>stage_notes.content</code> and <code>contact_notes.content</code>, both soft-deleted via <code>hidden_at</code>.</li>
+    <li><code>attachments</code>: filename, <code>extracted_text</code> (added later, <code>db.js:141</code>), <code>generated_by</code> and <code>generation_task</code>.</li>
+    <li><code>contacts</code>: name, role, employer, email, phone, notes, next action, LinkedIn URL. Linked to roles through <code>contact_links(contact_id, application_id, relation)</code> (<code>db.js:243-250</code>).</li>
+    <li><code>connections</code> (imported LinkedIn): names, company, position, email, URL, and a normalised <code>company_key</code> (<code>db.js:323</code>).</li>
+    <li><code>user_profiles</code>: CV markdown, career narrative, target roles, agent instructions.</li>
+  </ul></dd>
+
+  <dt>Search today</dt>
+  <dd><ul>
+    <li>Roles: <code>company_name LIKE</code> only (<code>server/services/applications.js:272-273</code>). The June bug where the REST route dropped <code>company_name</code> is fixed.</li>
+    <li>People: name, employer or role <code>LIKE</code>, unescaped (<code>server/services/contacts.js:213</code>).</li>
+    <li>Connections: escaped <code>LIKE</code> over name, company and position; exact match on <code>company_key</code> (<code>server/services/connections.js:240-249</code>).</li>
+    <li>Nothing searches notes, job descriptions, interview notes, prep work, contact notes, attachment text or profile text. No FTS table exists.</li>
+    <li>MCP <code>list_applications</code> tells agents to "locate records by ID, then call get_application(id)" (<code>server/mcp.js:122</code>); its only text filter is a partial company name.</li>
+    <li>The client has no search input. People has a deliberate "no filter control" rule (<code>client/src/components/PeopleView.vue:103</code>). Today rows show only the next action or "Follow up" (<code>TodayView.vue:104</code>).</li>
+  </ul></dd>
+
+  <dt>Constraints and learnings</dt>
+  <dd><ul>
+    <li><code>emitChange</code> is application-scoped. Its only callers are application routes and services, notes and MCP. Contact and connection writes do not emit.</li>
+    <li>Any index is derived state. Write to the database first, then reconcile on boot alongside the existing file sweeper (<code>docs/solutions/logic-errors/file-cleanup-ordering...</code>).</li>
+    <li>Filter changes must guard drag state and close the detail panel synchronously (<code>docs/solutions/ui-bugs/showclosed-toggle-drag-guard...</code>).</li>
+    <li>Product: "campaign tool, not a CRM"; "information density earns its keep"; the audience is self-hosters who run an MCP client. Nothing leaves the server unless the user connects an agent or sets <code>OPENAI_API_KEY</code>.</li>
+  </ul></dd>
+
+  <dt>External context (moderate confidence, secondary sources)</dt>
+  <dd><ul>
+    <li>Trackers like Huntr and Teal compete on capturing jobs, not on finding things in your own data. Monica CRM searches contacts and notes through a pluggable backend.</li>
+    <li>FTS5 trigram matching has a hole for queries under 3 characters. bm25 scores are not comparable across separate tables, so one denormalised search table is simpler.</li>
+    <li>Hybrid FTS plus sqlite-vec with reciprocal rank fusion (Simon Willison / Alex Garcia) is the usual local semantic pattern.</li>
+    <li>OpenAI's deep-research MCP convention is two tools, <code>search</code> and <code>fetch</code>. Anthropic's tool guidance favours concise responses, ids to expand, and actionable empty results.</li>
+  </ul></dd>
+</dl>
+</div>
 </section>
 
-<!-- ── Topic Axes ── -->
-<section id="axes">
-  <h2>Topic Axes</h2>
-  <div class="axes-list">
-    <div class="axis-chip"><span class="axis-num">1</span> query-scope</div>
-    <div class="axis-chip"><span class="axis-num">2</span> search-ux</div>
-    <div class="axis-chip"><span class="axis-num">3</span> technical-approach</div>
-    <div class="axis-chip"><span class="axis-num">4</span> api-integration</div>
-    <div class="axis-chip"><span class="axis-num">5</span> state-interaction</div>
-  </div>
+<section id="topic-axes">
+<h2>Topic Axes</h2>
+<ol class="axes">
+  <li><strong>What gets searched</strong>: which records and text fields are in scope, and how they relate.</li>
+  <li><strong>Agent retrieval</strong>: how an MCP agent finds and pulls records.</li>
+  <li><strong>Finding it in the app</strong>: how a person searches in the UI.</li>
+  <li><strong>Surfacing without asking</strong>: records brought forward by context rather than a typed query.</li>
+  <li><strong>Index trust and plumbing</strong>: keeping results correct, fast, local and private.</li>
+</ol>
 </section>
 
-<!-- ── Ranked Ideas ── -->
 <section id="ranked-ideas">
-  <h2>Ranked Ideas</h2>
+<h2>Ranked Ideas</h2>
+<nav class="jump" aria-label="Ranked ideas">
+<ol>
+  <li><a href="#idea-1">One search index over every record, kept honest</a></li>
+  <li><a href="#idea-2">Search-then-fetch for agents, with a coverage receipt</a></li>
+  <li><a href="#idea-3">Related records on every role and person</a></li>
+  <li><a href="#idea-4">Ctrl+K palette with record links and paste-to-open</a></li>
+  <li><a href="#idea-5">Who do I know at this company</a></li>
+  <li><a href="#idea-6">Today rows carry their context</a></li>
+  <li><a href="#idea-7">Let the agent bring the synonyms</a></li>
+</ol>
+</nav>
 
-  <nav class="jump-list" aria-label="Idea index">
-    <a href="#idea-1"><span class="jr">1.</span> FTS5 Universal Search Layer<span class="ja">technical-approach</span></a>
-    <a href="#idea-2"><span class="jr">2.</span> search_applications MCP Tool + unified q REST param<span class="ja">api-integration</span></a>
-    <a href="#idea-3"><span class="jr">3.</span> Full-corpus scope with FTS5 snippets<span class="ja">query-scope</span></a>
-    <a href="#idea-4"><span class="jr">4.</span> Composable filter chips replacing showClosed toggle<span class="ja">search-ux</span></a>
-    <a href="#idea-5"><span class="jr">5.</span> Salary range filter with data-coverage indicator<span class="ja">query-scope</span></a>
-    <a href="#idea-6"><span class="jr">6.</span> Change-aware search via audit log<span class="ja">query-scope</span></a>
-    <a href="#idea-7"><span class="jr">7.</span> URL-serialized search state<span class="ja">state-interaction</span></a>
-  </nav>
+<article class="idea" id="idea-1">
+  <h3>1. One search index over every record, kept honest</h3>
+  <div class="chips"><span class="chip axis">Index trust and plumbing</span><span class="chip conf">Confidence 85%</span><span class="chip cx">Complexity Medium</span><span class="chip src">Supersedes June #1 and #3</span></div>
+  <dl>
+    <dt>Description</dt>
+    <dd>One self-contained FTS5 table, <code>search_doc</code>, holds a row per searchable thing: a role, a stage note, a contact, a contact note, a connection, an attachment's text, and profile text. Each row carries its type, id, parent role, state and timestamps. The index is fed by SQLite triggers rather than <code>emitChange</code>, because contact and connection writes never emit. Hidden notes are removed when they are hidden. A boot reconcile compares row counts with the source tables and rebuilds anything that drifted, next to the existing file sweeper. Queries under three characters fall back to a prefix or <code>LIKE</code> match so "AI" and "Go" still work. Results come back grouped by type with per-type limits, so a 3,000-row LinkedIn import cannot crowd out roles and notes. The first release should weight user-written notes above job descriptions and attachment text.</dd>
+    <dt>Basis</dt>
+    <dd><ul>
+      <li><code>direct:</code> search is a separate <code>LIKE</code> per table with different escaping. Roles: <code>conditions.push("a.company_name LIKE ?");</code> (<code>server/services/applications.js:273</code>). Contacts: <code>conditions.push("(name LIKE ? OR employer LIKE ? OR contact_role LIKE ?)");</code> (<code>server/services/contacts.js:213</code>). Connections escape <code>%</code> and <code>_</code> (<code>server/services/connections.js:244</code>).</li>
+      <li><code>direct:</code> <code>emitChange(userEmail, type, applicationId)</code> is called only from application routes and services, notes and MCP. That rules it out as the indexing hook for people and connections.</li>
+      <li><code>external:</code> bm25 is not comparable across FTS tables; trigram returns nothing under 3 characters; one author found that external-content tables built from composed fields broke highlighting.</li>
+      <li><code>reasoned:</code> the derived-state learning (database first, reconcile on boot) applies to any index.</li>
+    </ul></dd>
+    <dt>Rationale</dt>
+    <dd>Every other idea here reads from this table. June stopped at roles and stage notes. People, contact notes and connections are now the largest volume of unsearched text, and one table avoids building three more per-entity search paths that would each drift.</dd>
+    <dt>Downsides</dt>
+    <dd>Triggers on seven tables plus a migration and a rebuild path. Attachment text arrives after the attachment row is created, so the index has to catch that update. Per-type limits make the result shape grouped rather than one ranked list, which the UI and the MCP contract both have to accept.</dd>
+  </dl>
+  <figure>
+    <svg viewBox="0 0 640 250" role="img" aria-label="Seven source tables feed one search_doc table through triggers; the UI palette, MCP search, the related rail and Today read from it">
+      <g font-family="sans-serif" font-size="12" fill="#e8eaf2">
+        <rect x="10" y="10" width="170" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="20" y="28">applications</text>
+        <rect x="10" y="42" width="170" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="20" y="60">stage_notes</text>
+        <rect x="10" y="74" width="170" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="20" y="92">attachments text</text>
+        <rect x="10" y="106" width="170" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="20" y="124">contacts</text>
+        <rect x="10" y="138" width="170" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="20" y="156">contact_notes</text>
+        <rect x="10" y="170" width="170" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="20" y="188">connections</text>
+        <rect x="10" y="202" width="170" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="20" y="220">user_profiles</text>
+        <g stroke="#5c6380" fill="none">
+          <path d="M180 23 L250 110"/><path d="M180 55 L250 112"/><path d="M180 87 L250 115"/><path d="M180 119 L250 118"/>
+          <path d="M180 151 L250 121"/><path d="M180 183 L250 124"/><path d="M180 215 L250 127"/>
+        </g>
+        <rect x="250" y="88" width="150" height="62" rx="8" fill="#1e1f3a" stroke="#a5b4fc"/>
+        <text x="270" y="113" fill="#a5b4fc" font-weight="bold">search_doc</text>
+        <text x="270" y="133" fill="#b4bbd3" font-size="11">FTS5, triggers</text>
+        <g stroke="#5c6380" fill="none">
+          <path d="M400 112 L470 40"/><path d="M400 116 L470 90"/><path d="M400 122 L470 150"/><path d="M400 126 L470 200"/>
+        </g>
+        <rect x="470" y="26" width="160" height="28" rx="5" fill="#0a2520" stroke="#2a2f45"/><text x="482" y="45">Ctrl+K palette</text>
+        <rect x="470" y="76" width="160" height="28" rx="5" fill="#0a2520" stroke="#2a2f45"/><text x="482" y="95">MCP search / fetch</text>
+        <rect x="470" y="136" width="160" height="28" rx="5" fill="#0a2520" stroke="#2a2f45"/><text x="482" y="155">Related rail</text>
+        <rect x="470" y="186" width="160" height="28" rx="5" fill="#0a2520" stroke="#2a2f45"/><text x="482" y="205">Today context</text>
+      </g>
+    </svg>
+    <figcaption>Illustrative: seven sources, one index, four readers.</figcaption>
+  </figure>
+</article>
 
-  <!-- ── Idea 1 ── -->
-  <article class="idea-card" id="idea-1">
-    <div class="card-header">
-      <div class="rank-row">
-        <span class="rank-badge">01</span>
-        <span class="chip chip-axis">technical-approach</span>
-        <span class="chip chip-conf-h">Conf 90%</span>
-        <span class="chip chip-cx-m">Cx Medium</span>
-      </div>
-      <h3 class="card-title">FTS5 Universal Search Layer</h3>
-    </div>
-    <div class="card-body">
-      <div class="idea-field">
-        <div class="field-label">Description</div>
-        <p>Add a SQLite FTS5 virtual table (<code>applications_fts</code>) using an external content table so data is not duplicated. The FTS index covers <code>company_name</code>, <code>job_title</code>, <code>notes</code>, <code>job_description</code>, and <code>extracted_jd</code> from the applications table. A separate <code>stage_notes_fts</code> covers <code>stage_notes.content</code>. Triggers (INSERT / UPDATE / DELETE) on both source tables keep the indexes in sync. A single <code>_migrations</code> entry adds the virtual tables and triggers. BM25 scoring is negative (lower = more relevant); queries use <code>bm25(applications_fts, 3.0, 2.0, 1.0, 1.0, 1.0)</code> to weight company and title matches above notes. <code>snippet()</code> returns highlighted excerpts for result display.</p>
-      </div>
+<article class="idea" id="idea-2">
+  <h3>2. Search-then-fetch for agents, with a coverage receipt</h3>
+  <div class="chips"><span class="chip axis">Agent retrieval</span><span class="chip conf">Confidence 85%</span><span class="chip cx">Complexity Medium</span><span class="chip src">Supersedes June #2</span></div>
+  <dl>
+    <dt>Description</dt>
+    <dd>Two MCP tools replace "list, page, then fetch each record". <code>search(q, types?, state?, limit, detail)</code> returns typed handles (<code>app:12</code>, <code>contact:4</code>, <code>note:88</code>, <code>conn:301</code>) with a title, a short snippet and the field that matched. Counts per type come first so the agent can narrow before fetching. <code>fetch(handle)</code> returns the full record with its linked context. Every response carries a coverage block: how many of each type were searched, which attachments have no extracted text, and that hidden notes were excluded. An agent can then say "you never wrote about Kubernetes" with confidence, or "4 PDFs were not searchable", instead of treating an empty result as a fact.</dd>
+    <dt>Basis</dt>
+    <dd><ul>
+      <li><code>direct:</code> <code>"Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work."</code> (<code>server/mcp.js:122</code>). The only text filter is <code>company_name</code>, "Filter by company name (partial match)" (<code>server/mcp.js:130-133</code>).</li>
+      <li><code>external:</code> OpenAI's deep-research MCP convention (<code>search</code> returns ids and titles, <code>fetch(id)</code> returns text); Anthropic's tool guidance on concise responses and actionable empty results.</li>
+      <li><code>reasoned:</code> agents act on absence ("no prior contact at Stripe, so draft a cold email"), so a wrong negative causes a real-world mistake.</li>
+    </ul></dd>
+    <dt>Rationale</dt>
+    <dd>The README now pitches "a self-hosted job tracker your AI agent can work". Today an agent asked "who did I talk to about the Rust role?" has to page every role and contact and fetch each one. This is the most visible gap in that promise, and following the two-tool convention means research modes in generic MCP clients work without setup.</dd>
+    <dt>Downsides</dt>
+    <dd>Two more tools on an already large MCP surface, and the handle format becomes a public contract. Relevance ordering changes as data changes, which tests have to allow for. Without idea 1 the tool can only search names, so it ships after the index.</dd>
+  </dl>
+  <figure>
+    <svg viewBox="0 0 640 150" role="img" aria-label="Today: list, then get_application for each record. Proposed: search returns counts, handles and coverage; then fetch one handle">
+      <g font-family="sans-serif" font-size="12" fill="#e8eaf2">
+        <text x="10" y="18" fill="#7d84a3" font-weight="bold">TODAY</text>
+        <rect x="10" y="28" width="130" height="30" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="22" y="48">list_applications</text>
+        <path d="M140 43 L180 43" stroke="#5c6380"/>
+        <rect x="180" y="28" width="210" height="30" rx="5" fill="#2a0f0f" stroke="#2a2f45"/><text x="192" y="48">get_application x N, scan text</text>
+        <text x="10" y="92" fill="#7d84a3" font-weight="bold">PROPOSED</text>
+        <rect x="10" y="102" width="130" height="30" rx="5" fill="#1e1f3a" stroke="#a5b4fc"/><text x="22" y="122">search(q)</text>
+        <path d="M140 117 L180 117" stroke="#5c6380"/>
+        <rect x="180" y="102" width="250" height="30" rx="5" fill="#1e2333" stroke="#2a2f45"/><text x="192" y="122">counts, handles, snippets, coverage</text>
+        <path d="M430 117 L470 117" stroke="#5c6380"/>
+        <rect x="470" y="102" width="160" height="30" rx="5" fill="#0f2a1a" stroke="#2a2f45"/><text x="482" y="122">fetch(handle)</text>
+      </g>
+    </svg>
+    <figcaption>Illustrative: one narrowing call replaces a page-and-fetch crawl.</figcaption>
+  </figure>
+</article>
 
-      <div class="idea-field">
-        <div class="field-label">Why it matters</div>
-        <p>This is the keystone. Without it, every other search idea — the MCP tool, the REST <code>q</code> param, the Cmd+K palette — is client-side filtering against a 200-record page rather than a real search. With it, every subsequent search feature is a 2-hour task layered on top of a working index. The three frames that converged on this idea independently (Leverage, Assumption-breaking, Cross-domain) all arrived at the same conclusion: FTS5 is what changes the architecture.</p>
-      </div>
+<article class="idea" id="idea-3">
+  <h3>3. Related records on every role and person</h3>
+  <div class="chips"><span class="chip axis">Surfacing without asking</span><span class="chip conf">Confidence 85%</span><span class="chip cx">Complexity Low</span><span class="chip src">New</span></div>
+  <dl>
+    <dt>Description</dt>
+    <dd>Opening a role shows the people linked to it, their latest notes, earlier roles at the same company with their close reason, and connections who work there. Opening a person shows their roles and recent notes. The same answer is available to agents as <code>related(type, id)</code>, and as a <code>possible_related</code> field when an agent creates a role or contact, so it sees "you were rejected here in March" before it creates a duplicate. No query and no index are needed for the core of it.</dd>
+    <dt>Basis</dt>
+    <dd><ul>
+      <li><code>direct:</code> people are already joined to roles by id: <code>CREATE TABLE IF NOT EXISTS contact_links (... contact_id ... application_id ... relation TEXT ...)</code> (<code>server/db.js:243-250</code>).</li>
+      <li><code>direct:</code> <code>get_application_context</code> (<code>server/mcp.js:782</code>) returns the role, notes, attachments and profile but not the linked people, so agents miss them today.</li>
+      <li><code>external:</code> the related-records sidebar in sales CRMs and the contact panel in email clients.</li>
+    </ul></dd>
+    <dt>Rationale</dt>
+    <dd>This is the cheapest way to show that search means more than a box. It uses the people data June could not, it catches the "I applied here two years ago" case, and it ships before the index exists.</dd>
+    <dt>Downsides</dt>
+    <dd>"Same company" for earlier roles and connections needs company matching, which is only clean once idea 5 lands. Until then it is limited to explicit links plus an exact company-name match. Adding the result to create responses changes the MCP contract.</dd>
+  </dl>
+</article>
 
-      <div class="diagram-wrap" role="img" aria-label="FTS5 search layer architecture: before and after">
-        <svg viewBox="0 0 660 200" width="100%" style="max-width:660px;display:block;margin:0 auto">
-          <defs>
-            <marker id="arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-              <path d="M0,0 L7,3.5 L0,7 Z" fill="#5c6380"/>
-            </marker>
-            <marker id="arr2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-              <path d="M0,0 L7,3.5 L0,7 Z" fill="#a5b4fc"/>
-            </marker>
-          </defs>
-          <!-- BEFORE -->
-          <text x="90" y="18" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace" font-weight="600" letter-spacing="1">BEFORE</text>
-          <rect x="10" y="28" width="160" height="32" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="90" y="48" text-anchor="middle" font-size="11" fill="#9ba3bf" font-family="'Inter',sans-serif">applications table</text>
-          <line x1="90" y1="60" x2="90" y2="80" stroke="#5c6380" stroke-width="1.5" marker-end="url(#arr)"/>
-          <rect x="30" y="80" width="120" height="28" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="90" y="99" text-anchor="middle" font-size="11" fill="#9ba3bf" font-family="'Inter',sans-serif">LIKE query only</text>
-          <line x1="90" y1="108" x2="90" y2="128" stroke="#5c6380" stroke-width="1.5" marker-end="url(#arr)"/>
-          <rect x="30" y="128" width="120" height="28" rx="5" fill="#2a0f0f" stroke="#3a1010"/>
-          <text x="90" y="147" text-anchor="middle" font-size="11" fill="#fca5a5" font-family="'Inter',sans-serif">company_name only</text>
+<article class="idea" id="idea-4">
+  <h3>4. Ctrl+K palette with record links and paste-to-open</h3>
+  <div class="chips"><span class="chip axis">Finding it in the app</span><span class="chip conf">Confidence 75%</span><span class="chip cx">Complexity Medium</span><span class="chip src">Reverses June's deferral</span></div>
+  <dl>
+    <dt>Description</dt>
+    <dd>Ctrl/Cmd+K opens one palette grouped into Roles, People, Notes and Connections. When empty it lists recent records and what Today has due, so most uses need no typing. Pasting an email address, LinkedIn URL, posting URL or phone number does an exact lookup and opens that record directly. Every result has a hash link (<code>#/app/12</code>, <code>#/contact/4</code>), which gives records an address for the first time, so an agent can hand the user a link that opens the right panel.</dd>
+    <dt>Basis</dt>
+    <dd><ul>
+      <li><code>direct:</code> <code>&lt;!-- R2: one scroll, four groups, no filter control.</code> (<code>client/src/components/PeopleView.vue:103</code>). People deliberately has no filter, so one palette fills the gap without adding filter bars to each view.</li>
+      <li><code>direct:</code> the app already rewrites its URL with <code>window.history.replaceState(null, "", url.pathname + url.search + url.hash);</code> (<code>client/src/App.vue:563</code>), so hash links fit without a router.</li>
+      <li><code>direct:</code> exact identifiers already exist as columns: connections <code>url TEXT NOT NULL</code> and <code>email TEXT</code> (<code>server/db.js:320-321</code>), and contact email and phone (<code>server/db.js:227-228</code>).</li>
+      <li><code>external:</code> the command palette pattern (grouped by type, recents when empty) and caller-ID "screen pop" lookup in call centres.</li>
+    </ul></dd>
+    <dt>Rationale</dt>
+    <dd>Board, Timeline, People and Today share no way to find anything. A keyboard palette suits the "tactical, sharp" brand and keeps views uncluttered. Recents and paste-to-open work before the index exists, so this can ship in two steps.</dd>
+    <dt>Downsides</dt>
+    <dd>Opening a record from the palette must follow the drag-guard and panel-close rules. Hash links add a small routing layer to maintain. The Notes group only becomes useful once idea 1 ships.</dd>
+  </dl>
+</article>
 
-          <!-- divider -->
-          <line x1="200" y1="20" x2="200" y2="190" stroke="#2a2f45" stroke-width="1" stroke-dasharray="4,3"/>
+<article class="idea" id="idea-5">
+  <h3>5. Who do I know at this company</h3>
+  <div class="chips"><span class="chip axis">What gets searched</span><span class="chip conf">Confidence 65%</span><span class="chip cx">Complexity Medium</span><span class="chip src">New</span></div>
+  <dl>
+    <dt>Description</dt>
+    <dd>Give roles and people the same normalised company key that connections already have, so a search for "Stripe" returns one grouped answer: the roles and leads, the people who work there, and the LinkedIn connections there. Show connections only for companies with an open role or lead, so a 3,000-row import becomes a referral finder rather than noise. This is deliberately narrower than a general company entity.</dd>
+    <dt>Basis</dt>
+    <dd><ul>
+      <li><code>direct:</code> connections normalise the company (<code>company_key TEXT,</code> at <code>server/db.js:323</code>) and filter on it exactly (<code>where.push("company_key = ?");</code> at <code>server/services/connections.js:240</code>). Roles use free-text <code>company_name LIKE</code> (<code>server/services/applications.js:273</code>), and contacts store <code>employer TEXT,</code> (<code>server/db.js:226</code>). The three cannot be joined reliably today.</li>
+      <li><code>reasoned:</code> a warm intro is the strongest move in a job search, and no tracker competitor has a connections table to answer this.</li>
+    </ul></dd>
+    <dt>Rationale</dt>
+    <dd>This makes the LinkedIn import useful and powers idea 3's "connections there" and idea 6's context line. It is the main thing this app can answer that a spreadsheet or Huntr cannot.</dd>
+    <dt>Downsides</dt>
+    <dd>Needs a migration that backfills a key on roles and contacts and a decision on whether to reuse the connections normaliser. "Acme" and "Acme Holdings" will still miss without manual merges. The verifier judged a full authority file to be overreach; keep it to the key.</dd>
+  </dl>
+</article>
 
-          <!-- AFTER -->
-          <text x="430" y="18" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace" font-weight="600" letter-spacing="1">AFTER</text>
-          <!-- source tables -->
-          <rect x="210" y="28" width="120" height="28" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="270" y="47" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">applications</text>
-          <rect x="340" y="28" width="110" height="28" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="395" y="47" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">stage_notes</text>
-          <rect x="460" y="28" width="100" height="28" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="510" y="47" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">attachments</text>
+<article class="idea" id="idea-6">
+  <h3>6. Today rows carry their context</h3>
+  <div class="chips"><span class="chip axis">Surfacing without asking</span><span class="chip conf">Confidence 70%</span><span class="chip cx">Complexity Low</span><span class="chip src">Reshapes June's rejected push surface</span></div>
+  <dl>
+    <dt>Description</dt>
+    <dd>Each Today row gets one context line drawn from idea 3's join: the last note with that person, other open roles at the company, or "2 connections here". The follow-up itself is the query, so the user gets recall at the moment they reach out, without searching.</dd>
+    <dt>Basis</dt>
+    <dd><ul>
+      <li><code>direct:</code> Today rows currently show only <code>item.next_action || 'Follow up',</code> (<code>client/src/components/TodayView.vue:104</code>).</li>
+      <li><code>direct:</code> Today is the daily surface agents mirror: "filter follow_up_state to ["overdue","due"] ... to match the Today screen" (<code>server/mcp.js:122</code>).</li>
+    </ul></dd>
+    <dt>Rationale</dt>
+    <dd>Users check Today daily, so this is where retrieval gets seen most. It costs little once idea 3 exists.</dd>
+    <dt>Downsides</dt>
+    <dd>Keep it to one line. Rule-based nudges ("no note in 30 days") were considered and left out because they drift toward the CRM the product says it is not. Today rows become heavier to compute.</dd>
+  </dl>
+</article>
 
-          <!-- triggers -->
-          <line x1="270" y1="56" x2="340" y2="82" stroke="#2a2f45" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#arr)"/>
-          <line x1="395" y1="56" x2="360" y2="82" stroke="#2a2f45" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#arr)"/>
-          <line x1="510" y1="56" x2="380" y2="82" stroke="#2a2f45" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#arr)"/>
-          <text x="280" y="73" font-size="8" fill="#5c6380" font-family="'JetBrains Mono',monospace">triggers</text>
-
-          <!-- FTS index -->
-          <rect x="300" y="84" width="140" height="30" rx="5" fill="#1e1f3a" stroke="#3d4460"/>
-          <text x="370" y="104" text-anchor="middle" font-size="11" fill="#a5b4fc" font-family="'Inter',sans-serif" font-weight="600">FTS5 index</text>
-
-          <!-- consumers -->
-          <line x1="340" y1="114" x2="255" y2="140" stroke="#a5b4fc" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <line x1="370" y1="114" x2="370" y2="140" stroke="#a5b4fc" stroke-width="1.5" marker-end="url(#arr2)"/>
-          <line x1="400" y1="114" x2="490" y2="140" stroke="#a5b4fc" stroke-width="1.5" marker-end="url(#arr2)"/>
-
-          <rect x="210" y="140" width="90" height="26" rx="5" fill="#0f2a1a" stroke="#1a4a2a"/>
-          <text x="255" y="157" text-anchor="middle" font-size="10" fill="#86efac" font-family="'Inter',sans-serif">REST /q</text>
-          <rect x="325" y="140" width="90" height="26" rx="5" fill="#0f2a1a" stroke="#1a4a2a"/>
-          <text x="370" y="157" text-anchor="middle" font-size="10" fill="#86efac" font-family="'Inter',sans-serif">MCP search</text>
-          <rect x="440" y="140" width="90" height="26" rx="5" fill="#0f2a1a" stroke="#1a4a2a"/>
-          <text x="485" y="157" text-anchor="middle" font-size="10" fill="#86efac" font-family="'Inter',sans-serif">UI Cmd+K</text>
-        </svg>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Basis</div>
-        <div class="basis-block">
-          <span class="basis-type">direct:</span> <code>server/db.js:14</code> — WAL mode confirmed. <code>server/db.js:162–166</code> — <code>extracted_jd</code> column. <code>server/db.js:110–141</code> — <code>attachments.extracted_text</code>. <code>server/db.js:52–60</code> — <code>stage_notes.content</code>. <code>server/db.js:169–184</code> — <code>audit_log</code>. No FTS virtual table anywhere in codebase.<br><br>
-          <span class="basis-type">external:</span> SQLite FTS5 with external content tables avoids data duplication; INSERT/UPDATE/DELETE triggers maintain sync; <code>snippet()</code> returns highlighted excerpts; <code>better-sqlite3</code> v12 supports FTS5 via <code>db.exec()</code>.
-        </div>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Downsides</div>
-        <div class="downside-block">FTS5 triggers add write overhead — negligible at job-tracker scale (hundreds of records) but worth noting for large note fields. External content tables require discipline: if the source row is deleted without the trigger running (e.g., a raw SQL <code>DELETE</code> in tests), the index goes stale silently. BM25 scoring is negative (lower = more relevant), which is counterintuitive and needs a wrapper. One migration adds virtual tables + 6 triggers — test the migration rollback path.</div>
-      </div>
-    </div>
-  </article>
-
-  <!-- ── Idea 2 ── -->
-  <article class="idea-card" id="idea-2">
-    <div class="card-header">
-      <div class="rank-row">
-        <span class="rank-badge">02</span>
-        <span class="chip chip-axis">api-integration</span>
-        <span class="chip chip-conf-h">Conf 95%</span>
-        <span class="chip chip-cx-s">Cx Small</span>
-      </div>
-      <h3 class="card-title">search_applications MCP Tool + Unified q REST Param</h3>
-    </div>
-    <div class="card-body">
-      <div class="idea-field">
-        <div class="field-label">Description</div>
-        <p>Add a <code>search_applications</code> MCP tool (tool #15) with a <code>q</code> text parameter that queries the FTS5 index and returns relevance-ranked results with <code>snippet()</code> match context — a different contract than <code>list_applications</code> (which enumerates and paginates). Simultaneously, add a <code>q</code> query parameter to the REST <code>GET /api/applications</code> route, passed through to <code>svc.listApplications()</code>. Both consumers hit the same underlying FTS5 query. Also fix the pre-existing bug: <code>req.query.company_name</code> is not currently forwarded from the REST route handler to the service (verified at <code>routes/applications.js:54–59</code>), despite the service supporting it — one-line fix, do it now regardless of which direction is chosen.</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Why it matters</div>
-        <p>This idea had the highest cross-frame convergence: all 5 ideation frames identified it independently. AI agents using <code>list_applications</code> today must paginate through 200 records and scan locally to find anything — the MCP integration is a marketing feature, not a working one, for retrieval use cases. A dedicated <code>search_applications</code> tool with FTS5 backing changes the agent interaction from O(N) enumeration to O(1) intent expression. It also signals to the MCP contract that search and enumeration are different operations with different semantics, which prevents a messy parameter accumulation on <code>list_applications</code>.</p>
-      </div>
-
-      <div class="diagram-wrap" role="img" aria-label="MCP search: before N+1 pattern vs after single search call">
-        <svg viewBox="0 0 620 160" width="100%" style="max-width:620px;display:block;margin:0 auto">
-          <defs>
-            <marker id="arr3" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-              <path d="M0,0 L7,3.5 L0,7 Z" fill="#5c6380"/>
-            </marker>
-            <marker id="arr4" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-              <path d="M0,0 L7,3.5 L0,7 Z" fill="#86efac"/>
-            </marker>
-          </defs>
-          <!-- BEFORE: N+1 -->
-          <text x="120" y="16" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace" font-weight="600" letter-spacing="1">TODAY (N+1)</text>
-          <rect x="10" y="24" width="80" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="50" y="41" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">AI agent</text>
-          <line x1="90" y1="37" x2="125" y2="37" stroke="#5c6380" stroke-width="1.5" marker-end="url(#arr3)"/>
-          <rect x="125" y="24" width="105" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="177" y="41" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">list_applications</text>
-          <text x="177" y="62" text-anchor="middle" font-size="9" fill="#fca5a5" font-family="'JetBrains Mono',monospace">→ 200 records</text>
-          <!-- loop -->
-          <line x1="90" y1="50" x2="125" y2="80" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr3)"/>
-          <rect x="125" y="68" width="105" height="26" rx="5" fill="#2a0f0f" stroke="#3a1010"/>
-          <text x="177" y="85" text-anchor="middle" font-size="10" fill="#fca5a5" font-family="'Inter',sans-serif">get_application(id)</text>
-          <text x="177" y="108" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace">× N times</text>
-          <text x="177" y="120" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace">still no text search</text>
-
-          <!-- divider -->
-          <line x1="300" y1="10" x2="300" y2="150" stroke="#2a2f45" stroke-width="1" stroke-dasharray="4,3"/>
-
-          <!-- AFTER: single search -->
-          <text x="460" y="16" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace" font-weight="600" letter-spacing="1">WITH SEARCH TOOL</text>
-          <rect x="318" y="24" width="80" height="26" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="358" y="41" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">AI agent</text>
-          <line x1="398" y1="37" x2="430" y2="37" stroke="#86efac" stroke-width="1.5" marker-end="url(#arr4)"/>
-          <rect x="430" y="24" width="150" height="26" rx="5" fill="#0f2a1a" stroke="#1a4a2a"/>
-          <text x="505" y="41" text-anchor="middle" font-size="10" fill="#86efac" font-family="'Inter',sans-serif">search_applications(q)</text>
-          <line x1="505" y1="50" x2="505" y2="74" stroke="#86efac" stroke-width="1.5" marker-end="url(#arr4)"/>
-          <rect x="430" y="74" width="150" height="52" rx="5" fill="#1e1f3a" stroke="#3d4460"/>
-          <text x="505" y="94" text-anchor="middle" font-size="10" fill="#a5b4fc" font-family="'Inter',sans-serif">FTS5 ranked results</text>
-          <text x="505" y="110" text-anchor="middle" font-size="9" fill="#9ba3bf" font-family="'Inter',sans-serif">with snippet() context</text>
-          <text x="505" y="124" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace">1 call · O(1)</text>
-        </svg>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Basis</div>
-        <div class="basis-block">
-          <span class="basis-type">direct:</span> <code>server/mcp.js:103</code> — "Use list_applications to locate records by ID, then call get_application(id) to fetch full detail" — documented N+1 workaround. <code>server/mcp.js:116–131</code> — <code>list_applications</code> schema: status, company_name, updated_since only; no <code>q</code>. <code>server/routes/applications.js:54–59</code> — <code>req.query.company_name</code> NOT passed to service (verified by verifier — live bug).<br><br>
-          <span class="basis-type">reasoned:</span> Distinct tool contract signals intent: <code>search_applications</code> = find by relevance; <code>list_applications</code> = enumerate and paginate. Merging them via an extra param leads to parameter accumulation and semantic confusion for agent callers.
-        </div>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Downsides</div>
-        <div class="downside-block">Adding tool #15 increases the MCP surface (14 → 15 tools). The <code>q</code> param on REST adds a new query shape — existing clients are unaffected (param is optional), but the service layer needs the FTS5 query path alongside the existing WHERE-clause path. Relevance ranking means result ordering is non-deterministic for identical queries on changing data, which can confuse automated tests expecting stable ordering.</div>
-      </div>
-    </div>
-  </article>
-
-  <!-- ── Idea 3 ── -->
-  <article class="idea-card" id="idea-3">
-    <div class="card-header">
-      <div class="rank-row">
-        <span class="rank-badge">03</span>
-        <span class="chip chip-axis">query-scope</span>
-        <span class="chip chip-conf-h">Conf 88%</span>
-        <span class="chip chip-cx-m">Cx Medium</span>
-      </div>
-      <h3 class="card-title">Full-Corpus Scope with FTS5 Snippets</h3>
-    </div>
-    <div class="card-body">
-      <div class="idea-field">
-        <div class="field-label">Description</div>
-        <p>Scope the FTS5 index to cover all stored text — not just <code>company_name</code> and <code>job_title</code>, but also <code>extracted_jd</code> (full job description), <code>stage_notes.content</code> (per-stage interview notes), and <code>attachments.extracted_text</code> (CV and cover letter text). Return search results with <code>snippet()</code> highlighting that shows <em>which passage</em> matched — not just which record. A result for a search on "distributed systems" shows: [Acme Corp · Senior Engineer] → <em>Stage: Interview</em> → "…strong background in <mark>distributed systems</mark> and consensus protocols…" so the user never has to open the application to find the matching passage.</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Why it matters</div>
-        <p>The most valuable text data the user generates is their own interview notes — salary numbers heard in a call, recruiter names, follow-up commitments. The most valuable pre-existing text is the full job description. Both are currently dark: stored in the DB, extracted at upload time, but retrievable only by opening each application individually. Making them searchable with snippet context turns a status board into a personal intelligence archive. A job seeker 3 months into a search can ask "which role mentioned equity cliff?" and get back the stage note that answered it.</p>
-      </div>
-
-      <div class="diagram-wrap" role="img" aria-label="Searchable corpus: four data sources feeding one FTS5 index">
-        <svg viewBox="0 0 560 160" width="100%" style="max-width:560px;display:block;margin:0 auto">
-          <defs>
-            <marker id="arr5" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-              <path d="M0,0 L7,3.5 L0,7 Z" fill="#a5b4fc"/>
-            </marker>
-          </defs>
-          <!-- Source boxes -->
-          <rect x="10" y="10" width="120" height="36" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="70" y="28" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">company_name</text>
-          <text x="70" y="42" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace">job_title · notes</text>
-
-          <rect x="145" y="10" width="120" height="36" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="205" y="28" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">extracted_jd</text>
-          <text x="205" y="42" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace">full JD text</text>
-
-          <rect x="280" y="10" width="130" height="36" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="345" y="28" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">stage_notes.content</text>
-          <text x="345" y="42" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace">interview notes</text>
-
-          <rect x="425" y="10" width="125" height="36" rx="5" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="487" y="28" text-anchor="middle" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">attachments</text>
-          <text x="487" y="42" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace">extracted_text</text>
-
-          <!-- arrows to FTS -->
-          <line x1="70" y1="46" x2="200" y2="90" stroke="#a5b4fc" stroke-width="1.5" marker-end="url(#arr5)"/>
-          <line x1="205" y1="46" x2="225" y2="90" stroke="#a5b4fc" stroke-width="1.5" marker-end="url(#arr5)"/>
-          <line x1="345" y1="46" x2="295" y2="90" stroke="#a5b4fc" stroke-width="1.5" marker-end="url(#arr5)"/>
-          <line x1="487" y1="46" x2="330" y2="90" stroke="#a5b4fc" stroke-width="1.5" marker-end="url(#arr5)"/>
-
-          <!-- FTS index box -->
-          <rect x="170" y="92" width="220" height="36" rx="6" fill="#1e1f3a" stroke="#3d4460"/>
-          <text x="280" y="110" text-anchor="middle" font-size="11" fill="#a5b4fc" font-family="'Inter',sans-serif" font-weight="600">FTS5 full-corpus index</text>
-          <text x="280" y="124" text-anchor="middle" font-size="9" fill="#9ba3bf" font-family="'JetBrains Mono',monospace">bm25 · snippet() · column weights</text>
-
-          <!-- output -->
-          <line x1="280" y1="128" x2="280" y2="148" stroke="#a5b4fc" stroke-width="1.5" marker-end="url(#arr5)"/>
-          <rect x="190" y="148" width="180" height="8" rx="3" fill="#0f2a1a" stroke="#1a4a2a"/>
-          <text x="280" y="156" text-anchor="middle" font-size="8" fill="#86efac" font-family="'JetBrains Mono',monospace">ranked results with snippets</text>
-        </svg>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Basis</div>
-        <div class="basis-block">
-          <span class="basis-type">direct:</span> <code>server/db.js:165</code> — <code>extracted_jd TEXT</code>; <code>server/db.js:130</code> — <code>attachments.extracted_text</code>; <code>server/db.js:56</code> — <code>stage_notes.content TEXT NOT NULL</code>. None referenced in any WHERE clause (grep-verified by basis verifier).<br><br>
-          <span class="basis-type">external:</span> SQLite FTS5 <code>snippet(table, col, open, close, ellipsis, tokens)</code> — returns a highlighted excerpt fragment; standard for search result display.
-        </div>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Downsides</div>
-        <div class="downside-block">Large job descriptions (up to 10,000 chars per schema) and CV text increase FTS index size — still small at job-tracker scale but worth monitoring. Multiple FTS virtual tables (one per source table) require multiple triggers and possibly a JOIN to merge results ranked across tables. Stage note content can be sparsely filled (early-stage applications have no interview notes yet), so search results over stage_notes may return few hits for active pipelines.</div>
-      </div>
-    </div>
-  </article>
-
-  <!-- ── Idea 4 ── -->
-  <article class="idea-card" id="idea-4">
-    <div class="card-header">
-      <div class="rank-row">
-        <span class="rank-badge">04</span>
-        <span class="chip chip-axis">search-ux</span>
-        <span class="chip chip-conf-h">Conf 85%</span>
-        <span class="chip chip-cx-s">Cx Small</span>
-      </div>
-      <h3 class="card-title">Composable Filter Chips Replacing showClosed Toggle</h3>
-    </div>
-    <div class="card-body">
-      <div class="idea-field">
-        <div class="field-label">Description</div>
-        <p>Replace the binary <code>showClosed</code> localStorage toggle with a composable chip bar. Each chip is a named, dismissible predicate: <code>status:interview</code>, <code>status:offer</code>, <code>stale:&gt;14d</code>, <code>has:cover-letter</code>. Multiple chips combine as AND. Active chips appear in the toolbar as styled tags with a × close affordance. The existing per-stage design tokens (<code>--stage-{name}-bg</code> / <code>--stage-{name}-fg</code> in <code>main.css</code>) already style every stage chip — they need only an <code>@click</code> handler and a <code>selectedStages</code> reactive array. Fix the <code>company_name</code> REST route bug first (Idea 2 prerequisite) so filter predicates that hit the server actually work.</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Why it matters</div>
-        <p>The entire current filter surface is one binary toggle. A job seeker with 40 applications across 7 stages who wants to focus on their 3 live interview processes must scan the full Kanban visually on every visit. The design token system for stage colors already exists and is applied to read-only status badges — adding clickable chip behavior is the highest-visibility, lowest-implementation-cost improvement in the search space. The verifier flagged the "afternoon" effort claim as optimistic (the REST bug is a prerequisite), but the concept and design language are fully grounded.</p>
-      </div>
-
-      <div class="diagram-wrap" role="img" aria-label="Filter chip UI: before single toggle vs after composable chips">
-        <svg viewBox="0 0 580 130" width="100%" style="max-width:580px;display:block;margin:0 auto">
-          <!-- BEFORE -->
-          <text x="100" y="16" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace" font-weight="600" letter-spacing="1">BEFORE</text>
-          <rect x="10" y="26" width="190" height="34" rx="6" fill="#1e2333" stroke="#2a2f45"/>
-          <text x="80" y="48" font-size="10" fill="#9ba3bf" font-family="'Inter',sans-serif">Show closed</text>
-          <!-- toggle pill -->
-          <rect x="145" y="36" width="42" height="16" rx="8" fill="#1e1f3a" stroke="#3d4460"/>
-          <circle cx="157" cy="44" r="6" fill="#5c6380"/>
-          <text x="100" y="78" text-anchor="middle" font-size="9" fill="#ef4444" font-family="'Inter',sans-serif">binary · all or nothing</text>
-
-          <!-- divider -->
-          <line x1="225" y1="10" x2="225" y2="120" stroke="#2a2f45" stroke-width="1" stroke-dasharray="4,3"/>
-
-          <!-- AFTER -->
-          <text x="400" y="16" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace" font-weight="600" letter-spacing="1">AFTER — CHIP BAR</text>
-          <rect x="235" y="26" width="330" height="40" rx="6" fill="#1e2333" stroke="#2a2f45"/>
-          <!-- chips -->
-          <rect x="246" y="35" width="88" height="22" rx="5" fill="#1e1f3a" stroke="#3d4460"/>
-          <text x="282" y="50" text-anchor="middle" font-size="9" fill="#a5b4fc" font-family="'JetBrains Mono',monospace">status:interview ×</text>
-          <rect x="340" y="35" width="68" height="22" rx="5" fill="#0f2a1a" stroke="#1a4a2a"/>
-          <text x="374" y="50" text-anchor="middle" font-size="9" fill="#86efac" font-family="'JetBrains Mono',monospace">status:offer ×</text>
-          <rect x="414" y="35" width="56" height="22" rx="5" fill="#2a1f08" stroke="#3a2a08"/>
-          <text x="442" y="50" text-anchor="middle" font-size="9" fill="#fcd34d" font-family="'JetBrains Mono',monospace">stale:14d ×</text>
-          <text x="480" y="35" font-size="16" fill="#5c6380" font-family="'Inter',sans-serif">+</text>
-
-          <text x="400" y="88" text-anchor="middle" font-size="9" fill="#22c55e" font-family="'Inter',sans-serif">composable · AND · dismissible · URL-serializable</text>
-
-          <text x="400" y="104" text-anchor="middle" font-size="9" fill="#5c6380" font-family="'JetBrains Mono',monospace">stage tokens from main.css already provide the colors</text>
-        </svg>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Basis</div>
-        <div class="basis-block">
-          <span class="basis-type">direct:</span> <code>client/src/App.vue:186,205–206</code> — <code>SHOW_CLOSED_KEY</code> is a binary localStorage boolean. <code>client/src/assets/main.css:43–56</code> — per-stage color tokens (<code>--stage-offer-bg</code>, <code>--stage-interview-fg</code>, etc.) defined for every stage; currently applied only to read-only status badges.<br><br>
-          <span class="basis-type">external:</span> Filter chip pattern (Linear, Jira) — validated prior art for dismissible predicate chips on tabular record sets.
-        </div>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Downsides</div>
-        <div class="downside-block">The <code>company_name</code> REST route bug is a prerequisite — server-side predicates silently fail until it's fixed. The Kanban view's Sortable.js constraint (KanbanBoard needs the full application array for drop zones, not a filtered one) means status-chip filtering may need to work differently for Kanban vs Table/Timeline — likely a prop for display-vs-drag separation. The "afternoon" estimate is optimistic; plan for a day including the REST fix and the Kanban/drag compatibility work.</div>
-      </div>
-    </div>
-  </article>
-
-  <!-- ── Idea 5 ── -->
-  <article class="idea-card" id="idea-5">
-    <div class="card-header">
-      <div class="rank-row">
-        <span class="rank-badge">05</span>
-        <span class="chip chip-axis">query-scope</span>
-        <span class="chip chip-conf-h">Conf 88%</span>
-        <span class="chip chip-cx-s">Cx Small</span>
-      </div>
-      <h3 class="card-title">Salary Range Filter with Data-Coverage Indicator</h3>
-    </div>
-    <div class="card-body">
-      <div class="idea-field">
-        <div class="field-label">Description</div>
-        <p>Add <code>salary_min_gte</code> and <code>salary_max_lte</code> parameters to the service, REST route, and MCP <code>list_applications</code> tool. In the UI, expose as a salary range input in the filter chip bar (Idea 4). Critically: surface data coverage alongside the filter — "4 of 23 applications have salary recorded; showing 4 above £80k." The coverage count (<code>COUNT(*) WHERE salary_min IS NOT NULL</code>) is a single cheap aggregate. When the filter returns 0 results because salary data is absent, the coverage count explains why and makes the gap actionable ("6 applications you haven't recorded salary for yet").</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Why it matters</div>
-        <p>Salary is the most decision-relevant field in an active job search — yet there is no way to filter by it today despite <code>salary_min</code> and <code>salary_max</code> being schema columns since a migration. The data-coverage indicator is the key insight: salary data is inherently sparse (many postings don't publish ranges), so a filter that silently returns empty results will be abandoned immediately. Showing "4 of 23 have salary recorded" transforms a broken-looking feature into a useful data-quality surface, and the prompt to fill gaps drives richer data for future filtering.</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Basis</div>
-        <div class="basis-block">
-          <span class="basis-type">direct:</span> <code>server/db.js:93–97</code> — <code>salary_min INTEGER</code>, <code>salary_max INTEGER</code> columns added via migration. <code>server/routes/applications.js:54–59</code> — salary params not present (verified). <code>server/mcp.js:116–131</code> — <code>list_applications</code> schema has no salary filter.<br><br>
-          <span class="basis-type">reasoned:</span> Salary data is sparse by nature; a filter returning 0 results silently is the failure mode. Coverage count (<code>COUNT(*) WHERE salary_min IS NOT NULL</code>) is a trivial aggregate that explains emptiness and drives data quality.
-        </div>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Downsides</div>
-        <div class="downside-block">Multi-currency salary data (the schema has a <code>salary_currency</code> column) makes range filtering across applications misleading — £80k and $80k are not comparable. The filter needs a currency selector or a "same currency only" caveat. Coverage counts add a second aggregation query to the list endpoint (one for the filtered results, one for coverage). Keep them as separate cheap counts, not joined, to avoid the double-scan anti-pattern documented in past learnings.</div>
-      </div>
-    </div>
-  </article>
-
-  <!-- ── Idea 6 ── -->
-  <article class="idea-card" id="idea-6">
-    <div class="card-header">
-      <div class="rank-row">
-        <span class="rank-badge">06</span>
-        <span class="chip chip-axis">query-scope</span>
-        <span class="chip chip-conf-m">Conf 75%</span>
-        <span class="chip chip-cx-s">Cx Small</span>
-      </div>
-      <h3 class="card-title">Change-Aware Search via Audit Log</h3>
-    </div>
-    <div class="card-body">
-      <div class="idea-field">
-        <div class="field-label">Description</div>
-        <p>Expose the <code>audit_log</code> table as a searchable dimension: filter chips like <code>action:status_changed since:7d</code> or <code>action:note_added since:interview</code>. This is a different query shape from FTS5 full-text search — it searches the <em>delta</em> (what changed) rather than the <em>snapshot</em> (current state). Surfaces in the REST API as <code>?changed_action=status_changed&amp;changed_since=7d</code> and in the MCP as an optional parameter on <code>list_applications</code>. In the UI, a dedicated "What happened this week?" chip pre-populates with <code>action:any since:7d</code>.</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Why it matters</div>
-        <p>The most urgent daily retrieval need for a job seeker isn't "find the record" but "what changed in my pipeline this week that I need to follow up on?" Today that answer requires scrolling the Timeline and mentally tracking changes. The <code>audit_log</code> already records every mutation — it's a write-only instrument with no read surface. Querying it gives a "recent activity" view without adding any new data collection, and the resulting filter ("applications where I added an interview note in the last 48 hours") is exactly the follow-up surface that turns the tracker into a daily workflow tool.</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Basis</div>
-        <div class="basis-block">
-          <span class="basis-type">direct:</span> <code>server/db.js:169–184</code> — <code>audit_log(application_id, user_email, action, source, auth_method, details, created_at)</code> schema confirmed. No route, MCP tool, or service method exposes it for filtering (grep-verified).<br><br>
-          <span class="basis-type">reasoned:</span> The delta query shape (what changed, not what is) is structurally different from FTS full-text and worth keeping as a separate filter dimension. Most useful as a "triage mode" entry point alongside keyword search.
-        </div>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Downsides</div>
-        <div class="downside-block">The <code>details</code> column is unstructured JSON — action types and their payload shapes are not formally documented, making the filter's vocabulary depend on what the write paths actually log. Audit log entries are never purged (no TTL), so over a long job search the log grows unbounded — a range-bounded query (always include a <code>created_at &gt; ?</code> filter) is required to prevent full-table scans. Confidence is Medium (75%) because the action vocabulary and coverage need auditing before the filter's semantics can be trusted.</div>
-      </div>
-    </div>
-  </article>
-
-  <!-- ── Idea 7 ── -->
-  <article class="idea-card" id="idea-7">
-    <div class="card-header">
-      <div class="rank-row">
-        <span class="rank-badge">07</span>
-        <span class="chip chip-axis">state-interaction</span>
-        <span class="chip chip-conf-h">Conf 85%</span>
-        <span class="chip chip-cx-m">Cx Medium</span>
-      </div>
-      <h3 class="card-title">URL-Serialized Search State</h3>
-    </div>
-    <div class="card-body">
-      <div class="idea-field">
-        <div class="field-label">Description</div>
-        <p>Serialize active filter state into URL query params (<code>?status=interview,offer&amp;q=distributed+systems&amp;salary_min=80000</code>) so any filtered view is bookmarkable, shareable, and survives a browser refresh. Currently all filter state lives in <code>localStorage</code> (<code>SHOW_CLOSED_KEY</code>) or component-local state — no Vue Router is installed. The minimal implementation uses <code>history.replaceState()</code> to push state changes without a router and reads params from <code>new URLSearchParams(window.location.search)</code> on mount. Admins sharing a filtered view of a user's pipeline with another admin becomes a URL copy-paste instead of a verbal description.</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Why it matters</div>
-        <p>When search and filter chips land, filter state will be richer than a single localStorage boolean — restoring it on refresh will require either URL params or a more complex persistence mechanism. Building URL serialization now makes the foundation right before the feature complexity grows. It also enables a use case the current app doesn't support at all: sharing a specific view ("here's your active pipeline with salary filter applied") between users in a multi-user deployment.</p>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Basis</div>
-        <div class="basis-block">
-          <span class="basis-type">direct:</span> <code>client/src/App.vue:169,186,206</code> — <code>SHOW_CLOSED_KEY</code> only filter state persisted; <code>client/src/main.js</code> — no Vue Router. <code>client/src/components/TimelineView.vue:205</code> — separate localStorage sort key. No URL param reading anywhere in codebase.<br><br>
-          <span class="basis-type">reasoned:</span> As filter dimensionality grows (status chips + q param + salary + date range), localStorage key proliferation becomes unmaintainable. URL params provide the same persistence with shareability and no key management overhead.
-        </div>
-      </div>
-
-      <div class="idea-field">
-        <div class="field-label">Downsides</div>
-        <div class="downside-block">Without Vue Router, URL param management is manual — <code>history.replaceState()</code> for writes, <code>URLSearchParams</code> for reads, no automatic route-to-component binding. Each new filter param must be explicitly serialized and deserialized. Adding Vue Router later would require migrating this manual state management. Medium complexity because the mechanics are straightforward but the coordination surface (every filter chip, every search input, every view toggle) is wide. The decision on Vue Router vs. manual URL state is worth surfacing explicitly before building.</div>
-      </div>
-    </div>
-  </article>
-
+<article class="idea" id="idea-7">
+  <h3>7. Let the agent bring the synonyms</h3>
+  <div class="chips"><span class="chip axis">Agent retrieval</span><span class="chip conf">Confidence 60%</span><span class="chip cx">Complexity Low</span><span class="chip src">Replaces local embeddings</span></div>
+  <dl>
+    <dt>Description</dt>
+    <dd>The MCP <code>search</code> tool accepts several phrasings (<code>queries: ["backend", "server-side", "platform engineer"]</code>), and its description asks the agent for two to four. The server runs each through the local index and merges them with reciprocal rank fusion. This gets most of the benefit of semantic search without shipping a model or sending data anywhere.</dd>
+    <dt>Basis</dt>
+    <dd><ul>
+      <li><code>external:</code> reciprocal rank fusion as used in hybrid SQLite search (Simon Willison / Alex Garcia). Embeddings at this scale mainly add synonym matching.</li>
+      <li><code>reasoned:</code> the connected agent is already a strong query rewriter at no cost to the server, and <code>docs/guide/data-flows.md</code> promises nothing leaves the box unless the user opts in.</li>
+    </ul></dd>
+    <dt>Rationale</dt>
+    <dd>It settles whether embeddings belong on the roadmap. For agent users the answer becomes no, and people using the UI keep plain FTS.</dd>
+    <dt>Downsides</dt>
+    <dd>Only helps agent searches. Depends on idea 1 and is a parameter of idea 2's tool, so it is a design decision rather than a release on its own.</dd>
+  </dl>
+</article>
 </section>
 
-<!-- ── Rejection Summary ── -->
+<section id="june-ranking">
+<h2>Prior Ranking (June 2026)</h2>
+<p>The June survivors and how this refresh treats them.</p>
+<div class="wide">
+<table>
+  <thead><tr><th>June #</th><th>Idea</th><th>Now</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>FTS5 universal search layer</td><td class="verdict-merge">Folded into idea 1, widened to people, connections and profile, single table instead of per-entity FTS tables</td></tr>
+    <tr><td>2</td><td><code>search_applications</code> MCP tool + REST <code>q</code></td><td class="verdict-merge">Folded into idea 2, now cross-entity; the REST route bug it mentioned is fixed</td></tr>
+    <tr><td>3</td><td>Full-corpus scope with snippets</td><td class="verdict-merge">Folded into idea 1 (scope) and idea 2 (snippets)</td></tr>
+    <tr><td>4</td><td>Composable filter chips replacing showClosed</td><td>Not re-evaluated; still a candidate for the board, independent of search</td></tr>
+    <tr><td>5</td><td>Salary range filter with data-coverage indicator</td><td>Not re-evaluated; a structured filter, not search</td></tr>
+    <tr><td>6</td><td>Change-aware search via audit log</td><td>Not re-evaluated; Today and the live stream now cover part of "what changed"</td></tr>
+    <tr><td>7</td><td>URL-serialized search state</td><td class="verdict-merge">Partly absorbed by idea 4's record hash links</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
 <section id="rejection-summary">
-  <h2>Rejection Summary</h2>
-  <table class="rejection-table">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Idea</th>
-        <th>Reason rejected</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>—</td>
-        <td>company_name REST route bug (P2 / I7)</td>
-        <td>Prerequisite fix, not an ideation output — fix immediately regardless of direction chosen; <code>req.query.company_name</code> silently dropped at <code>routes/applications.js:54–59</code></td>
-      </tr>
-      <tr>
-        <td>—</td>
-        <td>Two-view filter contract (KanbanBoard vs TimelineView)</td>
-        <td>Architectural decision to document before implementing any new filter, not a standalone idea; failure mode is a dev-time trap, not a user-visible feature gap</td>
-      </tr>
-      <tr>
-        <td>C6</td>
-        <td>Deadline urgency / always-on computed surface</td>
-        <td><strong>Refuted</strong> — basis cited <code>STATUS_DATE_MAP</code> as having a <code>deadline</code> key and <code>daysSinceClosed()</code> as computing deadline urgency; neither is true. <code>deadline</code> field absent from DB migrations; <code>daysSinceClosed()</code> uses <code>closed_at</code>. Feature would require adding the field first.</td>
-      </tr>
-      <tr>
-        <td>C5</td>
-        <td>Cmd+K command palette with staleness preloads</td>
-        <td>Weak — valid UX pattern but a sequencing dependency on Idea 1 (FTS5); without a real search index, suggestions are thin client-side results. Add as a follow-on once FTS5 ships.</td>
-      </tr>
-      <tr>
-        <td>I6</td>
-        <td>Recent closed as default view</td>
-        <td>Too narrow — a refinement of the showClosed toggle behavior, not a standalone idea; absorbed by Idea 4 (composable chips) which subsumes the recent/older distinction</td>
-      </tr>
-      <tr>
-        <td>I1</td>
-        <td>View-context as implicit filter scope</td>
-        <td>Interesting reframe but implementation complexity (view state as a mutable filter default) is high relative to the marginal gain over explicit filter chips; no direct basis</td>
-      </tr>
-      <tr>
-        <td>L4 / A6</td>
-        <td>Push-model attention surface / Active-Context Hot Board</td>
-        <td>Good concept, absorbed by Idea 6 (audit log / change-aware search) + Idea 7 (URL state); no unique direct basis beyond those ideas</td>
-      </tr>
-      <tr>
-        <td>I3</td>
-        <td>Named saved views / freeze last query</td>
-        <td>Duplicate of Idea 7 at a higher UX layer; implement URL-serialized state first, saved views are the natural follow-on once state can be serialized</td>
-      </tr>
-      <tr>
-        <td>I2</td>
-        <td>Deadline proximity as always-on computed surface</td>
-        <td>Same refutation as C6 — <code>deadline</code> field not in schema; would require schema work before the idea is viable</td>
-      </tr>
-    </tbody>
-  </table>
+<h2>Rejection Summary</h2>
+<div class="wide">
+<table>
+  <thead><tr><th>#</th><th>Idea</th><th>Reason rejected</th></tr></thead>
+  <tbody>
+    <tr><td>C2</td><td>Hit report before fetch</td><td class="verdict-merge">Merged into idea 2 (counts per type come first)</td></tr>
+    <tr><td>C5</td><td>Per-type buckets so connections don't swamp results</td><td class="verdict-merge">Merged into idea 1 (grouped results with per-type limits)</td></tr>
+    <tr><td>C8</td><td>Coverage receipt / self-auditing search</td><td class="verdict-merge">Merged into idea 2 as part of the response contract</td></tr>
+    <tr><td>C10</td><td>Notes-first first release</td><td class="verdict-merge">Merged into idea 1 as a weighting and sequencing choice</td></tr>
+    <tr><td>C14</td><td>Index generated documents with provenance</td><td class="verdict-merge">Merged into idea 1's corpus; provenance is a column, not a separate idea</td></tr>
+    <tr><td>C17</td><td>Recall at capture time</td><td class="verdict-merge">Merged into idea 3 as <code>possible_related</code> on create; alert-fatigue risk as a standalone feature</td></tr>
+    <tr><td>C21</td><td>Paste-to-resolve exact identifiers</td><td class="verdict-merge">Merged into idea 4</td></tr>
+    <tr><td>C6</td><td>Rank by campaign heat, text only filters</td><td class="verdict-cut">Weak: "term statistics are too thin" is unproven, and grouped results already order by state</td></tr>
+    <tr><td>C7</td><td>Two engines split by field length (client and server)</td><td class="verdict-cut">Two behaviours to maintain; contacts and connections are not all in client memory; the short-query gap is solvable server-side</td></tr>
+    <tr><td>C11</td><td>Passage-level chunked index</td><td class="verdict-cut">Too complex for hundreds of documents; <code>snippet()</code> on record-level hits covers the token problem</td></tr>
+    <tr><td>C12</td><td>Unlinked mentions of people in notes</td><td class="verdict-cut">High false-positive risk on common first names; a graph-repair feature, not search</td></tr>
+    <tr><td>C13</td><td>More like this: the JD as the query over past prep</td><td class="verdict-cut">Weak: noisy query, no evidence prior prep is reused; revisit after idea 1</td></tr>
+    <tr><td>C18</td><td>Standing searches that post into Today</td><td class="verdict-cut">Repeats June's rejected push model; <code>emitChange</code> does not cover people or connections; no demand shown</td></tr>
+    <tr><td>C20</td><td>Search as a lens dimming cards on the board</td><td class="verdict-cut">Refuted as stated: collides with the drag guard and <code>displayApplications</code>; costly next to idea 4</td></tr>
+    <tr><td>C22</td><td>One query grammar for UI, REST and MCP</td><td class="verdict-cut">Power-user feature with no evidence of demand; the param and escaping fixes it motivates are cheap without a grammar</td></tr>
+    <tr><td>C23</td><td>Optional local embeddings (sqlite-vec)</td><td class="verdict-cut">Redundant with idea 7; adds a model and dependency for a few hundred rows</td></tr>
+    <tr><td>X1</td><td>Company key as one join powering everything</td><td class="verdict-cut">Overstated: idea 3 runs on <code>contact_links</code> without it; kept narrowly as idea 5</td></tr>
+    <tr><td>June</td><td>Cmd+K palette (rejected in June)</td><td class="verdict-merge">Reversed: now idea 4, since recents and paste-to-open need no index</td></tr>
+    <tr><td>June</td><td>Deadline urgency surface</td><td class="verdict-cut">Still refuted: no deadline field</td></tr>
+    <tr><td>June</td><td>Recent closed as default view; view-context as filter scope; named saved views</td><td class="verdict-cut">Not re-evaluated; June reasons stand</td></tr>
+  </tbody>
+</table>
+</div>
 </section>
 
-<!-- ── Cross-cutting combinations ── -->
-<section id="combinations">
-  <h2>Cross-Cutting Combinations</h2>
-  <div class="grounding-grid">
-    <dl class="ground-block">
-      <dt>Cluster A — Search as API layer</dt>
-      <dd>Ideas 1 + 2 + 3 form a natural implementation cluster: FTS5 (1) is the backend, the <code>q</code> REST param (2) is the contract, and the MCP tool (2) is the agent surface. Full-corpus scope (3) is the data configuration. Ship together.</dd>
-    </dl>
-    <dl class="ground-block">
-      <dt>Cluster B — Filter surface rebuild</dt>
-      <dd>Ideas 4 + 7 form a coherent UI/state cluster: composable chips (4) replace the toggle and add the visible filter surface; URL state (7) makes that surface persistent and shareable. The company_name bug fix is a prerequisite for both.</dd>
-    </dl>
-    <dl class="ground-block">
-      <dt>Cluster C — Structured dimensions</dt>
-      <dd>Ideas 5 + 6 add typed filter dimensions (salary range, audit actions) to the chip bar from Cluster B. Low complexity, high impact for active job-search workflows.</dd>
-    </dl>
-    <dl class="ground-block">
-      <dt>Sequencing note</dt>
-      <dd>Cluster A (1 + 2 + 3) is the dependency for Cmd+K (rejected C5). Ship Cluster A first, then add the command palette as the discoverability layer on top of a working search index.</dd>
-    </dl>
-  </div>
-</section>
-
-<footer class="composition-signal">
-  Composed <time datetime="2026-06-25">2026-06-25</time> by <code>ce-ideate</code> · 5 frames · 37 raw candidates · run <code>6246c50c</code>
-</footer>
-
+<footer class="composition-signal">Composed 2026-06-25 by ce-ideate (run 6246c50c); refreshed 2026-11-07 by ce-ideate (run c4499fb0) from the request to flesh out the Linear project "Job Tracker Search": 6 frames, 46 raw candidates, basis-verified.</footer>
 </div>
 </body>
 </html>

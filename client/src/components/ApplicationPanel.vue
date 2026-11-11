@@ -1287,16 +1287,36 @@ function isDirty() {
   )
 }
 
-async function close() {
+async function saveTypedNote() {
   if (newNoteContent.value?.trim() && isEdit.value) {
     await addNote()
   }
+}
+
+async function close() {
+  await saveTypedNote()
   if (isDirty()) {
     pendingClose.value = true
     return
   }
   doClose()
 }
+
+// Search can ask this panel to make way for another record. Switching in place
+// would carry a typed note and queued files over to the new record, so the
+// caller closes and reopens the panel instead, and only once this resolves
+// true: the note is saved here, and unsaved edits raise the usual prompt.
+async function prepareSwitch() {
+  await saveTypedNote()
+  if (newNoteContent.value?.trim()) return false
+  if (isDirty()) {
+    pendingClose.value = true
+    return false
+  }
+  return true
+}
+
+defineExpose({ prepareSwitch })
 
 function doClose() {
   pendingClose.value = false

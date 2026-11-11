@@ -4,6 +4,7 @@
 - **Kanban board** (Pipeline) — drag cards between columns: Interested → Applied → Responded → Interview (offers sit here too) → Closed. Each column is headed by its stage colour and a count, and an **In play** rail above the board lists your interviews and offers as one-click chips. Dropping a card on Closed asks for the reason (accepted, rejected, withdrawn and so on), shown on the card; the Closed column can be hidden with the show-closed toggle
 - **Timeline view** (Pipeline) — each application's stage history as a bar, switchable from the board with the Board / Timeline toggle
 - **People** — recruiters, referrers and hiring managers, grouped by what you owe them; log interactions and set a next action from each person's drawer
+- **Search** — find a person or role from any screen (see [Finding a record](#finding-a-record))
 - **Settings panel** — manage API keys, choose whether closing a record clears its next step (Follow-ups), and, for admins, toggle between personal and all-users view
 - **API keys** — generate personal API keys for programmatic access without the browser OAuth flow; scoped to your account, shown once at creation
 - **File attachments** — upload PDF, DOC, DOCX, MD, or TXT files (up to 10MB each) as attachments; CV and cover letter can also be attached directly to an application
@@ -12,6 +13,15 @@
 - **Stage notes** — per-stage timestamped notes with markdown rendering and colored stage badges
 - **Links** — store job posting and company website URLs
 - **Multi-user** — each user sees only their own applications, identified by the email your OIDC provider signs them in with. Admins (configured via `ADMIN_EMAILS`) can view all users' applications but cannot edit or delete others' data
+
+## Finding a record
+
+The search field in the header finds people and roles from any screen. Type part of a name, employer, job title, company, email address or phone number, and pick a result to open it over the screen you are on. **Ctrl+K** (**Cmd+K** on a Mac) jumps to the field, even with a record open. On a phone, tap the magnifier.
+
+- People match on name, employer, role, email and phone. Phone numbers match on digits from three onward, so `0412 345` finds `+61 412 345 678`.
+- Roles and leads match on company and job title. Closed records are listed after open ones and marked closed.
+- Use the arrow keys and **Enter** to pick a result, and **Escape** to clear and close.
+- Search does not cover notes, job descriptions or LinkedIn connections yet.
 
 ## Today and follow-ups
 
