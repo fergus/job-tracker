@@ -49,6 +49,13 @@ bump now; re-check `npm audit` after each subsequent ESLint release and close
 this todo once the minimatch finding is gone rather than when 10.14.0 lands.
 Dev-only tooling, no runtime exposure.
 
+**Re-checked 2026-11-13:** unchanged — `eslint@10.13.0`,
+`@eslint/config-array@0.23.5`, `minimatch@10.2.6`, and npm still proposes the
+`eslint@9.39.5` rollback as the "fix". Numbers in this todo are current; the
+`globals` and `eslint-plugin-vue` bumps that ride alongside ESLint are tracked in
+`145-pending-p3-upgrade-globals.md` and were applied at patch level where
+possible (`eslint-plugin-vue@10.12.1`).
+
 - **Effort**: Small | **Risk**: Low (dev dependency; verified by lint + client build)
 
 ## Acceptance Criteria

@@ -84,3 +84,24 @@ undo the ESLint 10 toolchain.
 - [ ] `axios` is still on 1.21.x (no direct dependency change)
 
 - **Effort**: Small | **Risk**: Low (transitive lockfile bump inside the parent's declared range)
+
+## Resolution — 2026-11-13
+
+Closed by the weekly dependency pass, not by `npm audit fix`. Bumping `axios`
+itself to its patch release did it: `axios@1.21.1` declares
+`follow-redirects: ^1.16.2`, so the lockfile moved `follow-redirects` to
+**1.16.3** (above the fixed 1.16.2 floor) as a side effect. No `overrides`
+needed.
+
+- `follow-redirects`: 1.16.1 → **1.16.3** (transitive)
+- `axios`: 1.21.0 → **1.21.1** (patch, applied by the dependency job)
+- `client/npm audit`: **0 high** findings, 5 → 4 total (the four remaining are
+  the dev-only ESLint/minimatch moderates tracked in
+  `142-pending-p3-upgrade-eslint.md`)
+- `npm test` (server, 558 tests) and `npm run build:client` both pass
+- Released as part of v0.28.3
+
+All acceptance criteria met except `npm run test:e2e`, which was not run for
+this pass — the change is a lockfile bump in an HTTP client's redirect handling
+and the SPA build compiles clean, but the Playwright suite should cover it on
+the next UI-touching change.
