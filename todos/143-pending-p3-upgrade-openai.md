@@ -1,8 +1,8 @@
-# Upgrade `openai` 7.45.1 → 7.56.0 (server + client)
+# Upgrade `openai` 7.45.1 → 7.57.0 (server + client)
 
 - **Priority:** p3
 - **Created:** 2026-11-06
-- **Updated:** 2026-11-13 (latest moved on from 7.53.0)
+- **Updated:** 2026-11-15 (latest moved on to 7.57.0)
 - **Category:** Maintenance (npm, server + client)
 
 ## Problem

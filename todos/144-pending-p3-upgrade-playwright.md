@@ -1,7 +1,8 @@
-# Upgrade `@playwright/test` 1.64.1 → 1.65.0 (client, dev)
+# Upgrade `@playwright/test` 1.64.1 → 1.65.1 (client, dev)
 
 - **Priority:** p3
 - **Created:** 2026-11-06
+- **Updated:** 2026-11-15 (latest moved on to 1.65.1)
 - **Category:** Maintenance (npm, client dev tooling)
 
 ## Problem

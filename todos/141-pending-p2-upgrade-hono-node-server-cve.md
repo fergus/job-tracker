@@ -2,7 +2,7 @@
 
 - **Priority:** p2
 - **Created:** 2026-10-31
-- **Updated:** 2026-11-13 (advisory set expanded — `hono` itself is now flagged too)
+- **Updated:** 2026-11-15 (re-checked by the weekly run: unchanged, still unpatched — 15 days old, past the two-week mark)
 - **Category:** Security (npm, server)
 
 ## Problem

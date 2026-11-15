@@ -1,7 +1,8 @@
-# Upgrade `better-sqlite3` 13.0.3 → 13.1.1 (server)
+# Upgrade `better-sqlite3` 13.0.3 → 13.2.0 (server)
 
 - **Priority:** p3
 - **Created:** 2026-11-13
+- **Updated:** 2026-11-15 (latest moved on to 13.2.0)
 - **Category:** Maintenance (npm, server, native module)
 
 ## Problem

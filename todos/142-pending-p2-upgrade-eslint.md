@@ -1,7 +1,8 @@
-# Upgrade ESLint 10.13.0 → 10.14.0 (client)
+# Upgrade ESLint 10.13.0 → 10.15.0 (client)
 
-- **Priority:** p3
+- **Priority:** p2 (raised from p3 on 2026-11-15: carries the minimatch advisory GHSA-g3hv-75wg-m249)
 - **Created:** 2026-10-31
+- **Updated:** 2026-11-15 (latest moved on to 10.15.0; minimatch finding unchanged)
 - **Category:** Maintenance (npm, client)
 
 ## Problem
@@ -17,7 +18,7 @@ runtime or security impact, only lint behaviour.
 ## Current
 
 - `eslint`: 10.13.0 (declared `^10.13.0`, in `client/` devDependencies)
-- Latest: **10.14.0**
+- Latest: **10.15.0**
 - Also in the graph: `@eslint/js`, `eslint-plugin-vue` and `globals`. Check
   whether the bump drags any of these forward; `eslint-plugin-vue` is the one
   that must keep pace with the ESLint core version.
@@ -25,12 +26,12 @@ runtime or security impact, only lint behaviour.
 ## Proposed Solution
 
 ```bash
-cd client && npm install -D eslint@10.14.0
+cd client && npm install -D eslint@10.15.0
 npm run lint          # if a lint script exists; otherwise `npx eslint src`
 cd .. && npm run build:client
 ```
 
-Review the release notes for 10.14.0 first — if it promotes a rule to `error`
+Review the release notes for 10.14.0 and 10.15.0 first — if it promotes a rule to `error`
 under a preset the project uses, either fix the findings or pin the preset rule
 back off in the flat config.
 
