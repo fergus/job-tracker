@@ -61,7 +61,7 @@ possible (`eslint-plugin-vue@10.12.1`).
 
 ## Acceptance Criteria
 
-- [ ] `cd client && npm ls eslint` resolves to 10.14.0
+- [ ] `cd client && npm ls eslint` resolves to 10.15.0
 - [ ] Lint passes with no new errors (or new findings are fixed)
 - [ ] `npm run build:client` succeeds from the repo root
 - [ ] `client/package.json` and `client/package-lock.json` are the only files changed
