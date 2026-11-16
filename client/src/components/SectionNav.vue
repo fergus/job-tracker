@@ -6,7 +6,7 @@
       type="button"
       :aria-current="section === PRIMARY.value ? 'page' : undefined"
       @click="$emit('set-section', PRIMARY.value)"
-      class="min-h-[44px] flex items-end pb-1 border-b-2 text-sm font-semibold font-condensed uppercase tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-t-sm"
+      class="min-h-[44px] min-w-[44px] flex items-end justify-center pb-1 border-b-2 text-sm font-semibold font-condensed uppercase tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-t-sm"
       :class="
         section === PRIMARY.value
           ? 'border-accent text-ink'
@@ -16,13 +16,15 @@
       {{ PRIMARY.label }}
     </button>
     <span class="flex items-stretch gap-3 sm:ml-2">
+      <!-- One size on a phone so the row reads level; weight still marks
+           Today. From sm the quieter size returns. -->
       <button
         v-for="s in SECONDARY"
         :key="s.value"
         type="button"
         :aria-current="s.value === section ? 'page' : undefined"
         @click="$emit('set-section', s.value)"
-        class="min-h-[44px] flex items-end pb-1 border-b-2 text-xs font-medium font-condensed uppercase tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-t-sm"
+        class="min-h-[44px] min-w-[44px] flex items-end justify-center pb-1 border-b-2 text-sm sm:text-xs font-medium font-condensed uppercase tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-t-sm"
         :class="
           s.value === section
             ? 'border-accent text-ink'

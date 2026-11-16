@@ -57,7 +57,7 @@
             :disabled="disabled"
             :class="[
               'text-sm border border-line bg-raised rounded-lg px-3 py-2 min-h-[44px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent',
-              floatingOpen ? 'flex-1 min-w-0' : 'w-44 md:w-56 lg:w-72',
+              floatingOpen ? 'flex-1 min-w-0' : 'w-44 lg:w-56 xl:w-72',
             ]"
             @focus="activate"
           />

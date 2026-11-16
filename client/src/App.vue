@@ -10,10 +10,13 @@
 
         <!-- Top bar -->
         <header class="bg-panel shadow-xs border-b border-line">
+            <!-- Below xl the header is two rows: identity with the actions
+                 pinned right, then the sections (with the board's closed
+                 toggle) on their own row. From xl everything fits on one. -->
             <div
-                class="max-w-screen-2xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-y-1"
+                class="max-w-screen-2xl mx-auto px-4 py-2 sm:py-3 flex flex-wrap xl:flex-nowrap items-center gap-x-3 gap-y-1"
             >
-                <div class="flex items-center gap-2.5 order-1">
+                <div class="flex items-center gap-2.5 order-1 min-w-0">
                     <LogoBuild :trigger="logoTrigger" />
                     <h1
                         class="text-xl font-bold font-condensed tracking-wide text-ink"
@@ -23,7 +26,7 @@
                     <a
                         :href="`https://github.com/fergus/job-tracker/releases/tag/v${version}`"
                         target="_blank"
-                        class="text-xs text-ink-3 hover:text-ink-2 hover:underline"
+                        class="text-xs text-ink-3 hover:text-ink-2 hover:underline pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:min-h-11 pointer-coarse:px-1.5 pointer-coarse:-mx-1.5"
                         >v{{ version }}</a
                     >
                     <FreshnessSlot
@@ -31,23 +34,10 @@
                         :absolute="freshnessAbsolute"
                     />
                 </div>
-                <SectionNav
-                    :section="section"
-                    @set-section="setSection"
-                    class="order-3 w-full sm:order-2 sm:w-auto sm:ml-4 sm:mr-auto"
-                />
-                <div class="flex items-center gap-3 order-2 sm:order-3">
-                    <HeaderSearch
-                        ref="headerSearch"
-                        :applications="applications"
-                        :contacts="contacts"
-                        :peopleLoading="peopleLoading"
-                        :peopleFailed="peopleFailed"
-                        :panelOpen="showPanel || contactId !== null"
-                        :disabled="dragActive"
-                        @open-search="handleSearchOpen"
-                        @select="openFromSearch"
-                    />
+                <div
+                    class="order-3 w-full flex items-center gap-3 xl:order-2 xl:w-auto xl:flex-1 xl:ml-4"
+                >
+                    <SectionNav :section="section" @set-section="setSection" />
                     <!-- Show/Hide Closed toggle -->
                     <button
                         v-show="section === 'applications' && closedCount > 0"
@@ -59,7 +49,7 @@
                         :aria-pressed="showClosed"
                         :disabled="dragActive"
                         @click="toggleShowClosed"
-                        class="hidden sm:flex items-center px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="hidden sm:flex ml-auto items-center px-3 py-1.5 min-h-[44px] text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         :class="
                             showClosed
                                 ? 'bg-panel border border-line text-ink shadow-xs'
@@ -70,13 +60,41 @@
                             showClosed ? "Hide closed" : `${closedCount} closed`
                         }}
                     </button>
-
-                    <!-- Always visible: Add button + settings -->
+                </div>
+                <div
+                    class="flex items-center gap-2 md:gap-3 order-2 ml-auto xl:order-3 xl:ml-0"
+                >
+                    <HeaderSearch
+                        ref="headerSearch"
+                        :applications="applications"
+                        :contacts="contacts"
+                        :peopleLoading="peopleLoading"
+                        :peopleFailed="peopleFailed"
+                        :panelOpen="showPanel || contactId !== null"
+                        :disabled="dragActive"
+                        @open-search="handleSearchOpen"
+                        @select="openFromSearch"
+                    />
+                    <!-- A square + below md so the actions stay one tidy
+                         cluster; the label keeps the same accessible name. -->
                     <button
                         @click="openPanel()"
-                        class="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium transition-colors"
+                        class="bg-accent hover:bg-accent-hover text-accent-fg size-11 md:size-auto md:px-4 md:py-2 min-h-[44px] flex items-center justify-center rounded-lg text-sm font-medium transition-colors"
                     >
-                        + Add Application
+                        <svg
+                            class="w-5 h-5 md:hidden"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-width="2.5"
+                                d="M12 5v14M5 12h14"
+                            />
+                        </svg>
+                        <span class="sr-only md:not-sr-only">+ Add Application</span>
                     </button>
                     <button
                         ref="settingsBtn"
@@ -89,6 +107,7 @@
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
+                            aria-hidden="true"
                         >
                             <path
                                 stroke-linecap="round"
