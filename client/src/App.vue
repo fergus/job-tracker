@@ -26,7 +26,7 @@
                     <a
                         :href="`https://github.com/fergus/job-tracker/releases/tag/v${version}`"
                         target="_blank"
-                        class="text-xs text-ink-3 hover:text-ink-2 hover:underline"
+                        class="text-xs text-ink-3 hover:text-ink-2 hover:underline pointer-coarse:inline-flex pointer-coarse:items-center pointer-coarse:min-h-11 pointer-coarse:px-1.5 pointer-coarse:-mx-1.5"
                         >v{{ version }}</a
                     >
                     <FreshnessSlot
@@ -107,6 +107,7 @@
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
+                            aria-hidden="true"
                         >
                             <path
                                 stroke-linecap="round"
