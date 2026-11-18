@@ -91,8 +91,22 @@ then `npm install`, re-audit, and re-test.
 
 ## Acceptance Criteria
 
-- [ ] `cd server && npm ls hono @hono/node-server` resolves to 4.13.16+ and 2.1.6+
-- [ ] `cd server && npm audit` reports 0 vulnerabilities
-- [ ] `cd server && npm test` passes (558 tests as of 2026-11-13)
-- [ ] MCP server still starts and completes a session (e.g. a `list_applications` call over the MCP port)
-- [ ] `npm run build:client` succeeds from the repo root
+- [x] `cd server && npm ls hono @hono/node-server` resolves to 4.13.16+ and 2.1.6+
+- [x] `cd server && npm audit` reports 0 vulnerabilities
+- [x] `cd server && npm test` passes (558 tests as of 2026-11-13)
+- [x] MCP server still starts and completes a session (e.g. a `list_applications` call over the MCP port)
+- [x] `npm run build:client` succeeds from the repo root
+
+## Resolution - 2026-11-18
+
+Option A worked: `npm audit fix` in `server/` moved both packages inside the
+MCP SDK's declared ranges, so only `server/package-lock.json` changed and no
+`overrides` were needed.
+
+- `hono`: 4.13.13 -> **4.13.19** (transitive)
+- `@hono/node-server`: 2.0.12 -> **2.1.9** (transitive)
+- `@modelcontextprotocol/sdk` unchanged at 1.32.2
+- `server/npm audit`: **0 vulnerabilities**
+- `npm test` (server, 558 tests) and `npm run build:client` both pass
+- MCP smoke test against a scratch DB: `initialize` and `list_applications`
+  succeed over the MCP port; an unauthenticated request returns 401
