@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 import { gotoPipeline, seedApp } from './helpers.js'
 
 // Header search finds people and roles from any section and opens them over
@@ -217,7 +217,8 @@ test('arrow keys, no-match and Escape', async ({ page, request }) => {
   await cleanup(request, { apps: [a, b] })
 })
 
-test('a failed people load says so instead of reporting no matches', async ({ page }) => {
+test('a failed people load says so instead of reporting no matches', async ({ page, consoleGuard }) => {
+  consoleGuard.allow(/net::ERR_FAILED/)
   await page.route(/\/api\/contacts(\?.*)?$/, (route) => route.abort())
 
   await page.goto('/')

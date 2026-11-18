@@ -49,4 +49,17 @@ export default [
     files: ['**/*.vue'],
     languageOptions: { parser: vueParser },
   },
+  {
+    // Specs take `test` from e2e/fixtures.js so every test runs under the
+    // console guard; importing it straight from Playwright would bypass it.
+    files: ['e2e/**/*.spec.js'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: [{
+          name: '@playwright/test',
+          message: "Import test and expect from './fixtures.js' so the console guard runs.",
+        }],
+      }],
+    },
+  },
 ]

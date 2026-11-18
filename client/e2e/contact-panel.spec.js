@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 import { gotoPipeline } from './helpers.js'
 
 // Open the contact drawer from the record it is linked to, which is the only
@@ -186,7 +186,8 @@ test('a link from a phone card opens that person and drops the parameter', async
   await expect(page.getByRole('dialog', { name: 'Contact: Pia Lindgren' })).toHaveCount(0)
 })
 
-test('a link to a person that does not exist opens nothing usable', async ({ page }) => {
+test('a link to a person that does not exist opens nothing usable', async ({ page, consoleGuard }) => {
+  consoleGuard.allow(/status of 404/)
   await page.goto('/?contact=999999')
   await expect(page.getByText(/Could not load this contact/)).toBeVisible()
   expect(new URL(page.url()).searchParams.has('contact')).toBe(false)

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 import { gotoPipeline, seedApp } from './helpers.js'
 
 test('closed column shows terminal applications', async ({ page, request }) => {

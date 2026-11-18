@@ -259,7 +259,7 @@ Tests run against an **in-memory** database (`DB_PATH=:memory:`) with rate limit
 
 **Backend tests** (`server/test/api.test.js`) use Node.js built-in `node:test` with `supertest`.
 
-**Frontend E2E tests** (`client/e2e/`) use Playwright to verify view rendering in a real browser — they catch DOM/transition issues that unit tests miss.
+**Frontend E2E tests** (`client/e2e/`) use Playwright to verify view rendering in a real browser — they catch DOM/transition issues that unit tests miss. Specs import `test` and `expect` from `client/e2e/fixtures.js` (lint enforces it), whose console guard fails any test that logs a browser console error or uncaught page error -- CSP violations included. A test that triggers one on purpose declares it with `consoleGuard.allow(/pattern/)`.
 
 Quick smoke test via curl (dev mode):
 
