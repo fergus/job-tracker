@@ -273,7 +273,7 @@ curl -s http://localhost:3000/api/applications -H 'X-Forwarded-Email: dev@localh
 
 GitHub Actions workflow (`.github/workflows/build.yml`):
 
-1. **Test job**: installs server and client deps with `npm ci`, runs backend tests, builds the client, installs Playwright browsers, and runs E2E tests.
+1. **Test job**: installs server and client deps with `npm ci`, audits each (`npm audit --omit=dev --audit-level=moderate`, so any moderate-or-worse advisory in a shipped dependency fails the build), runs backend tests, lints the client, runs client unit tests, builds the client, installs Playwright browsers, and runs E2E tests.
 2. **Docker build job**: depends on test. Runs `docker compose build`.
 3. **Push**: on `v*` tag push, logs into GHCR and pushes `ghcr.io/fergus/job-tracker:<version>` and `:latest`.
 
