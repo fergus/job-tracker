@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 
 // Every spec runs as the same dev user, so a setting left off here would change
 // what closing does in every later spec. Put it back whatever happens.

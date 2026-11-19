@@ -259,7 +259,7 @@ Tests run against an **in-memory** database (`DB_PATH=:memory:`) with rate limit
 
 **Backend tests** (`server/test/api.test.js`) use Node.js built-in `node:test` with `supertest`.
 
-**Frontend E2E tests** (`client/e2e/`) use Playwright to verify view rendering in a real browser — they catch DOM/transition issues that unit tests miss.
+**Frontend E2E tests** (`client/e2e/`) use Playwright to verify view rendering in a real browser — they catch DOM/transition issues that unit tests miss. Specs import `test` and `expect` from `client/e2e/fixtures.js` (lint enforces it), whose console guard fails any test that logs a browser console error or uncaught page error -- CSP violations included. A test that triggers one on purpose declares it with `consoleGuard.allow(/pattern/)`.
 
 Quick smoke test via curl (dev mode):
 
@@ -273,7 +273,7 @@ curl -s http://localhost:3000/api/applications -H 'X-Forwarded-Email: dev@localh
 
 GitHub Actions workflow (`.github/workflows/build.yml`):
 
-1. **Test job**: installs server and client deps with `npm ci`, runs backend tests, builds the client, installs Playwright browsers, and runs E2E tests.
+1. **Test job**: installs server and client deps with `npm ci`, audits each (`npm audit --omit=dev --audit-level=moderate`, so any moderate-or-worse advisory in a shipped dependency fails the build), runs backend tests, lints the client, runs client unit tests, builds the client, installs Playwright browsers, and runs E2E tests.
 2. **Docker build job**: depends on test. Runs `docker compose build`.
 3. **Push**: on `v*` tag push, logs into GHCR and pushes `ghcr.io/fergus/job-tracker:<version>` and `:latest`.
 

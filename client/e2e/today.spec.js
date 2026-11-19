@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 import { gotoPipeline } from './helpers.js'
 
 // The suite shares one in-memory database across the run and does not isolate
@@ -169,7 +169,8 @@ test('closing a role from the board clears its step, and reopening does not brin
   await expect(page.getByText('TodayCloseCo')).toHaveCount(0)
 })
 
-test('a Today refresh that fails after a panel save says so (review P2)', async ({ page, request }) => {
+test('a Today refresh that fails after a panel save says so (review P2)', async ({ page, request, consoleGuard }) => {
+  consoleGuard.allow(/status of 500/)
   const today = await serverToday(request)
   await seedApp(request, { company_name: 'TodayToastCo', next_action_at: today })
 
@@ -187,7 +188,8 @@ test('a Today refresh that fails after a panel save says so (review P2)', async 
   await expect(page.getByText('Error loading Today — the list may be out of date')).toBeVisible()
 })
 
-test('a Today reload driven by live updates says once that it failed, not per event', async ({ page, request }) => {
+test('a Today reload driven by live updates says once that it failed, not per event', async ({ page, request, consoleGuard }) => {
+  consoleGuard.allow(/status of 500/)
   const today = await serverToday(request)
   const app = await seedApp(request, { company_name: 'TodayStreamCo', next_action_at: today })
 

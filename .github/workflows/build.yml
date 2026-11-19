@@ -27,11 +27,17 @@ jobs:
       - name: Install server dependencies
         run: cd server && npm ci
 
+      - name: Audit server dependencies
+        run: cd server && npm audit --omit=dev --audit-level=moderate
+
       - name: Run API tests
         run: cd server && npm test
 
       - name: Install client dependencies
         run: cd client && npm ci
+
+      - name: Audit client dependencies
+        run: cd client && npm audit --omit=dev --audit-level=moderate
 
       - name: Lint client
         run: cd client && npm run lint

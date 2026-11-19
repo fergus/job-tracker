@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 import { gotoPipeline } from './helpers.js'
 
 async function seedApp(request, company) {
@@ -113,7 +113,9 @@ test('setting and clearing the follow-up date leaves updated_at alone', async ({
 test('a failed follow-up save says so and leaves the date as it was', async ({
   page,
   request,
+  consoleGuard,
 }) => {
+  consoleGuard.allow(/status of 500/)
   const app = await seedApp(request, 'FollowFailCo')
   await request.put(`/api/applications/${app.id}`, { data: { next_action_at: '2099-06-01' } })
 

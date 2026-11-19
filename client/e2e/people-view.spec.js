@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 
 // The suite shares one in-memory database across the run and does not isolate
 // specs, so every name here is distinct from the ones contact-panel.spec.js
@@ -174,7 +174,8 @@ test('a blank name is refused before a request is made', async ({ page }) => {
   expect(posted).toBe(0)
 })
 
-test('a failed snooze leaves the row where it is and says so', async ({ page, request }) => {
+test('a failed snooze leaves the row where it is and says so', async ({ page, request, consoleGuard }) => {
+  consoleGuard.allow(/status of 500/)
   const [person] = await seed(request, [
     {
       name: 'Bartholomew Quist',

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 import { gotoPipeline, seedApp } from './helpers.js'
 
 test('kanban board renders applications', async ({ page, request }) => {

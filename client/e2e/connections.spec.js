@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 
 // Every spec shares one dev user, so imported connections left behind would
 // change what Today says in every later spec. Clear them whatever happens.
@@ -67,7 +67,8 @@ test('importing connections surfaces them on Today and in the record panel', asy
   await request.delete(`/api/applications/${app.id}`)
 })
 
-test('a file that is not a connections export is rejected with a reason', async ({ page }) => {
+test('a file that is not a connections export is rejected with a reason', async ({ page, consoleGuard }) => {
+  consoleGuard.allow(/status of 400/)
   await page.goto('/')
   await page.getByRole('button', { name: 'Open settings' }).click()
   await page.getByTestId('connection-file').setInputFiles({

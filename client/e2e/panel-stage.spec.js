@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures.js'
 import { gotoPipeline, seedApp } from './helpers.js'
 
 // The suite shares one in-memory DB, so each spec uses its own company names
