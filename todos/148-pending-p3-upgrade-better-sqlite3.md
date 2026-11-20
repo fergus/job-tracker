@@ -1,7 +1,8 @@
-# Upgrade `better-sqlite3` 13.0.3 → 13.1.1 (server)
+# Upgrade `better-sqlite3` 13.0.3 → 13.2.0 (server)
 
 - **Priority:** p3
 - **Created:** 2026-11-13
+- **Updated:** 2026-11-20 (latest now 13.2.0)
 - **Category:** Maintenance (npm, server, native module)
 
 ## Problem
@@ -18,7 +19,7 @@ change: the compiled binding has to match the Node ABI of the runtime image.
 ## Current
 
 - `better-sqlite3`: 13.0.3 (declared `^13.0.3`, `server/` dependencies)
-- Latest: **13.1.1**
+- Latest: **13.2.0**
 - Bump type: minor (13.0 → 13.1), not automatically applied
 - Platform: built inside `node:26-alpine` (see `Dockerfile`), so the rebuild
   happens during the image build, not on the host
@@ -34,7 +35,7 @@ minor needs a human to read the release notes.
 
 ```bash
 cd server
-npm install better-sqlite3@13.1.1
+npm install better-sqlite3@13.2.0
 npm rebuild better-sqlite3
 npm test                      # 558 tests at time of writing
 cd .. && npm run build:client
@@ -49,7 +50,7 @@ nothing in `server/db.js` relies on behaviour that moved:
 
 ## Acceptance Criteria
 
-- [ ] `cd server && npm ls better-sqlite3` resolves to 13.1.1
+- [ ] `cd server && npm ls better-sqlite3` resolves to 13.2.0
 - [ ] `npm rebuild better-sqlite3` succeeds on the dev Node version
 - [ ] `cd server && npm test` passes (558 tests)
 - [ ] `npm run build:client` succeeds from the repo root

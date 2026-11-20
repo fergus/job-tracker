@@ -1,7 +1,8 @@
-# Upgrade `@playwright/test` 1.64.1 → 1.65.0 (client, dev)
+# Upgrade `@playwright/test` 1.64.1 → 1.65.1 (client, dev)
 
 - **Priority:** p3
 - **Created:** 2026-11-06
+- **Updated:** 2026-11-20 (latest now 1.65.1)
 - **Category:** Maintenance (npm, client dev tooling)
 
 ## Problem
@@ -16,12 +17,12 @@ impact.
 ## Current
 
 - `@playwright/test`: 1.64.1 (declared `^1.64.1`, `client/` devDependencies)
-- Latest: **1.65.0**
+- Latest: **1.65.1**
 
 ## Proposed Solution
 
 ```bash
-cd client && npm install -D @playwright/test@1.65.0
+cd client && npm install -D @playwright/test@1.65.1
 npx playwright install --with-deps chromium
 cd .. && npm run build:client && cd client && npm run test:e2e
 ```
@@ -37,7 +38,7 @@ rather than assuming it.
 
 ## Acceptance Criteria
 
-- [ ] `cd client && npm ls @playwright/test` resolves to 1.65.0
+- [ ] `cd client && npm ls @playwright/test` resolves to 1.65.1
 - [ ] `npm run test:e2e` passes against a freshly built client
 - [ ] CI test job passes on the tag release carrying the bump
 - [ ] Only `client/package.json` and `client/package-lock.json` change for the package itself

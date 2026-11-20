@@ -1,7 +1,8 @@
-# Upgrade `marked` 18.1.3 → 18.2.0 (client)
+# Upgrade `marked` 18.1.3 → 18.2.1 (client)
 
 - **Priority:** p3
 - **Created:** 2026-11-13
+- **Updated:** 2026-11-20 (latest now 18.2.1)
 - **Category:** Maintenance (npm, client)
 
 ## Problem
@@ -18,19 +19,19 @@ HTML the sanitizer is handed, which is exactly the surface worth eyeballing.
 ## Current
 
 - `marked`: 18.1.3 (declared in `client/` dependencies)
-- Latest: **18.2.0**
+- Latest: **18.2.1**
 - Bump type: minor (18.1 → 18.2), not automatically applied
 
 ## Proposed Solution
 
 ```bash
 cd client
-npm install marked@18.2.0
+npm install marked@18.2.1
 cd .. && npm run build:client
 cd client && npm run test:e2e
 ```
 
-Then skim the 18.2.0 release notes for tokenizer/renderer changes and spot-check
+Then skim the 18.2.1 release notes for tokenizer/renderer changes and spot-check
 the three markdown surfaces by hand:
 
 1. An application's stage notes (including a table, a fenced code block and a
@@ -43,7 +44,7 @@ grep for `v-html` in `client/src/components/`.
 
 ## Acceptance Criteria
 
-- [ ] `cd client && npm ls marked` resolves to 18.2.0
+- [ ] `cd client && npm ls marked` resolves to 18.2.1
 - [ ] `npm run build:client` succeeds from the repo root
 - [ ] `cd client && npm run test:e2e` passes
 - [ ] The three markdown surfaces render as before (tables, code fences, lists
