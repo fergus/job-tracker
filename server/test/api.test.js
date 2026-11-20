@@ -769,7 +769,7 @@ describe("Profile", () => {
         const res = await req.get("/api/me/profile");
         assert.equal(res.status, 200);
         assert.equal(res.body.user_email, "dev@localhost");
-        assert.ok(res.body.hasOwnProperty("full_name"));
+        assert.ok(Object.hasOwn(res.body, "full_name"));
     });
 
     test("PUT /api/me/profile updates fields", async () => {

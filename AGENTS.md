@@ -103,6 +103,7 @@ Run tests:
 
 ```bash
 cd server && npm test           # backend API tests
+cd server && npm run lint       # server lint (client: cd client && npm run lint)
 npm run build:client && cd client && npm run test:e2e   # frontend E2E tests
 ```
 
@@ -175,7 +176,7 @@ SQLite with WAL mode and foreign keys enabled.
 
 - **Auto-creation**: Tables are created on startup via `CREATE TABLE IF NOT EXISTS` in `server/db.js`.
 - **Column migrations**: New columns are added via `ALTER TABLE` guarded by `PRAGMA table_info` checks, also in `server/db.js`.
-- **One-shot migrations**: Recorded in `_migrations` table so they run once (e.g. the `cv_to_attachments` backfill).
+- **One-shot migrations**: Recorded in `_migrations` table so they run once (e.g. the `cv_to_attachments` backfill). They must finish before `db.js` returns: async work started at module load and not awaited is banned by server lint. Slow or async backfills belong in `server/scripts/` and are run by hand (e.g. `backfill-extracted-text.js` for attachments with no extracted text).
 - **Destructive changes** (renaming/dropping columns) must be handled manually or by recreating the database.
 - To reset: `rm data/job-tracker.db` and restart the server.
 
@@ -273,7 +274,7 @@ curl -s http://localhost:3000/api/applications -H 'X-Forwarded-Email: dev@localh
 
 GitHub Actions workflow (`.github/workflows/build.yml`):
 
-1. **Test job**: installs server and client deps with `npm ci`, audits each (`npm audit --omit=dev --audit-level=moderate`, so any moderate-or-worse advisory in a shipped dependency fails the build), runs backend tests, lints the client, runs client unit tests, builds the client, installs Playwright browsers, and runs E2E tests.
+1. **Test job**: installs server and client deps with `npm ci`, audits each (`npm audit --omit=dev --audit-level=moderate`, so any moderate-or-worse advisory in a shipped dependency fails the build), lints the server, runs backend tests, lints the client, runs client unit tests, builds the client, installs Playwright browsers, and runs E2E tests.
 2. **Docker build job**: depends on test. Runs `docker compose build`.
 3. **Push**: on `v*` tag push, logs into GHCR and pushes `ghcr.io/fergus/job-tracker:<version>` and `:latest`.
 

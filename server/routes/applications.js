@@ -360,7 +360,7 @@ router.get("/:id/attachments", (req, res) => {
 });
 
 // Upload attachments (owner only)
-router.post("/:id/attachments", (req, res, next) => {
+router.post("/:id/attachments", (req, res) => {
     upload.array("files", 10)(req, res, async (err) => {
         if (err) {
             return res.status(400).json({ error: err.message });

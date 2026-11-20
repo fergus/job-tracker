@@ -131,7 +131,7 @@ function importConnections(userEmail, csvText) {
         throw new ServiceError(413, "CSV exceeds the 5 MB limit");
     }
 
-    const rows = parseCsv(csvText.replace(/^﻿/, ""));
+    const rows = parseCsv(csvText.replace(/^\uFEFF/, ""));
     const headerAt = rows.findIndex((r) => r[0] && r[0].trim() === "First Name");
     if (headerAt === -1) {
         throw new ServiceError(

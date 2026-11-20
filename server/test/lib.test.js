@@ -12,7 +12,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 // Initialise DB schema and module graph (loads apiKeySecret via auth -> app)
-const app = require("../app");
+require("../app");
 const db = require("../db");
 const { ALLOWED_EXTENSIONS, MIME_MAP } = require("../lib/mime");
 const { isValidUrl } = require("../lib/validation");

@@ -30,6 +30,9 @@ jobs:
       - name: Audit server dependencies
         run: cd server && npm audit --omit=dev --audit-level=moderate
 
+      - name: Lint server
+        run: cd server && npm run lint
+
       - name: Run API tests
         run: cd server && npm test
 
