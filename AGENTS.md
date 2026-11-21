@@ -295,7 +295,7 @@ automatically — there is no deploy job in `build.yml`, so this is a manual pul
 ```bash
 cd ~/job-tracker
 git pull
-docker compose pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
@@ -303,7 +303,7 @@ Everything that differs from a development checkout lives in
 `docker-compose.prod.yml`: the restart policy, and the swap from `build: .` to
 the published image.
 
-Two things about that file are easy to get wrong.
+Three things about that file are easy to get wrong.
 
 **It must be passed with `-f`, and it is not called `docker-compose.override.yml`
 on purpose.** Compose auto-loads the override filename, so committing it under
@@ -316,6 +316,11 @@ keeps the default behaviour honest — at the cost of having to remember the fla
 `docker-compose.override.yml` sitting in the deployment directory is silently
 ignored rather than merged. There should not be one there; if one appears,
 it is doing nothing.
+
+**`pull` needs the same flags as `up`.** A bare `docker compose pull` reads only
+the base file, which says `build: .`, so it reports "No image to be pulled" and
+the following `up -d` keeps the old container running. This is how the v0.28.5
+deploy first left v0.28.4 in place.
 
 `build: !reset null` is the part that is easy to miss. The base file declares
 `build: .`, and an overlay that only adds `image:` leaves **both** keys set —
