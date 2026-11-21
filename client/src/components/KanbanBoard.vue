@@ -54,11 +54,16 @@
           <span class="text-4xl font-semibold font-condensed leading-none tabular-nums text-ink">{{ columns[stage.value].length }}</span>
           <h3 class="text-sm font-semibold font-condensed text-ink-2 uppercase tracking-wider">{{ stage.label }}</h3>
         </div>
+        <!-- The delay is a long-press for touch, so a finger can scroll the
+             board without picking a card up. Applied to a mouse it cancels
+             any drag that moves within 100ms and selects the card's text
+             instead, so every list on the board makes it touch-only. -->
         <draggable
           v-model="columns[stage.value]"
           group="applications"
           item-key="id"
           :delay="100"
+          :delay-on-touch-only="true"
           class="space-y-2 min-h-[100px] rounded-lg p-2"
           :style="wellStyle(stage.value)"
           :data-testid="`well-${stage.value}`"
@@ -93,6 +98,7 @@
             :sort="false"
             item-key="id"
             :delay="100"
+            :delay-on-touch-only="true"
             :class="['space-y-2', showClosed ? 'min-h-[60px]' : '']"
             data-testid="closed-drop-zone"
             @change="onClosedAdded"
@@ -160,6 +166,7 @@
                 group="applications"
                 item-key="id"
                 :delay="100"
+                :delay-on-touch-only="true"
                 class="space-y-2 min-h-[60px] rounded-lg p-2"
                 :style="wellStyle(stage.value)"
                 :data-testid="`well-${stage.value}`"
@@ -195,6 +202,7 @@
             group="applications"
             item-key="id"
             :delay="100"
+            :delay-on-touch-only="true"
             class="space-y-2 min-h-[60px] bg-sunken rounded-lg p-2"
             data-testid="closed-drop-zone-mobile"
             @change="onClosedAdded"

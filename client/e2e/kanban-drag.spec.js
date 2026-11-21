@@ -5,14 +5,18 @@ import { gotoPipeline, seedApp } from './helpers.js'
 // the way, so the pointer is walked to the target in steps. A single jump only
 // registers when the target column is nearly empty, which made these specs pass
 // or fail on how many records earlier specs happened to leave behind.
-async function dragWithDelay(page, sourceLocator, targetLocator, delay = 150) {
+//
+// offsetY moves the drop point off the target's centre line. Sortable picks
+// before/after from which half of a card the pointer is in, so a drop dead on
+// the middle of a same-height card in the same row inserts nowhere.
+async function dragWithDelay(page, sourceLocator, targetLocator, delay = 150, offsetY = 0) {
   const sourceBox = await sourceLocator.boundingBox()
   const targetBox = await targetLocator.boundingBox()
 
   const fromX = sourceBox.x + sourceBox.width / 2
   const fromY = sourceBox.y + sourceBox.height / 2
   const toX = targetBox.x + targetBox.width / 2
-  const toY = targetBox.y + targetBox.height / 2
+  const toY = targetBox.y + targetBox.height / 2 + offsetY
 
   await page.mouse.move(fromX, fromY)
   await page.mouse.down()
@@ -171,6 +175,23 @@ test('moving a card between open stages stamps the stage date, and Undo puts it 
   expect(restored.stage).toBe('interested')
   expect(restored.state).toBe('open')
   await cleanup(request, 'StampCorp')
+})
+
+// The other specs hold still before moving, which a person does not. The
+// long-press delay is for touch only; on a mouse, moving straight away must
+// lift the card rather than select its text. The target column holds a card
+// of its own, as a real one does, whatever earlier specs left behind.
+test('a mouse drag that moves straight away lifts the card instead of selecting text', async ({ page, request }) => {
+  await seedApp(request, { company_name: 'QuickDragCorp', role_title: 'Engineer', stage: 'interested' })
+  await seedApp(request, { company_name: 'AlreadyAppliedCorp', role_title: 'Engineer', stage: 'applied' })
+
+  await gotoPipeline(page)
+  await dragWithDelay(page, card(page, 'QuickDragCorp'), column(page, 'Applied'), 0, 15)
+  await page.waitForTimeout(500)
+
+  expect((await findApp(request, 'QuickDragCorp')).stage).toBe('applied')
+  expect(await page.evaluate(() => window.getSelection().toString())).toBe('')
+  await cleanup(request, 'QuickDragCorp', 'AlreadyAppliedCorp')
 })
 
 test('Undo of a close restores the stage date and the follow-up the close cleared', async ({ page, request }) => {
