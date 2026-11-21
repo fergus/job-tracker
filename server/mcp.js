@@ -50,12 +50,7 @@ function createMcpServer() {
         const isReadOnly = READ_ONLY_TOOLS.has(name);
         return originalTool(name, description, schema, async (args, extra) => {
             const userEmail = extra.authInfo?.clientId;
-            let result;
-            try {
-                result = await handler(args, extra);
-            } catch (err) {
-                throw err;
-            }
+            const result = await handler(args, extra);
 
             if (!isReadOnly && userEmail && !result?.isError) {
                 let applicationId = args.id || args.application_id || null;
@@ -198,8 +193,6 @@ function createMcpServer() {
                 };
             try {
                 svc.rejectLegacyStatus(args);
-                const usePagination =
-                    args.limit !== undefined || args.offset !== undefined;
                 const includeNotes =
                     !args.fields || args.fields.includes("notes");
 

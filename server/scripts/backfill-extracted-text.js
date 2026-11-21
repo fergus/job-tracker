@@ -9,13 +9,16 @@
  *
  * Environment:
  *   DB_PATH — defaults to data/job-tracker.db
+ *   UPLOADS_DIR -- defaults to uploads/, as for the server
  */
 
 const path = require('path');
 const db = require('../db');
 const { extractText } = require('../services/extraction');
 
-const uploadsDir = path.resolve(path.join(__dirname, '..', '..', 'uploads'));
+const uploadsDir = path.resolve(
+  process.env.UPLOADS_DIR || path.join(__dirname, '..', '..', 'uploads')
+);
 
 async function main() {
   const rows = db.prepare(

@@ -28,15 +28,6 @@ function cleanupApps() {
     db.prepare("DELETE FROM applications").run();
 }
 
-// Run cleanup before each test that needs a clean slate
-const originalTest = test;
-function cleanTest(name, fn) {
-    return originalTest(name, async (t) => {
-        cleanupApps();
-        return fn(t);
-    });
-}
-
 describe("services/applications", () => {
     describe("ServiceError", () => {
         test("stores status and message", () => {

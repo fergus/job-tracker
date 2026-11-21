@@ -101,7 +101,7 @@ app.get('/*splat', (req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });
 
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('[error]', err.message, err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
