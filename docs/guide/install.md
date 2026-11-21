@@ -49,7 +49,7 @@ If you need extra settings that the base file does not pass through (see [Config
 
 ```bash
 git pull
-docker compose pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
