@@ -58,3 +58,5 @@ ssh docker 'cd job-tracker && docker compose ps'
 - [ ] A `scope = 'contacts'` API key still reads the address book on an iPhone
 
 - **Effort**: Small | **Risk**: Low–Medium (auth front end; failure mode is total login loss, verified by a real login before closing)
+
+**Re-checked 2026-11-22:** still open, no newer release than the version above (npm outdated, server and client); `npm audit` clean. Nothing applied.

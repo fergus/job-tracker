@@ -58,3 +58,5 @@ nothing in `server/db.js` relies on behaviour that moved:
       after deploy
 
 - **Effort**: Small | **Risk**: Medium (native module + SQLite version move)
+
+**Re-checked 2026-11-22:** still open, no newer release than the version above (npm outdated, server and client); `npm audit` clean. Nothing applied.

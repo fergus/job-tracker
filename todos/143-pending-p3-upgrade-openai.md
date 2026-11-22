@@ -59,3 +59,5 @@ Manual checks worth doing beyond the test suite:
 - [ ] Only the four package/lock files for the bump are changed
 
 - **Effort**: Small | **Risk**: Low–Medium (SDK minor; exercised by tests and the generation path)
+
+**Re-checked 2026-11-22:** still open, no newer release than the version above (npm outdated, server and client); `npm audit` clean. Nothing applied.

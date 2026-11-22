@@ -44,3 +44,5 @@ rather than assuming it.
 - [ ] Only `client/package.json` and `client/package-lock.json` change for the package itself
 
 - **Effort**: Small | **Risk**: Low (dev dependency; E2E suite is the gate)
+
+**Re-checked 2026-11-22:** still open, no newer release than the version above (npm outdated, server and client); `npm audit` clean. Nothing applied.

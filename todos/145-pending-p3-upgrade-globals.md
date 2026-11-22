@@ -41,3 +41,5 @@ cd .. && npm run build:client
       `@eslint/js`, `eslint-plugin-vue`, `globals`)
 
 - **Effort**: Small | **Risk**: Low (dev dependency; verified by lint + build)
+
+**Re-checked 2026-11-22:** still open, no newer release than the version above (npm outdated, server and client); `npm audit` clean. Nothing applied.

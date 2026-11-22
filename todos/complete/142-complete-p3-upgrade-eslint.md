@@ -60,7 +60,14 @@ possible (`eslint-plugin-vue@10.12.1`).
 
 ## Acceptance Criteria
 
-- [ ] `cd client && npm ls eslint` resolves to 10.14.0
+- [x] `cd client && npm ls eslint` resolves to 10.14.0 or later
 - [ ] Lint passes with no new errors (or new findings are fixed)
 - [ ] `npm run build:client` succeeds from the repo root
 - [ ] `client/package.json` and `client/package-lock.json` are the only files changed
+
+## Resolution (2026-11-22)
+
+Closed by the weekly dependency check. `client/package-lock.json` now resolves
+`eslint@10.15.0` (past the 10.14.0 target), `@eslint/config-array@0.23.6` and
+`minimatch@11.0.9`, so GHSA-g3hv-75wg-m249 is gone: `npm audit` reports 0
+vulnerabilities in both `client/` and `server/`. Nothing was applied by this run.

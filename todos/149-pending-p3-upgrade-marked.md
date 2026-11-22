@@ -52,3 +52,5 @@ grep for `v-html` in `client/src/components/`.
 - [ ] Every marked → `v-html` path still passes through DOMPurify
 
 - **Effort**: Small | **Risk**: Low (minor, sanitizer stays in the path)
+
+**Re-checked 2026-11-22:** still open, no newer release than the version above (npm outdated, server and client); `npm audit` clean. Nothing applied.
