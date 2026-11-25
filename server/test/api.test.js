@@ -1233,6 +1233,9 @@ describe("MCP Server", () => {
         if (mcpServer) mcpServer.close();
     });
 
+    // The server is stateless, so it issues no session ID to echo back
+    const sessionHeader = (id) => (id ? { "Mcp-Session-Id": id } : {});
+
     // Drives tools over the real Streamable HTTP transport, so argument
     // handling is the SDK's own rather than a handler called with trusted
     // input. One session is shared: the MCP endpoint is rate limited.
@@ -1241,11 +1244,12 @@ describe("MCP Server", () => {
         Accept: "application/json, text/event-stream",
         "Content-Type": "application/json",
     });
+    let handshakeDone = false;
     let sharedSession;
     let rpcId = 100;
 
     async function rpc(method, params) {
-        if (!sharedSession) {
+        if (!handshakeDone) {
             const init = await mcpReq
                 .post("/")
                 .set(mcpHeaders())
@@ -1261,11 +1265,12 @@ describe("MCP Server", () => {
                 });
             assert.equal(init.status, 200);
             sharedSession = init.headers["mcp-session-id"];
+            handshakeDone = true;
         }
         const res = await mcpReq
             .post("/")
             .set(mcpHeaders())
-            .set("Mcp-Session-Id", sharedSession)
+            .set(sessionHeader(sharedSession))
             .send({ jsonrpc: "2.0", id: rpcId++, method, params });
         assert.equal(res.status, 200);
         const dataLine = res.text
@@ -1402,8 +1407,8 @@ describe("MCP Server", () => {
             .get("/")
             .set("Authorization", `Bearer ${apiKey}`);
 
-        // GET / with auth but no session ID returns 400; 429 means rate limited.
-        const notLimited = [400];
+        // An authenticated GET / is not allowed (405); 429 means rate limited.
+        const notLimited = [405];
         assert.ok(
             notLimited.includes(r1.status),
             `first request should not be rate limited (got ${r1.status})`,
@@ -1418,56 +1423,35 @@ describe("MCP Server", () => {
         delete process.env.RATE_LIMIT_MCP;
     });
 
-    test("supports multiple sequential session initializations", async () => {
-        const initBody = {
+    test("serves 2025-era requests without sessions", async () => {
+        const send = (body) =>
+            mcpReq.post("/").set(mcpHeaders()).send(body);
+        const init = await send({
             jsonrpc: "2.0",
             id: 1,
             method: "initialize",
             params: {
-                protocolVersion: "2024-11-05",
+                protocolVersion: "2025-06-18",
                 capabilities: {},
                 clientInfo: { name: "test", version: "1.0" },
             },
-        };
+        });
+        assert.equal(init.status, 200);
+        assert.equal(init.headers["mcp-session-id"], undefined);
 
-        const r1 = await mcpReq
-            .post("/")
-            .set("Authorization", `Bearer ${apiKey}`)
-            .set("Accept", "application/json, text/event-stream")
-            .set("Content-Type", "application/json")
-            .send(initBody);
+        const listed = await send({
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/list",
+            params: {},
+        });
+        assert.equal(listed.status, 200);
+        assert.match(listed.text, /"list_applications"/);
 
-        assert.equal(
-            r1.status,
-            200,
-            `first initialize should succeed, got: ${r1.body}`,
-        );
-        assert.ok(
-            r1.headers["mcp-session-id"],
-            "first session should have a session ID",
-        );
-
-        const r2 = await mcpReq
-            .post("/")
-            .set("Authorization", `Bearer ${apiKey}`)
-            .set("Accept", "application/json, text/event-stream")
-            .set("Content-Type", "application/json")
-            .send(initBody);
-
-        assert.equal(
-            r2.status,
-            200,
-            `second initialize should succeed, got: ${r2.body}`,
-        );
-        assert.ok(
-            r2.headers["mcp-session-id"],
-            "second session should have a session ID",
-        );
-        assert.notEqual(
-            r1.headers["mcp-session-id"],
-            r2.headers["mcp-session-id"],
-            "session IDs should be unique",
-        );
+        const get = await mcpReq
+            .get("/")
+            .set("Authorization", `Bearer ${apiKey}`);
+        assert.equal(get.status, 405);
     });
 
     test("get_application_context MCP tool returns assembled context", async () => {
@@ -1507,7 +1491,6 @@ describe("MCP Server", () => {
             .send(initBody);
         assert.equal(init.status, 200);
         const sessionId = init.headers["mcp-session-id"];
-        assert.ok(sessionId);
 
         // Call the tool
         const toolBody = {
@@ -1523,7 +1506,7 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
+            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1582,7 +1565,7 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
+            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1658,7 +1641,7 @@ describe("MCP Server", () => {
             const toolRes = await mcpReq
                 .post("/")
                 .set("Authorization", `Bearer ${apiKey}`)
-                .set("Mcp-Session-Id", sessionId)
+                .set(sessionHeader(sessionId))
                 .set("Accept", "application/json, text/event-stream")
                 .set("Content-Type", "application/json")
                 .send(toolBody);
@@ -1734,7 +1717,7 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
+            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1796,7 +1779,7 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
+            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1839,7 +1822,7 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
+            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send({
@@ -1890,7 +1873,7 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
+            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send({
@@ -1939,7 +1922,7 @@ describe("MCP Server", () => {
                 const res = await mcpReq
                     .post("/")
                     .set("Authorization", `Bearer ${apiKey}`)
-                    .set("Mcp-Session-Id", sessionId)
+                    .set(sessionHeader(sessionId))
                     .set("Accept", "application/json, text/event-stream")
                     .set("Content-Type", "application/json")
                     .send({

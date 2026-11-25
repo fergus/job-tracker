@@ -1,14 +1,13 @@
 "use strict";
-const { randomUUID } = require("node:crypto");
 const fs = require("node:fs");
+const http = require("node:http");
 const path = require("node:path");
 const express = require("express");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
-const {
-    StreamableHTTPServerTransport,
-} = require("@modelcontextprotocol/sdk/server/streamableHttp.js");
+const { McpServer, createMcpHandler } = require("@modelcontextprotocol/server");
+const { loadSkills } = require("@modelcontextprotocol/server/ext/skills/node");
+const { toNodeHandler } = require("@modelcontextprotocol/node");
 const { z } = require("zod");
 const db = require("./db");
 const svc = require("./services/applications");
@@ -24,6 +23,13 @@ const { generateDocument, VALID_TASKS } = require("./services/generation");
 const { logAuditEvent, READ_ONLY_TOOLS } = require("./services/audit");
 const { createUploadToken } = require("./lib/uploadTokens");
 const { emitChange } = require("./lib/events");
+
+const SKILLS_DIR = path.join(__dirname, "skills");
+
+// Strict, so a malformed skill fails the load instead of silently vanishing.
+function loadSkillCatalog(dir = SKILLS_DIR) {
+    return loadSkills(dir, { strict: true });
+}
 
 // Convert a ServiceError into MCP tool content so the LLM sees the message.
 function toolError(err) {
@@ -41,18 +47,23 @@ function toolError(err) {
     throw err;
 }
 
-function createMcpServer() {
+function createMcpServer(skills) {
     const server = new McpServer({ name: "job-tracker", version: "1.0.0" });
+    skills?.attach(server);
 
-    // Wrap server.tool to audit mutating tool calls
-    const originalTool = server.tool.bind(server);
-    server.tool = (name, description, schema, handler) => {
+    // Every tool is registered through here so mutating calls get audited
+    const tool = (name, description, schema, handler) => {
         const isReadOnly = READ_ONLY_TOOLS.has(name);
-        return originalTool(name, description, schema, async (args, extra) => {
+        const config = { description, inputSchema: z.object(schema) };
+        return server.registerTool(name, config, async (args, ctx) => {
+            const extra = { authInfo: ctx.http?.authInfo, mcpReq: ctx.mcpReq };
             const userEmail = extra.authInfo?.clientId;
             const result = await handler(args, extra);
 
-            if (!isReadOnly && userEmail && !result?.isError) {
+            // A call that is still asking the user something has changed nothing
+            const changed =
+                !result?.isError && result?.resultType !== "input_required";
+            if (!isReadOnly && userEmail && changed) {
                 let applicationId = args.id || args.application_id || null;
                 let details = null;
 
@@ -112,7 +123,7 @@ function createMcpServer() {
         });
     };
 
-    server.tool(
+    tool(
         "list_applications",
         "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call, and add state \"open\" to match the Today screen: a closed record can carry a deliberately set re-check date, which this filter alone still returns. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
         {
@@ -242,7 +253,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_application",
         "Get a job application by ID, returning the full record including job_description, extracted_jd, interview_notes, prep_work, notes, linked contacts, and attachment metadata. The intended pattern is: call list_applications (with sparse fields) to locate a record, then call get_application to fetch full detail.",
         {
@@ -268,7 +279,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "create_application",
         "Create a new job application.",
         {
@@ -373,7 +384,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "update_application",
         "Update fields on an existing job application.",
         {
@@ -509,7 +520,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "add_note",
         "Add a stage note to a job application. Logging a chase is the moment you know when to chase next, so set next_action_at in the same call rather than following up with update_application.",
         {
@@ -573,7 +584,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "update_note",
         "Correct a stage note already written to an application. Replaces the note's content wholesale, and optionally re-files it under a different stage when it was logged against the wrong one. This is NOT a patch: content is required on every call, so re-filing a note under a different stage means reading it back first and resending its text unchanged. (update_contact_note, for interactions, is a true patch -- the two differ.) Use this rather than delete_note plus add_note when the note is merely wrong -- a deleted note cannot be brought back.",
         {
@@ -622,7 +633,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "delete_note",
         "Withdraw a stage note from an application. This HIDES the note: it stops appearing anywhere in the product and cannot be read back, and there is NO undo -- nothing in this API brings a hidden note back. Treat it as final. If the note is wrong rather than unwanted, call update_note instead.",
         {
@@ -657,7 +668,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "list_attachments",
         "List attachments for a job application (filename, size, type — no binary content).",
         {
@@ -683,7 +694,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_attachment_text",
         "Get the extracted plain text from a file attachment (PDF, DOCX, TXT, MD).",
         {
@@ -736,7 +747,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_user_profile",
         "Get the candidate profile (resume, career narrative, agent instructions) for the authenticated user.",
         {},
@@ -771,7 +782,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_application_context",
         "Get the full context for a job application: application details, notes, attachments with extracted text, and user profile.",
         {
@@ -837,7 +848,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "generate_document",
         "Generate a tailored document (cover letter, resume tailoring tips, or interview prep brief) for a job application.",
         {
@@ -943,7 +954,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "upload_attachment",
         "Upload a small file attachment (under ~30KB) to a job application using base64-encoded content. For larger files use get_upload_url instead.",
         {
@@ -986,7 +997,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_upload_url",
         "Get a one-time pre-signed upload URL for attaching a file to a job application. Use this for files larger than ~30KB. Returns a URL and curl command — upload the file directly to that URL with HTTP PUT (multipart field name: 'file'). The attachment is linked to the application immediately on successful upload. The URL is valid for 15 minutes.",
         {
@@ -1060,7 +1071,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "extract_job_description",
         "Extract structured data (skills, responsibilities, salary, etc.) from the existing job description text of an application.",
         {
@@ -1132,7 +1143,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "fetch_job_description",
         "Fetch a job description from the job_posting_url, store it on the application, and extract structured data.",
         {
@@ -1221,7 +1232,7 @@ function createMcpServer() {
     // existed, a recruiter got filed as a job application, which inflated the
     // pipeline and left the referral network unrepresentable.
 
-    server.tool(
+    tool(
         "list_contacts",
         "List contacts (recruiters, referrers, hiring managers) with the records each is linked to, ordered by what is owed soonest. Each carries follow_up_state (overdue | due | upcoming) derived against the instance timezone, so you never recompute it. Use next_action_before to answer \"who do I owe a touch this week\".",
         {
@@ -1264,7 +1275,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_contact",
         "Get one contact by ID, including every record they are linked to and the relation each link carries.",
         { id: z.number().int().positive().describe("Contact ID") },
@@ -1288,7 +1299,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "create_contact",
         "Create a contact. A contact can exist with no links, so record a person met before any specific role rather than leaving them in a note body.",
         {
@@ -1339,7 +1350,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "link_contact",
         "Attach a contact to an application or lead, recording their relation to it. Both must belong to you.",
         {
@@ -1380,7 +1391,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "list_connections",
         "List the user's imported LinkedIn connections, newest connection first. Pass company to answer 'who do I know at X' (matched on the normalised employer name, so 'Acme Pty Ltd' finds 'Acme'); pass query to search name, employer and job title. Connections are not contacts: use promote_connection to turn one into a contact worth tracking.",
         {
@@ -1417,7 +1428,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "promote_connection",
         "Turn a LinkedIn connection into a contact, optionally linking it to a record in one step. Promoting the same connection twice returns the same contact. Use this when the user decides to approach someone, not to bulk-import the network.",
         {
@@ -1468,7 +1479,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "update_contact",
         "Update a contact. Patch semantics: omitted fields are left unchanged, and an explicit null clears a field. Use this to enrich a contact created earlier -- notes, employer, email and phone are all correctable after creation.",
         {
@@ -1537,7 +1548,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "delete_contact",
         "Delete a contact. Its links to records are removed with it; the records themselves are untouched. There is no undo -- prefer update_contact when the contact is merely wrong rather than unwanted.",
         { id: z.number().int().positive().describe("Contact ID") },
@@ -1561,7 +1572,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "unlink_contact",
         "Detach a contact from a record. The inverse of link_contact. To correct a link's relation, unlink then link again with the right value.",
         {
@@ -1596,7 +1607,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "convert_application_to_contact",
         "Convert a record that is actually a person into a contact, then remove the record. The original row, its notes, attachments and links are written to a backup table first, so the conversion is recoverable by hand. Use this for rows filed as applications that are really recruiters or referrers.",
         {
@@ -1654,7 +1665,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "add_contact_note",
         "Log an interaction with a contact -- messaged, replied, meeting held, agreed to follow up. This is the relationship's history; the contact's `notes` field is a standing description, not a log. Logging advances last_contacted_at automatically, so there is no second field to maintain.",
         {
@@ -1711,7 +1722,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "update_contact_note",
         "Correct an interaction already logged against a contact -- what it said, when it happened, or both. Patch semantics: an omitted field is left alone, and at least one of content or occurred_at must be given. Re-dating an interaction backwards will NOT move the contact's last_contacted_at backwards: freshness only ever advances, so withdrawing or re-dating evidence of contact cannot make a relationship look staler than it already looked. The next-action pair is never touched here -- move a commitment with update_contact or add_contact_note.",
         {
@@ -1763,7 +1774,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "delete_contact_note",
         "Withdraw an interaction from a contact's log. This HIDES the interaction: it stops appearing anywhere in the product and cannot be read back, and there is NO undo -- nothing in this API brings a hidden note back. Treat it as final. The contact's last_contacted_at is left exactly where it is, so removing the evidence of contact does not rewind the relationship's freshness. If the interaction is wrong rather than unwanted, call update_contact_note instead. Returns the refreshed contact.",
         {
@@ -1851,50 +1862,50 @@ function startMcpServer(port) {
         next();
     });
 
-    // Session map: sessionId → StreamableHTTPServerTransport
-    const sessions = new Map();
-
-    app.all("/", async (req, res) => {
-        try {
-            const sessionId = req.headers["mcp-session-id"];
-
-            if (sessionId) {
-                // Route to existing session
-                const transport = sessions.get(sessionId);
-                if (!transport)
-                    return res.status(404).json({ error: "Session not found" });
-                await transport.handleRequest(req, res, req.body);
-            } else if (req.method === "POST") {
-                // New session (Initialize handshake) — each session needs its own McpServer
-                // because McpServer can only connect to one transport at a time.
-                const mcpServer = createMcpServer();
-                const transport = new StreamableHTTPServerTransport({
-                    sessionIdGenerator: () => randomUUID(),
-                    onsessioninitialized: (sid) => sessions.set(sid, transport),
-                    onsessionclosed: async (sid) => {
-                        sessions.delete(sid);
-                        try {
-                            await mcpServer.close();
-                        } catch {}
-                    },
-                });
-                await mcpServer.connect(transport);
-                await transport.handleRequest(req, res, req.body);
-            } else {
-                res.status(400).json({ error: "No session ID provided" });
-            }
-        } catch (err) {
-            console.error("[mcp] unhandled error:", err);
-            if (!res.headersSent)
-                res.status(500).json({ error: "Internal server error" });
-        }
+    // One server per request. New-revision clients get everything; 2025-era
+    // clients are served without sessions.
+    let skills;
+    const handler = createMcpHandler(() => createMcpServer(skills), {
+        onerror: (err) => console.error("[mcp] handler error:", err),
     });
-
-    const httpServer = app.listen(port, "0.0.0.0", () => {
-        console.log(`MCP server running on http://localhost:${port}`);
+    const nodeHandler = toNodeHandler(handler, {
+        onerror: (err) => console.error("[mcp] unhandled error:", err),
     });
+    app.all("/", (req, res) => nodeHandler(req, res, req.body));
+
+    const httpServer = http.createServer(app);
+
+    // A subscription stream stays open until the handler closes it, so closing
+    // only the HTTP server would hang while a client is subscribed.
+    let closing = false;
+    const closeHttpServer = httpServer.close.bind(httpServer);
+    httpServer.close = (callback) => {
+        closing = true;
+        handler
+            .close()
+            .catch((err) =>
+                console.error("[mcp] error closing handler:", err.message),
+            );
+        return closeHttpServer(callback);
+    };
+
+    // Nothing is served until every skill has loaded
+    loadSkillCatalog()
+        .then((catalog) => {
+            skills = catalog;
+            if (closing) return;
+            httpServer.listen(port, "0.0.0.0", () => {
+                console.log(`MCP server running on http://localhost:${port}`);
+            });
+        })
+        .catch((err) => httpServer.emit("error", err));
 
     return httpServer;
 }
 
-module.exports = { startMcpServer, createMcpServer, toolError };
+module.exports = {
+    startMcpServer,
+    createMcpServer,
+    loadSkillCatalog,
+    toolError,
+};

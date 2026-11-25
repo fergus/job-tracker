@@ -29,7 +29,7 @@ function tools() {
 }
 
 function authed(email = TEST_EMAIL) {
-    return { authInfo: { clientId: email } };
+    return { http: { authInfo: { clientId: email } } };
 }
 
 function parseResult(result) {
