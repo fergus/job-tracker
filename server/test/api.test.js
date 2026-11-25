@@ -2639,6 +2639,53 @@ describe("File cleanup", () => {
             "Attachment file should be deleted from disk",
         );
     });
+
+    test("attachment delete is owner only, bumps updated_at and audits once", async () => {
+        const db = require("../db");
+        const app = await createApp();
+        const attachRes = await req
+            .post(`/api/applications/${app.id}/attachments`)
+            .attach("files", Buffer.from("keep me"), "keep.txt");
+        assert.equal(attachRes.status, 201);
+        const url = `/api/applications/${app.id}/attachments/${attachRes.body[0].id}`;
+        const row = () =>
+            db
+                .prepare("SELECT * FROM attachments WHERE id = ?")
+                .get(attachRes.body[0].id);
+        const audits = () =>
+            db
+                .prepare(
+                    "SELECT * FROM audit_log WHERE application_id = ? AND action = 'delete_attachment'",
+                )
+                .all(app.id);
+        db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
+            "2000-01-01T00:00:00.000Z",
+            app.id,
+        );
+
+        const stranger = await req
+            .delete(url)
+            .set("X-Forwarded-Email", "attachment-stranger@example.com");
+        assert.equal(stranger.status, 404);
+        assert.deepEqual(stranger.body, { error: "Not found" });
+        assert.ok(row(), "another user's delete removes nothing");
+
+        assert.equal((await req.delete(url)).status, 200);
+        assert.equal(row(), undefined);
+        assert.equal(audits().length, 1);
+        assert.equal(audits()[0].source, "rest");
+        assert.notEqual(
+            db
+                .prepare("SELECT updated_at FROM applications WHERE id = ?")
+                .get(app.id).updated_at,
+            "2000-01-01T00:00:00.000Z",
+        );
+
+        const again = await req.delete(url);
+        assert.equal(again.status, 404);
+        assert.deepEqual(again.body, { error: "Attachment not found" });
+        assert.equal(audits().length, 1);
+    });
 });
 
 // ---------------------------------------------------------------------------
