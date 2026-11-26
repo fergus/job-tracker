@@ -22,6 +22,15 @@ const {
 } = require("@modelcontextprotocol/client");
 const { SkillsClient } = require("@modelcontextprotocol/client/ext/skills");
 
+// Stands in for a slow tool call. Replaced before mcp.js binds the function.
+const fetchJd = require("../services/fetch-jd");
+let fetchStarted;
+fetchJd.fetchJobDescription = async () => {
+    fetchStarted();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    throw new fetchJd.FetchError("the slow fetch finished");
+};
+
 const app = require("../app");
 const { startMcpServer, loadSkillCatalog } = require("../mcp");
 
@@ -197,6 +206,47 @@ describe("mcp skills", () => {
 });
 
 describe("mcp shutdown", () => {
+    test("a call already running when the server closes still gets its result", async () => {
+        const other = startMcpServer(0);
+        await listening(other);
+        const client = await connect(
+            keys.a,
+            `http://127.0.0.1:${other.address().port}/`,
+        );
+        await client.listen({ toolsListChanged: true });
+        const { id } = await callJson(client, "create_application", {
+            company_name: "Slow Co",
+            role_title: "Engineer",
+            job_posting_url: "https://example.com/job",
+        });
+
+        const started = new Promise((resolve) => {
+            fetchStarted = resolve;
+        });
+        const call = client.callTool({
+            name: "fetch_job_description",
+            arguments: { application_id: id },
+        });
+        await started;
+        const closed = new Promise((resolve) => other.close(resolve));
+
+        const result = await call;
+        assert.equal(result.content[0].text, "the slow fetch finished");
+        // Within the 10 seconds index.js allows, subscription stream and all
+        let timer;
+        await Promise.race([
+            closed,
+            new Promise((_, reject) => {
+                timer = setTimeout(
+                    () => reject(new Error("close did not finish")),
+                    8000,
+                );
+            }),
+        ]);
+        clearTimeout(timer);
+        await client.close();
+    });
+
     test("close finishes promptly while a subscription stream is open", async () => {
         const other = startMcpServer(0);
         await listening(other);

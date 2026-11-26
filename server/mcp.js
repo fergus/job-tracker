@@ -2039,22 +2039,39 @@ function startMcpServer(port) {
     const nodeHandler = toNodeHandler(handler, {
         onerror: (err) => console.error("[mcp] unhandled error:", err),
     });
-    app.all("/", (req, res) => nodeHandler(req, res, req.body));
-
-    const httpServer = http.createServer(app);
-
-    // A subscription stream stays open until the handler closes it, so closing
-    // only the HTTP server would hang while a client is subscribed.
+    // handler.close() cuts off running calls along with subscription streams,
+    // so on shutdown it has to wait until every ordinary request has ended.
     let closing = false;
-    const closeHttpServer = httpServer.close.bind(httpServer);
-    httpServer.close = (callback) => {
-        closing = true;
+    const running = new Set();
+    const closeHandlerWhenIdle = () => {
+        if (!closing || running.size > 0) return;
         handler
             .close()
             .catch((err) =>
                 console.error("[mcp] error closing handler:", err.message),
             );
-        return closeHttpServer(callback);
+    };
+    app.all("/", (req, res) => {
+        if (req.body?.method !== "subscriptions/listen") {
+            running.add(res);
+            res.once("close", () => {
+                running.delete(res);
+                closeHandlerWhenIdle();
+            });
+        }
+        nodeHandler(req, res, req.body);
+    });
+
+    const httpServer = http.createServer(app);
+
+    // A subscription stream stays open until the handler closes it, so closing
+    // only the HTTP server would hang while a client is subscribed.
+    const closeHttpServer = httpServer.close.bind(httpServer);
+    httpServer.close = (callback) => {
+        closing = true;
+        const result = closeHttpServer(callback);
+        closeHandlerWhenIdle();
+        return result;
     };
 
     loadSkillCatalog()
