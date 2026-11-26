@@ -20,7 +20,7 @@ The project ships as a single Docker image. In production it runs behind `oauth2
 | Backend | Node.js 20+, Express 5, `better-sqlite3`, `multer`, `helmet`, `express-rate-limit`, `zod` |
 | Database | SQLite (WAL mode enabled) |
 | Auth | OAuth2-proxy (browser) + Bearer API keys (programmatic) |
-| MCP | `@modelcontextprotocol/sdk` server on port 3001 |
+| MCP | `@modelcontextprotocol/server` and `@modelcontextprotocol/node` (SDK v2) on port 3001; tests use `@modelcontextprotocol/client` |
 | Build | Docker multi-stage build (node:24-alpine) |
 | CI/CD | GitHub Actions — test, then build/push to GHCR on version tags |
 
@@ -51,6 +51,7 @@ job-tracker/
 │   ├── app.js               # Express app setup (middleware, routes, static files, CSP)
 │   ├── db.js                # SQLite setup, table creation, migrations, prepared statements
 │   ├── mcp.js               # MCP server definition and HTTP transport
+│   ├── skills/              # MCP skills, one <name>/SKILL.md each
 │   ├── middleware/
 │   │   └── auth.js          # Bearer API key or X-Forwarded-Email OAuth auth
 │   ├── routes/
@@ -338,13 +339,19 @@ necessary, which is exactly why they survived and made `git pull` unsafe.
 
 A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`). It exposes tools for LLM clients to work with applications, notes, contacts, attachments, job descriptions, the user profile and document generation. Authentication is via Bearer API key only. The MCP server reuses the same `services/applications.js` business logic as the REST API.
 
-**Transport:** Streamable HTTP (stateful sessions with `Mcp-Session-Id` header)
+**Transport:** Streamable HTTP, stateless. There are no sessions and no `Mcp-Session-Id` header, and each request gets a new server instance. Both protocol eras are served: MCP 2026-07-28 clients get everything, and 2025-era clients can use every tool except `delete_attachment` (their `GET` returns 405). Skills are promised only to 2026-07-28 clients.
 
 **Paths:** The transport is mounted at `/` on the MCP port — *not* `/mcp`. Locally that means `http://localhost:3001/`. The public `https://<domain>/mcp` URL below is produced by an external reverse proxy that maps the `/mcp` path to this port; that proxy is not part of this repo's `docker-compose.yml`, which only publishes port 3001 as `${MCP_LISTEN_PORT:-3563}`. MCP does not pass through oauth2-proxy — it authenticates via Bearer API key on its own.
 
-**Tools:** `list_applications`, `get_application`, `create_application`, `update_application`, `add_note`, `update_note`, `delete_note`, `list_attachments`, `get_attachment_text`, `upload_attachment`, `get_upload_url`, `get_user_profile`, `get_application_context`, `generate_document`, `extract_job_description`, `fetch_job_description`, `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `link_contact`, `unlink_contact`, `add_contact_note`, `update_contact_note`, `delete_contact_note`, `convert_application_to_contact`, `list_connections`, `promote_connection`
+**Tools:** `get_today`, `list_applications`, `get_application`, `create_application`, `update_application`, `add_note`, `update_note`, `delete_note`, `list_attachments`, `delete_attachment`, `get_attachment_text`, `upload_attachment`, `get_upload_url`, `get_user_profile`, `get_application_context`, `generate_document`, `extract_job_description`, `fetch_job_description`, `list_contacts`, `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `link_contact`, `unlink_contact`, `add_contact_note`, `update_contact_note`, `delete_contact_note`, `convert_application_to_contact`, `list_connections`, `promote_connection`
 
-**Follow-ups on applications** — `list_applications`, `get_application`, `create_application` and `update_application` all carry `next_action_at`, and returned records include `follow_up_state`. The morning sweep is one `list_applications` call with `follow_up_state: ["overdue", "due"]`. `add_note` also takes `next_action_at` and `next_action`, so logging a chase and re-dating it is one call — the same shape `add_contact_note` has; omit the field to leave the date alone, pass `null` to clear it. The same tools carry `next_action` (what the step is); closing a record through `update_application` clears both halves unless the user has turned that off in Settings. There is deliberately no separate follow-ups tool.
+**Follow-ups on applications** — `list_applications`, `get_application`, `create_application` and `update_application` all carry `next_action_at`, and returned records include `follow_up_state`. The morning sweep across roles and contacts is one `get_today` call; `follow_up_state: ["overdue", "due"]` filters `list_applications` for roles only. `add_note` also takes `next_action_at` and `next_action`, so logging a chase and re-dating it is one call — the same shape `add_contact_note` has; omit the field to leave the date alone, pass `null` to clear it. The same tools carry `next_action` (what the step is); closing a record through `update_application` clears both halves unless the user has turned that off in Settings. `list_applications` also takes `query`, a partial match on company name or role title (the REST list does not).
+
+**`get_today`** — no arguments; returns `{items}`, the caller's Today queue (open roles, leads and contacts due within seven days) in `services/today.js` order. It never uses the admin all-users view.
+
+**`delete_attachment`** — `application_id`, `attachment_id`; owner only, permanent, audited. The server asks the user to confirm through an MCP elicitation that names the file, and deletes only when the answer returns with the signed request state it was asked under (bound to the user, five-minute lifetime, per-process key, so a restart voids pending prompts). It needs a 2026-07-28 client that can show form prompts; 2025-era requests are refused. The delete itself is `deleteAttachment` in `services/applications.js`, shared with the REST route.
+
+**Skills** — `server/skills/<name>/SKILL.md` (`search`, `notes`, `attachments`, `actions`) are published to every user alike. They load strictly at startup: a malformed skill stops the MCP server from listening. A test fails if a skill names a tool that does not exist, but not if a tool's behaviour changes, so re-read the skills when changing a tool they describe.
 
 **Correcting and withdrawing notes** — both kinds of note can be fixed or taken back from MCP as well as from the API, so an agent that logged something wrong can clean up after itself without a human opening the browser. `update_note`/`delete_note` take `id` (the application) and `note_id`; `update_contact_note`/`delete_contact_note` take `contact_id` and `note_id`. The two edits do not have the same shape, and the difference will bite an agent that assumes they do: `update_contact_note` is a true patch, where an omitted field stands and at least one of `content`/`occurred_at` must be given, while `update_note` **replaces** the note's content and requires it on every call — `stage` is its only optional field, so re-filing a note under a different stage still means resending its text unchanged. Every delete here is a hide and has no undo, so prefer the update tool when a note is wrong rather than unwanted. A note that is already hidden, or belongs to another user, is a 404 either way: the error never confirms that the note exists.
 
@@ -357,7 +364,6 @@ A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`).
 Clients must support the MCP Streamable HTTP transport and send:
 - `Authorization: Bearer <api_key>` header on every request
 - `Accept: application/json, text/event-stream` header
-- `Mcp-Session-Id` header on all requests after initialization (returned in the initialize response)
 
 **Claude Code `~/.mcp.json` example:**
 
