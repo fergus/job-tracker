@@ -61,6 +61,14 @@ after(async () => {
     fs.rmSync(uploads, { recursive: true, force: true });
 });
 
+// The file is unlinked asynchronously, after the response may have arrived.
+async function removed(file) {
+    for (let tries = 0; tries < 100 && fs.existsSync(file); tries++) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return !fs.existsSync(file);
+}
+
 // A role with one attachment per filename, all with their own contents.
 async function seed(filenames = ["resume.txt"], email = OWNER) {
     const created = await req
@@ -215,6 +223,26 @@ describe("delete_attachment: asking first", () => {
         assertUntouched(seeded);
     });
 
+    test("names cannot add lines or reorder the prompt", async () => {
+        const seeded = await seed();
+        // Line and paragraph separators, a C1 next-line, a right-to-left
+        // override and a plain newline: all can disguise what is being asked.
+        const hostile = [0x2028, 0x2029, 0x85, 0x202e, 0x0a].map((code) =>
+            String.fromCodePoint(code),
+        );
+        db.prepare(
+            "UPDATE applications SET company_name = ? WHERE id = ?",
+        ).run(`Caf\u00e9${hostile.join("x")}`, seeded.applicationId);
+        const { message } = await ask(seeded.args());
+        for (const character of hostile) {
+            assert.ok(
+                !message.includes(character),
+                `U+${character.codePointAt(0).toString(16)} reached the prompt`,
+            );
+        }
+        assert.ok(message.includes("Caf\u00e9"), "ordinary text stays readable");
+    });
+
     test("an answer sent without request state only gets a prompt", async () => {
         const seeded = await seed();
         const { result } = await call(seeded.args(), { inputResponses: YES });
@@ -248,7 +276,7 @@ describe("delete_attachment: approved", () => {
             filename: "resume.txt",
         });
         assert.equal(row(seeded.ids[0]), undefined);
-        assert.equal(fs.existsSync(file), false);
+        assert.ok(await removed(file), "the file is removed");
         assert.notEqual(
             updatedAt(seeded.applicationId),
             "2000-01-01T00:00:00.000Z",

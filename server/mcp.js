@@ -62,6 +62,16 @@ function toolError(err) {
     throw err;
 }
 
+// Quotes a user-supplied name for a prompt, escaping anything that could add a
+// line or reorder the text and so pose as part of the question. JSON.stringify
+// alone leaves U+2028, U+0085 and the direction controls as they are.
+function quoteForPrompt(value) {
+    return JSON.stringify(value).replace(
+        /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu,
+        (c) => `\\u{${c.codePointAt(0).toString(16)}}`,
+    );
+}
+
 function createMcpServer(skills, era) {
     const server = new McpServer(
         { name: "job-tracker", version: "1.0.0" },
@@ -794,13 +804,10 @@ function createMcpServer(skills, era) {
 
                 if (!state) {
                     const role = svc.getApplication(userEmail, application_id);
-                    // Quoted, so that a name containing line breaks cannot
-                    // pose as part of the question.
-                    const quote = (value) => JSON.stringify(value);
                     return inputRequired({
                         inputRequests: {
                             confirm: inputRequired.elicit({
-                                message: `Permanently delete ${quote(attachment.original_filename)} from ${quote(role.company_name)} - ${quote(role.role_title)}? ${attachment.file_size} bytes, uploaded ${attachment.created_at}, attachment ID ${attachment.id}. This cannot be undone.`,
+                                message: `Permanently delete ${quoteForPrompt(attachment.original_filename)} from ${quoteForPrompt(role.company_name)} - ${quoteForPrompt(role.role_title)}? ${attachment.file_size} bytes, uploaded ${attachment.created_at}, attachment ID ${attachment.id}. This cannot be undone.`,
                                 requestedSchema: {
                                     type: "object",
                                     properties: {
