@@ -324,6 +324,28 @@
         ]
     },
     {
+        "name": "delete_attachment",
+        "description": "Permanently delete one attachment from a job application. There is no undo. The server asks the user to confirm the exact file, so do not ask them to confirm first; call it once the attachment ID is known (see list_attachments). Needs a client on MCP 2026-07-28 that can show a confirmation prompt.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "attachment_id": {
+                "type": "integer",
+                "description": "Attachment ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "application_id",
+            "attachment_id"
+        ]
+    },
+    {
         "name": "delete_contact",
         "description": "Delete a contact. Its links to records are removed with it; the records themselves are untouched. There is no undo -- prefer update_contact when the contact is merely wrong rather than unwanted.",
         "args": {

@@ -471,44 +471,29 @@ router.get("/:id/attachments/:attachmentId/extracted-text", (req, res) => {
 
 // Delete a specific attachment (owner only)
 router.delete("/:id/attachments/:attachmentId", (req, res) => {
-    const existing = resolveOwnApp(req, req.params.id);
-    if (!existing) return res.status(404).json({ error: "Not found" });
+    try {
+        const attachment = svc.deleteAttachment(
+            req.userEmail,
+            req.params.id,
+            req.params.attachmentId,
+        );
 
-    const attachment = db
-        .prepare(
-            "SELECT * FROM attachments WHERE id = ? AND application_id = ?",
-        )
-        .get(req.params.attachmentId, req.params.id);
-    if (!attachment)
-        return res.status(404).json({ error: "Attachment not found" });
+        logAuditEvent({
+            userEmail: req.userEmail,
+            action: "delete_attachment",
+            applicationId: attachment.application_id,
+            source: "rest",
+            authMethod: req.authMethod,
+            details: {
+                attachment_id: attachment.id,
+                filename: attachment.original_filename,
+            },
+        });
 
-    const now = new Date().toISOString();
-    db.prepare("DELETE FROM attachments WHERE id = ?").run(
-        req.params.attachmentId,
-    );
-    db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
-        now,
-        req.params.id,
-    );
-
-    const filePath = safePath(uploadsDir, attachment.stored_filename);
-    if (filePath) safeDeleteFile(filePath);
-
-    emitChange(req.userEmail, "updated", parseInt(req.params.id, 10));
-
-    logAuditEvent({
-        userEmail: req.userEmail,
-        action: "delete_attachment",
-        applicationId: parseInt(req.params.id, 10),
-        source: "rest",
-        authMethod: req.authMethod,
-        details: {
-            attachment_id: parseInt(req.params.attachmentId, 10),
-            filename: attachment.original_filename,
-        },
-    });
-
-    res.json({ success: true });
+        res.json({ success: true });
+    } catch (e) {
+        handleError(res, e);
+    }
 });
 
 // Update date fields (owner only)

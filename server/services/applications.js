@@ -922,6 +922,24 @@ function getAttachment(
     return attachment;
 }
 
+// Owner only: there is deliberately no admin option. Callers write their own
+// audit event.
+function deleteAttachment(userEmail, appId, attachmentId) {
+    const attachment = getAttachment(userEmail, appId, attachmentId);
+
+    db.prepare("DELETE FROM attachments WHERE id = ?").run(attachment.id);
+    db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
+        new Date().toISOString(),
+        attachment.application_id,
+    );
+
+    const filePath = safePath(uploadsDir, attachment.stored_filename);
+    if (filePath) safeDeleteFile(filePath);
+
+    emitChange(userEmail, "updated", attachment.application_id);
+    return attachment;
+}
+
 module.exports = {
     ServiceError,
     NOTE_STAGES,
@@ -945,5 +963,6 @@ module.exports = {
     deleteApplication,
     listAttachments,
     getAttachment,
+    deleteAttachment,
     uploadAttachments,
 };

@@ -5,7 +5,12 @@ const path = require("node:path");
 const express = require("express");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { McpServer, createMcpHandler } = require("@modelcontextprotocol/server");
+const {
+    McpServer,
+    createMcpHandler,
+    createRequestStateCodec,
+    inputRequired,
+} = require("@modelcontextprotocol/server");
 const { loadSkills } = require("@modelcontextprotocol/server/ext/skills/node");
 const { toNodeHandler } = require("@modelcontextprotocol/node");
 const { z } = require("zod");
@@ -26,6 +31,15 @@ const { createUploadToken } = require("./lib/uploadTokens");
 const { emitChange } = require("./lib/events");
 
 const SKILLS_DIR = path.join(__dirname, "skills");
+
+// Signs what a delete_attachment prompt was about, so only the server's own
+// question can be answered. Module level because each request gets a new
+// server; a restart voids pending prompts.
+const deleteState = createRequestStateCodec({
+    key: require("node:crypto").randomBytes(32),
+    ttlSeconds: 300,
+    bind: (ctx) => ctx.http?.authInfo?.clientId ?? "",
+});
 
 // Strict, so a malformed skill fails the load instead of silently vanishing.
 function loadSkillCatalog(dir = SKILLS_DIR) {
@@ -48,8 +62,11 @@ function toolError(err) {
     throw err;
 }
 
-function createMcpServer(skills) {
-    const server = new McpServer({ name: "job-tracker", version: "1.0.0" });
+function createMcpServer(skills, era) {
+    const server = new McpServer(
+        { name: "job-tracker", version: "1.0.0" },
+        { requestState: { verify: deleteState.verify } },
+    );
     skills?.attach(server);
 
     // Every tool is registered through here so mutating calls get audited
@@ -57,7 +74,11 @@ function createMcpServer(skills) {
         const isReadOnly = READ_ONLY_TOOLS.has(name);
         const config = { description, inputSchema: z.object(schema) };
         return server.registerTool(name, config, async (args, ctx) => {
-            const extra = { authInfo: ctx.http?.authInfo, mcpReq: ctx.mcpReq };
+            const extra = {
+                authInfo: ctx.http?.authInfo,
+                mcpReq: ctx.mcpReq,
+                context: ctx,
+            };
             const userEmail = extra.authInfo?.clientId;
             const result = await handler(args, extra);
 
@@ -91,6 +112,11 @@ function createMcpServer(skills) {
                     details = {};
                 } else if (name === "fetch_job_description") {
                     details = {};
+                } else if (name === "delete_attachment") {
+                    const { attachment_id, filename } = JSON.parse(
+                        result.content[0].text,
+                    );
+                    details = { attachment_id, filename };
                 } else if (name === "update_note" || name === "delete_note") {
                     // The note id is the only thing that identifies which note
                     // was corrected or withdrawn; a delete hides the row, so
@@ -720,6 +746,112 @@ function createMcpServer(skills) {
                 return {
                     content: [
                         { type: "text", text: JSON.stringify(result, null, 2) },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    tool(
+        "delete_attachment",
+        "Permanently delete one attachment from a job application. There is no undo. The server asks the user to confirm the exact file, so do not ask them to confirm first; call it once the attachment ID is known (see list_attachments). Needs a client on MCP 2026-07-28 that can show a confirmation prompt.",
+        {
+            application_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Application ID"),
+            attachment_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Attachment ID"),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            const refuse = (text) => ({
+                content: [{ type: "text", text }],
+                isError: true,
+            });
+            // Fails closed: a 2025-era request has no way to carry the prompt.
+            if (era !== "modern") {
+                return refuse(
+                    "delete_attachment needs a client on MCP 2026-07-28 that can show a confirmation prompt. Nothing was deleted. The user can delete the file in the job tracker web app.",
+                );
+            }
+            const { application_id, attachment_id } = args;
+            try {
+                // Checked on every round: ownership may change while the user
+                // is deciding.
+                const attachment = svc.getAttachment(
+                    userEmail,
+                    application_id,
+                    attachment_id,
+                );
+                const state = extra.mcpReq.requestState();
+
+                if (!state) {
+                    const role = svc.getApplication(userEmail, application_id);
+                    // Quoted, so that a name containing line breaks cannot
+                    // pose as part of the question.
+                    const quote = (value) => JSON.stringify(value);
+                    return inputRequired({
+                        inputRequests: {
+                            confirm: inputRequired.elicit({
+                                message: `Permanently delete ${quote(attachment.original_filename)} from ${quote(role.company_name)} - ${quote(role.role_title)}? ${attachment.file_size} bytes, uploaded ${attachment.created_at}, attachment ID ${attachment.id}. This cannot be undone.`,
+                                requestedSchema: {
+                                    type: "object",
+                                    properties: {
+                                        confirm: {
+                                            type: "boolean",
+                                            title: "Yes, delete it",
+                                        },
+                                    },
+                                    required: ["confirm"],
+                                },
+                            }),
+                        },
+                        requestState: await deleteState.mint(
+                            { application_id, attachment_id },
+                            extra.context,
+                        ),
+                    });
+                }
+
+                const answer = extra.mcpReq.inputResponses?.confirm;
+                if (
+                    state.application_id !== application_id ||
+                    state.attachment_id !== attachment_id ||
+                    answer?.action !== "accept" ||
+                    answer.content?.confirm !== true
+                ) {
+                    return refuse(
+                        "The user did not confirm this delete. Nothing was deleted.",
+                    );
+                }
+
+                const deleted = svc.deleteAttachment(
+                    userEmail,
+                    application_id,
+                    attachment_id,
+                );
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({
+                                success: true,
+                                attachment_id: deleted.id,
+                                filename: deleted.original_filename,
+                            }),
+                        },
                     ],
                 };
             } catch (err) {
@@ -1899,7 +2031,7 @@ function startMcpServer(port) {
     // One server per request. New-revision clients get everything; 2025-era
     // clients are served without sessions.
     let skills;
-    const handler = createMcpHandler(() => createMcpServer(skills), {
+    const handler = createMcpHandler(({ era }) => createMcpServer(skills, era), {
         onerror: (err) => console.error("[mcp] handler error:", err),
     });
     const nodeHandler = toNodeHandler(handler, {
