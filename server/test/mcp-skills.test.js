@@ -27,7 +27,7 @@ const { startMcpServer, loadSkillCatalog } = require("../mcp");
 
 const req = supertest(app);
 const REVISION = "2026-07-28";
-const SKILLS = ["notes"];
+const SKILLS = ["actions", "attachments", "notes", "search"];
 
 let server;
 let url;
@@ -150,6 +150,30 @@ describe("mcp skills", () => {
             assert.ok(skill.frontmatter.description);
             const file = await skillsClient.read(skill);
             assert.match(JSON.stringify(file), /# Job tracker/);
+        }
+        await client.close();
+    });
+
+    test("every tool a skill names is one the server offers", async () => {
+        const client = await connect(keys.a);
+        const skillsClient = new SkillsClient(client);
+        const offered = (await client.listTools()).tools.map((t) => t.name);
+        // Backticked words that start like a tool name; argument names such
+        // as next_action_at do not.
+        const verbs = new Set(offered.map((name) => name.split("_")[0]));
+        const { skills } = await skillsClient.list();
+        for (const skill of skills) {
+            const text = JSON.stringify(await skillsClient.read(skill));
+            const named = [...text.matchAll(/`([a-z]+(?:_[a-z]+)+)`/g)]
+                .map((match) => match[1])
+                .filter((word) => verbs.has(word.split("_")[0]));
+            assert.ok(named.length, `${skill.frontmatter.name} names a tool`);
+            for (const name of named) {
+                assert.ok(
+                    offered.includes(name),
+                    `${skill.frontmatter.name} names unknown tool ${name}`,
+                );
+            }
         }
         await client.close();
     });
