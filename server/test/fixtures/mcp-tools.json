@@ -610,6 +610,10 @@
                 "minimum": 0,
                 "maximum": 9007199254740991
             },
+            "query": {
+                "type": "string",
+                "description": "Free-text search of company name and role title (partial match, any letter case). Use it to find a role by its title."
+            },
             "record_type": {
                 "type": "string",
                 "description": "Filter by record kind. A lead is a role identified but never applied to; filter to 'application' for true pipeline counts.",

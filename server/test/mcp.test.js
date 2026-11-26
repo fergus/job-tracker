@@ -12,10 +12,15 @@ process.env.RATE_LIMIT_UPLOADS = "100000";
 const { test, describe, before } = require("node:test");
 const assert = require("node:assert/strict");
 
+const supertest = require("supertest");
+
 // Initialise DB schema
-require("../app");
+const app = require("../app");
 const { createMcpServer } = require("../mcp");
-const { createApplication } = require("../services/applications");
+const {
+    createApplication,
+    updateApplication,
+} = require("../services/applications");
 const notesSvc = require("../services/notes");
 const contactsSvc = require("../services/contacts");
 const { visibleStageNotes } = require("../services/stage-notes");
@@ -311,6 +316,69 @@ describe("mcp application next step (Today queue U3/U4)", () => {
         );
         assert.equal(out.next_action, null);
         assert.equal(out.next_action_at, null);
+    });
+});
+
+describe("mcp role search", () => {
+    const email = "mcp-search@example.com";
+    let list;
+
+    before(async () => {
+        const handler = tools().list_applications.handler;
+        list = async (args) => parseResult(await handler(args, authed(email)));
+        createApplication(email, {
+            company_name: "Harbour Bank",
+            role_title: "Staff Engineer",
+        });
+        const closed = createApplication(email, {
+            company_name: "Harbour Labs",
+            role_title: "Product Manager",
+        });
+        updateApplication(email, closed.id, {
+            state: "closed",
+            close_reason: "not_pursued",
+        });
+        createApplication(email, {
+            company_name: "Unrelated Co",
+            role_title: "Analyst",
+        });
+        createApplication("mcp-search-other@example.com", {
+            company_name: "Elsewhere",
+            role_title: "Staff Engineer",
+        });
+    });
+
+    const names = (result) => result.items.map((a) => a.company_name).sort();
+
+    test("part of a title finds the role, for the caller only", async () => {
+        const result = await list({ query: "staff eng" });
+        assert.deepEqual(names(result), ["Harbour Bank"]);
+        assert.equal(result.total, 1);
+    });
+
+    test("part of a company name finds its roles in any letter case", async () => {
+        assert.deepEqual(names(await list({ query: "hARBOUR" })), [
+            "Harbour Bank",
+            "Harbour Labs",
+        ]);
+    });
+
+    test("it combines with other filters and total counts only matches", async () => {
+        const result = await list({ query: "harbour", state: "open" });
+        assert.deepEqual(names(result), ["Harbour Bank"]);
+        assert.equal(result.total, 1);
+    });
+
+    test("REST ignores a query parameter", async () => {
+        const get = (path) =>
+            supertest(app)
+                .get(path)
+                .set("X-Forwarded-Email", email)
+                .expect(200);
+        const plain = await get("/api/applications");
+        const queried = await get("/api/applications?query=nothing-matches");
+        assert.equal(plain.body.length, 3);
+        assert.deepEqual(queried.body, plain.body);
     });
 });
 

@@ -205,6 +205,7 @@ function listApplications(
         all,
         updated_since,
         company_name,
+        query,
         follow_up_state,
         limit,
         offset,
@@ -272,6 +273,11 @@ function listApplications(
     if (company_name) {
         conditions.push("a.company_name LIKE ?");
         params.push(`%${company_name}%`);
+    }
+
+    if (query) {
+        conditions.push("(a.company_name LIKE ? OR a.role_title LIKE ?)");
+        params.push(`%${query}%`, `%${query}%`);
     }
 
     const followUpStates = parseFollowUpStates(follow_up_state);

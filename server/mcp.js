@@ -137,6 +137,12 @@ function createMcpServer(skills) {
                 .string()
                 .optional()
                 .describe("Filter by company name (partial match)"),
+            query: z
+                .string()
+                .optional()
+                .describe(
+                    "Free-text search of company name and role title (partial match, any letter case). Use it to find a role by its title.",
+                ),
             updated_since: z
                 .string()
                 .optional()
@@ -218,6 +224,7 @@ function createMcpServer(skills) {
                     close_reason: args.close_reason,
                     record_type: args.record_type,
                     company_name: args.company_name,
+                    query: args.query,
                     updated_since: args.updated_since,
                     follow_up_state: args.follow_up_state,
                     limit,
