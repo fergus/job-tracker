@@ -505,6 +505,12 @@
         ]
     },
     {
+        "name": "get_today",
+        "description": "The Today queue: your overdue, due and upcoming actions (next seven days) across open job applications, leads and contacts, as one list. Use it for questions such as \"what is overdue\" or \"what is coming up\". Items are already ordered oldest date first; keep that order. kind is \"application\" or \"contact\" and id is that record's ID. Each item carries title, subtitle, next_action, next_action_at, follow_up_state (overdue | due | upcoming) and follow_up_days. Closed roles are left out even if they have a re-check date.",
+        "args": {},
+        "required": []
+    },
+    {
         "name": "get_upload_url",
         "description": "Get a one-time pre-signed upload URL for attaching a file to a job application. Use this for files larger than ~30KB. Returns a URL and curl command \u2014 upload the file directly to that URL with HTTP PUT (multipart field name: 'file'). The attachment is linked to the application immediately on successful upload. The URL is valid for 15 minutes.",
         "args": {
@@ -560,7 +566,7 @@
     },
     {
         "name": "list_applications",
-        "description": "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call, and add state \"open\" to match the Today screen: a closed record can carry a deliberately set re-check date, which this filter alone still returns. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
+        "description": "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call; a closed record can carry a deliberately set re-check date, which this filter alone still returns. For the Today screen (open roles and contacts together), call get_today instead. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
         "args": {
             "close_reason": {
                 "type": "string",

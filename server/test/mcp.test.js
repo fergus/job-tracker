@@ -22,6 +22,8 @@ const {
     updateApplication,
 } = require("../services/applications");
 const notesSvc = require("../services/notes");
+const { listToday } = require("../services/today");
+const { todayInInstanceZone } = require("../lib/followup");
 const contactsSvc = require("../services/contacts");
 const { visibleStageNotes } = require("../services/stage-notes");
 
@@ -379,6 +381,86 @@ describe("mcp role search", () => {
         const queried = await get("/api/applications?query=nothing-matches");
         assert.equal(plain.body.length, 3);
         assert.deepEqual(queried.body, plain.body);
+    });
+});
+
+describe("mcp get_today", () => {
+    const email = "mcp-today@example.com";
+    const other = "mcp-today-other@example.com";
+    const inDays = (n) => {
+        const d = new Date(`${todayInInstanceZone()}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + n);
+        return d.toISOString().slice(0, 10);
+    };
+
+    function role(owner, company, days) {
+        return createApplication(owner, {
+            company_name: company,
+            role_title: "Engineer",
+            next_action: "chase",
+            next_action_at: inDays(days),
+        });
+    }
+
+    function contact(name, days) {
+        const { id } = contactsSvc.createContact(email, { name });
+        contactsSvc.updateContact(email, id, {
+            next_action: "call",
+            next_action_at: inDays(days),
+        });
+    }
+
+    async function today(who = email, authInfo = {}) {
+        const extra = { http: { authInfo: { clientId: who, ...authInfo } } };
+        return parseResult(await tools().get_today.handler({}, extra));
+    }
+
+    before(() => {
+        contact("Due Soon", 5);
+        contact("Too Far", 10);
+        role(email, "Overdue Co", -3);
+        role(email, "Today Co", 0);
+        const closed = role(email, "Closed Co", 1);
+        updateApplication(email, closed.id, {
+            state: "closed",
+            close_reason: "not_pursued",
+        });
+        updateApplication(email, closed.id, {
+            next_action_at: inDays(2),
+        });
+        role(other, "Not Yours", 0);
+    });
+
+    test("it returns the caller's Today queue in the service's order", async () => {
+        const { items } = await today();
+        assert.deepEqual(
+            items.map((i) => i.title),
+            ["Overdue Co", "Today Co", "Due Soon"],
+        );
+        assert.deepEqual(
+            items.map((i) => i.follow_up_state),
+            ["overdue", "due", "upcoming"],
+        );
+        assert.deepEqual(items, listToday(email));
+    });
+
+    test("an admin still sees only their own items", async () => {
+        const { items } = await today(other, { isAdmin: true });
+        assert.deepEqual(
+            items.map((i) => i.title),
+            ["Not Yours"],
+        );
+    });
+
+    test("an empty queue is an empty list", async () => {
+        assert.deepEqual(await today("mcp-today-empty@example.com"), {
+            items: [],
+        });
+    });
+
+    test("it is read-only for audit", () => {
+        const { READ_ONLY_TOOLS } = require("../services/audit");
+        assert.ok(READ_ONLY_TOOLS.has("get_today"));
     });
 });
 

@@ -14,6 +14,7 @@ const svc = require("./services/applications");
 const notesSvc = require("./services/notes");
 const contactsSvc = require("./services/contacts");
 const connectionsSvc = require("./services/connections");
+const { listToday } = require("./services/today");
 const { visibleStageNotes } = require("./services/stage-notes");
 const { resolveApiKey } = require("./lib/apiKeySecret");
 const { uploadsDir } = require("./lib/files");
@@ -124,8 +125,34 @@ function createMcpServer(skills) {
     };
 
     tool(
+        "get_today",
+        "The Today queue: your overdue, due and upcoming actions (next seven days) across open job applications, leads and contacts, as one list. Use it for questions such as \"what is overdue\" or \"what is coming up\". Items are already ordered oldest date first; keep that order. kind is \"application\" or \"contact\" and id is that record's ID. Each item carries title, subtitle, next_action, next_action_at, follow_up_state (overdue | due | upcoming) and follow_up_days. Closed roles are left out even if they have a re-check date.",
+        {},
+        async (_args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({ items: listToday(userEmail) }),
+                        },
+                    ],
+                };
+            } catch (e) {
+                return toolError(e);
+            }
+        },
+    );
+
+    tool(
         "list_applications",
-        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call, and add state \"open\" to match the Today screen: a closed record can carry a deliberately set re-check date, which this filter alone still returns. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
+        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call; a closed record can carry a deliberately set re-check date, which this filter alone still returns. For the Today screen (open roles and contacts together), call get_today instead. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
         {
             status: z
                 .string()

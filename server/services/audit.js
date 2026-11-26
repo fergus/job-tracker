@@ -12,6 +12,7 @@ const READ_ONLY_TOOLS = new Set([
     "list_contacts",
     "get_contact",
     "list_connections",
+    "get_today",
 ]);
 
 function logAuditEvent({
