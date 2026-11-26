@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("node:fs");
 const http = require("node:http");
+const { randomBytes } = require("node:crypto");
 const path = require("node:path");
 const express = require("express");
 const helmet = require("helmet");
@@ -36,12 +37,11 @@ const SKILLS_DIR = path.join(__dirname, "skills");
 // question can be answered. Module level because each request gets a new
 // server; a restart voids pending prompts.
 const deleteState = createRequestStateCodec({
-    key: require("node:crypto").randomBytes(32),
+    key: randomBytes(32),
     ttlSeconds: 300,
     bind: (ctx) => ctx.http?.authInfo?.clientId ?? "",
 });
 
-// Strict, so a malformed skill fails the load instead of silently vanishing.
 function loadSkillCatalog(dir = SKILLS_DIR) {
     return loadSkills(dir, { strict: true });
 }
@@ -74,15 +74,10 @@ function createMcpServer(skills, era) {
         const isReadOnly = READ_ONLY_TOOLS.has(name);
         const config = { description, inputSchema: z.object(schema) };
         return server.registerTool(name, config, async (args, ctx) => {
-            const extra = {
-                authInfo: ctx.http?.authInfo,
-                mcpReq: ctx.mcpReq,
-                context: ctx,
-            };
+            const extra = { authInfo: ctx.http?.authInfo, ctx };
             const userEmail = extra.authInfo?.clientId;
             const result = await handler(args, extra);
 
-            // A call that is still asking the user something has changed nothing
             const changed =
                 !result?.isError && result?.resultType !== "input_required";
             if (!isReadOnly && userEmail && changed) {
@@ -170,8 +165,8 @@ function createMcpServer(skills, era) {
                         },
                     ],
                 };
-            } catch (e) {
-                return toolError(e);
+            } catch (err) {
+                return toolError(err);
             }
         },
     );
@@ -795,7 +790,7 @@ function createMcpServer(skills, era) {
                     application_id,
                     attachment_id,
                 );
-                const state = extra.mcpReq.requestState();
+                const state = extra.ctx.mcpReq.requestState();
 
                 if (!state) {
                     const role = svc.getApplication(userEmail, application_id);
@@ -820,12 +815,12 @@ function createMcpServer(skills, era) {
                         },
                         requestState: await deleteState.mint(
                             { application_id, attachment_id },
-                            extra.context,
+                            extra.ctx,
                         ),
                     });
                 }
 
-                const answer = extra.mcpReq.inputResponses?.confirm;
+                const answer = extra.ctx.mcpReq.inputResponses?.confirm;
                 if (
                     state.application_id !== application_id ||
                     state.attachment_id !== attachment_id ||
@@ -2055,7 +2050,6 @@ function startMcpServer(port) {
         return closeHttpServer(callback);
     };
 
-    // Nothing is served until every skill has loaded
     loadSkillCatalog()
         .then((catalog) => {
             skills = catalog;
