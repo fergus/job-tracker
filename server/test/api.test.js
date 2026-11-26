@@ -1233,19 +1233,15 @@ describe("MCP Server", () => {
         if (mcpServer) mcpServer.close();
     });
 
-    // The server is stateless, so it issues no session ID to echo back
-    const sessionHeader = (id) => (id ? { "Mcp-Session-Id": id } : {});
-
     // Drives tools over the real Streamable HTTP transport, so argument
     // handling is the SDK's own rather than a handler called with trusted
-    // input. One session is shared: the MCP endpoint is rate limited.
+    // input. One handshake is shared: the MCP endpoint is rate limited.
     const mcpHeaders = () => ({
         Authorization: `Bearer ${apiKey}`,
         Accept: "application/json, text/event-stream",
         "Content-Type": "application/json",
     });
     let handshakeDone = false;
-    let sharedSession;
     let rpcId = 100;
 
     async function rpc(method, params) {
@@ -1264,13 +1260,11 @@ describe("MCP Server", () => {
                     },
                 });
             assert.equal(init.status, 200);
-            sharedSession = init.headers["mcp-session-id"];
             handshakeDone = true;
         }
         const res = await mcpReq
             .post("/")
             .set(mcpHeaders())
-            .set(sessionHeader(sharedSession))
             .send({ jsonrpc: "2.0", id: rpcId++, method, params });
         assert.equal(res.status, 200);
         const dataLine = res.text
@@ -1490,7 +1484,6 @@ describe("MCP Server", () => {
             .set("Content-Type", "application/json")
             .send(initBody);
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         // Call the tool
         const toolBody = {
@@ -1506,7 +1499,6 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1550,7 +1542,6 @@ describe("MCP Server", () => {
             .set("Content-Type", "application/json")
             .send(initBody);
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         const toolBody = {
             jsonrpc: "2.0",
@@ -1565,7 +1556,6 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1623,7 +1613,6 @@ describe("MCP Server", () => {
                 .set("Content-Type", "application/json")
                 .send(initBody);
             assert.equal(init.status, 200);
-            const sessionId = init.headers["mcp-session-id"];
 
             const toolBody = {
                 jsonrpc: "2.0",
@@ -1641,7 +1630,6 @@ describe("MCP Server", () => {
             const toolRes = await mcpReq
                 .post("/")
                 .set("Authorization", `Bearer ${apiKey}`)
-                .set(sessionHeader(sessionId))
                 .set("Accept", "application/json, text/event-stream")
                 .set("Content-Type", "application/json")
                 .send(toolBody);
@@ -1698,7 +1686,6 @@ describe("MCP Server", () => {
             .set("Content-Type", "application/json")
             .send(initBody);
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         const fileContent = Buffer.from("resume text here").toString("base64");
         const toolBody = {
@@ -1717,7 +1704,6 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1761,7 +1747,6 @@ describe("MCP Server", () => {
             .set("Content-Type", "application/json")
             .send(initBody);
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         const toolBody = {
             jsonrpc: "2.0",
@@ -1779,7 +1764,6 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1817,12 +1801,10 @@ describe("MCP Server", () => {
                 },
             });
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send({
@@ -1853,7 +1835,7 @@ describe("MCP Server", () => {
     });
 
     test("get_upload_url MCP tool returns error for unknown application", async () => {
-        const init = await mcpReq
+        await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
             .set("Accept", "application/json, text/event-stream")
@@ -1868,12 +1850,10 @@ describe("MCP Server", () => {
                     clientInfo: { name: "test", version: "1.0" },
                 },
             });
-        const sessionId = init.headers["mcp-session-id"];
 
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set(sessionHeader(sessionId))
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send({
@@ -1916,13 +1896,11 @@ describe("MCP Server", () => {
                     },
                 });
             assert.equal(init.status, 200);
-            const sessionId = init.headers["mcp-session-id"];
             let nextId = 2;
             return async (name, args) => {
                 const res = await mcpReq
                     .post("/")
                     .set("Authorization", `Bearer ${apiKey}`)
-                    .set(sessionHeader(sessionId))
                     .set("Accept", "application/json, text/event-stream")
                     .set("Content-Type", "application/json")
                     .send({

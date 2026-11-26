@@ -230,9 +230,13 @@ describe("delete_attachment: asking first", () => {
         const hostile = [0x2028, 0x2029, 0x85, 0x202e, 0x0a].map((code) =>
             String.fromCodePoint(code),
         );
+        const name = (prefix) => `${prefix}${hostile.join("x")}`;
         db.prepare(
-            "UPDATE applications SET company_name = ? WHERE id = ?",
-        ).run(`Caf\u00e9${hostile.join("x")}`, seeded.applicationId);
+            "UPDATE applications SET company_name = ?, role_title = ? WHERE id = ?",
+        ).run(name("Caf\u00e9"), name("Role"), seeded.applicationId);
+        db.prepare(
+            "UPDATE attachments SET original_filename = ? WHERE id = ?",
+        ).run(name("File"), seeded.ids[0]);
         const { message } = await ask(seeded.args());
         for (const character of hostile) {
             assert.ok(
@@ -240,7 +244,9 @@ describe("delete_attachment: asking first", () => {
                 `U+${character.codePointAt(0).toString(16)} reached the prompt`,
             );
         }
-        assert.ok(message.includes("Caf\u00e9"), "ordinary text stays readable");
+        for (const prefix of ["Caf\u00e9", "Role", "File"]) {
+            assert.ok(message.includes(prefix), `${prefix} stays readable`);
+        }
     });
 
     test("an answer sent without request state only gets a prompt", async () => {

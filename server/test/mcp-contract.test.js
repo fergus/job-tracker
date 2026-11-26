@@ -103,8 +103,6 @@ async function connect(apiKey) {
             },
         });
     assert.equal(init.status, 200);
-    const sessionId = init.headers["mcp-session-id"];
-    if (sessionId) headers["Mcp-Session-Id"] = sessionId;
 
     let id = 1;
     const rpc = async (method, params) => {

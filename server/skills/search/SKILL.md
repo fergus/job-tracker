@@ -23,4 +23,6 @@ When it is unclear whether the user means a person or a role, as with a bare com
 
 ## People
 
+`query` does not search email or phone. To find someone by either, call `list_contacts` without `query` and compare the `email` and `phone` fields (ignore spacing and country-code differences in numbers) before saying there is no match.
+
 For one person's detail, including the roles they are linked to, call `get_contact` with their ID.
