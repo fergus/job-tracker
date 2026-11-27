@@ -9,7 +9,7 @@ process.env.DB_PATH = ":memory:";
 process.env.RATE_LIMIT_API = "100000";
 process.env.RATE_LIMIT_UPLOADS = "100000";
 
-const { test, describe, before } = require("node:test");
+const { test, describe, before, mock } = require("node:test");
 const assert = require("node:assert/strict");
 
 const supertest = require("supertest");
@@ -461,6 +461,39 @@ describe("mcp get_today", () => {
     test("it is read-only for audit", () => {
         const { READ_ONLY_TOOLS } = require("../services/audit");
         assert.ok(READ_ONLY_TOOLS.has("get_today"));
+    });
+});
+
+describe("upload URL expiry", () => {
+    const {
+        createUploadToken,
+        validateAndConsumeToken,
+    } = require("../lib/uploadTokens");
+
+    function issuedMinutesAgo(minutes) {
+        const { id } = createApplication(TEST_EMAIL, {
+            company_name: "Token Co",
+            role_title: "Engineer",
+        });
+        mock.timers.enable({
+            apis: ["Date"],
+            now: Date.now() - minutes * 60_000,
+        });
+        try {
+            return createUploadToken(TEST_EMAIL, id, "cv.txt");
+        } finally {
+            mock.timers.reset();
+        }
+    }
+
+    test("a URL older than 15 minutes is refused", () => {
+        assert.equal(validateAndConsumeToken(issuedMinutesAgo(16)), null);
+    });
+
+    test("a URL inside 15 minutes works, once", () => {
+        const token = issuedMinutesAgo(14);
+        assert.ok(validateAndConsumeToken(token));
+        assert.equal(validateAndConsumeToken(token), null);
     });
 });
 
