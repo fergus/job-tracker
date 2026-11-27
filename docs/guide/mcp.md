@@ -36,8 +36,8 @@ A Model Context Protocol (MCP) server is included for AI clients to interact wit
 *Attachments*
 - `list_attachments` — list an application's attachments (metadata only)
 - `get_attachment_text` — extracted plain text from a PDF, DOCX, TXT or MD attachment
-- `upload_attachment` — upload a small file (<~30KB) as base64
-- `get_upload_url` — one-time pre-signed URL for uploading larger files
+- `upload_attachment` — upload a small file (<~30KB) as base64, for clients that cannot make an HTTP upload
+- `get_upload_url` — one-time pre-signed URL for uploading a file from disk, whatever its size
 - `delete_attachment` — permanently delete one attachment, after you confirm it (see below)
 
 *Job descriptions, profile and documents*

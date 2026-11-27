@@ -1124,7 +1124,7 @@ function createMcpServer(skills, era) {
 
     tool(
         "upload_attachment",
-        "Upload a small file attachment (under ~30KB) to a job application using base64-encoded content. For larger files use get_upload_url instead.",
+        "Upload an attachment to a job application from base64-encoded content. Do not use this for a file on disk, even a small one: use get_upload_url, because sending a file as base64 means reproducing every byte and one slip corrupts it. Use this only when no HTTP upload can run, for example with no shell or an unreachable upload address. Only small files fit (under ~30KB).",
         {
             application_id: z
                 .number()
@@ -1167,7 +1167,7 @@ function createMcpServer(skills, era) {
 
     tool(
         "get_upload_url",
-        "Get a one-time pre-signed upload URL for attaching a file to a job application. Use this for files larger than ~30KB. Returns a URL and curl command — upload the file directly to that URL with HTTP PUT (multipart field name: 'file'). The attachment is linked to the application immediately on successful upload. The URL is valid for 15 minutes.",
+        "Get a one-time pre-signed upload URL for attaching a file to a job application. Use this for any file on disk, whatever its size. Returns a URL and curl command - upload the file directly to that URL with HTTP PUT (multipart field name: 'file'). The attachment is linked to the application immediately on successful upload. The URL is valid for 15 minutes.",
         {
             application_id: z
                 .number()

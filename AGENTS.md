@@ -355,9 +355,9 @@ A Model Context Protocol server runs on port 3001 (configurable via `MCP_PORT`).
 
 **Correcting and withdrawing notes** — both kinds of note can be fixed or taken back from MCP as well as from the API, so an agent that logged something wrong can clean up after itself without a human opening the browser. `update_note`/`delete_note` take `id` (the application) and `note_id`; `update_contact_note`/`delete_contact_note` take `contact_id` and `note_id`. The two edits do not have the same shape, and the difference will bite an agent that assumes they do: `update_contact_note` is a true patch, where an omitted field stands and at least one of `content`/`occurred_at` must be given, while `update_note` **replaces** the note's content and requires it on every call — `stage` is its only optional field, so re-filing a note under a different stage still means resending its text unchanged. Every delete here is a hide and has no undo, so prefer the update tool when a note is wrong rather than unwanted. A note that is already hidden, or belongs to another user, is a 404 either way: the error never confirms that the note exists.
 
-**`upload_attachment`** — for small files (<~30KB): parameters `application_id`, `filename`, `file_content` (base64-encoded string). Accepts file bytes directly; works over remote HTTP transport.
+**`upload_attachment`** — only for when no HTTP upload can run; small files only (<~30KB): parameters `application_id`, `filename`, `file_content` (base64-encoded string). Accepts file bytes directly; works over remote HTTP transport.
 
-**`get_upload_url`** — for larger files: parameters `application_id`, `filename`. Returns a one-time pre-signed URL valid for 15 minutes. The client uploads the file directly via `curl -X PUT <url> -F "file=@/path/to/file"`. The attachment is linked to the application on successful upload. Requires `PUBLIC_URL` env var in the app container (see docker-compose.yml).
+**`get_upload_url`** — for any file on disk, whatever its size: parameters `application_id`, `filename`. Returns a one-time pre-signed URL valid for 15 minutes. The client uploads the file directly via `curl -X PUT <url> -F "file=@/path/to/file"`. The attachment is linked to the application on successful upload. Requires `PUBLIC_URL` env var in the app container (see docker-compose.yml).
 
 ### Connecting an AI client
 

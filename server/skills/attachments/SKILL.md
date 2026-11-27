@@ -9,7 +9,7 @@ Find the role first with `list_applications`. Allowed file types are `.pdf`, `.d
 
 ## Adding a file
 
-**A file on disk: use `get_upload_url`, then curl, whatever the file's size.** The `upload_attachment` description chooses by size alone; do not follow it for a file on disk. Sending a file as base64 text means reproducing every byte by hand, and one slip corrupts the file.
+**A file on disk: use `get_upload_url`, then curl, whatever the file's size.** Sending a file as base64 text means reproducing every byte by hand, and one slip corrupts the file.
 
 1. Call `get_upload_url` with the `application_id` and the `filename`, including its extension.
 2. Run the curl command it returns, pointed at the real file path. It is an HTTP PUT with the multipart field `file`.
