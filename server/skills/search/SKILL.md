@@ -12,7 +12,7 @@ description: Find people and roles in the job tracker. Use when the user asks to
 
 When it is unclear whether the user means a person or a role, as with a bare company name, run both.
 
-`query` matches one run of text, in order, ignoring letter case. If a longer phrase finds nothing, retry with one distinctive word before saying there is no match.
+`query` matches one run of text, in order. It ignores letter case for A-Z only: accented and other non-English letters must match the stored case. If a longer phrase finds nothing, retry with one distinctive word before saying there is no match. If that word has such a letter, also try it in the other case, or search a part of the name without it.
 
 ## Roles
 

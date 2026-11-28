@@ -640,7 +640,7 @@
             },
             "query": {
                 "type": "string",
-                "description": "Free-text search of company name and role title (partial match, any letter case). Use it to find a role by its title."
+                "description": "Free-text search of company name and role title (partial match; letter case is ignored for A-Z only, so accented and other non-English letters must match the stored case). Use it to find a role by its title."
             },
             "record_type": {
                 "type": "string",

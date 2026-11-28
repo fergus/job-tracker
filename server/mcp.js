@@ -199,7 +199,7 @@ function createMcpServer(skills, era) {
                 .string()
                 .optional()
                 .describe(
-                    "Free-text search of company name and role title (partial match, any letter case). Use it to find a role by its title.",
+                    "Free-text search of company name and role title (partial match; letter case is ignored for A-Z only, so accented and other non-English letters must match the stored case). Use it to find a role by its title.",
                 ),
             updated_since: z
                 .string()
