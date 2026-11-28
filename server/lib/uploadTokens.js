@@ -15,9 +15,11 @@ function createUploadToken(userEmail, applicationId, originalFilename) {
 }
 
 function validateAndConsumeToken(token) {
+    // expires_at is ISO text. Compared as a string with datetime('now') it
+    // sorts later all day, so both sides must be in SQLite's format.
     const row = db
         .prepare(
-            "SELECT * FROM upload_tokens WHERE token = ? AND used = 0 AND expires_at > datetime('now')",
+            "SELECT * FROM upload_tokens WHERE token = ? AND used = 0 AND datetime(expires_at) > datetime('now')",
         )
         .get(token);
     if (!row) return null;

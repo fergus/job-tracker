@@ -10,8 +10,11 @@ A Model Context Protocol (MCP) server is included for AI clients to interact wit
 
 **Tools exposed:**
 
+*Today*
+- `get_today` — your overdue, due and upcoming actions for the next seven days across open roles, leads and people, in the same order as the Today screen
+
 *Applications and leads*
-- `list_applications` — list records with filtering (state, record type, follow-up state), pagination and sparse field sets
+- `list_applications` — list records with filtering (company or role title search with `query`, state, record type, follow-up state), pagination and sparse field sets
 - `get_application` — full record, including notes, linked contacts and attachment metadata
 - `create_application` — create an application or lead, optionally with a follow-up date (`next_action_at`) and next-step wording (`next_action`)
 - `update_application` — update fields, including the follow-up date and wording; closing clears the next step unless you turned that off in Settings
@@ -33,8 +36,9 @@ A Model Context Protocol (MCP) server is included for AI clients to interact wit
 *Attachments*
 - `list_attachments` — list an application's attachments (metadata only)
 - `get_attachment_text` — extracted plain text from a PDF, DOCX, TXT or MD attachment
-- `upload_attachment` — upload a small file (<~30KB) as base64
-- `get_upload_url` — one-time pre-signed URL for uploading larger files
+- `upload_attachment` — upload a small file (<~30KB) as base64, for clients that cannot make an HTTP upload
+- `get_upload_url` — one-time pre-signed URL for uploading a file from disk, whatever its size
+- `delete_attachment` — permanently delete one attachment, after you confirm it (see below)
 
 *Job descriptions, profile and documents*
 - `fetch_job_description` — fetch the description from the posting URL, store it and extract structured data
@@ -43,7 +47,33 @@ A Model Context Protocol (MCP) server is included for AI clients to interact wit
 - `get_application_context` — everything about one application plus your profile, in one call
 - `generate_document` — draft a cover letter, resume tailoring tips or an interview prep brief for an application
 
-There is no separate Today tool: `list_applications` with `follow_up_state: ["overdue","due"]` and `state: "open"`, plus `list_contacts` with `next_action_before`, answer the same question.
+## Deleting attachments
+
+`delete_attachment` cannot be undone. Before anything is removed, the server asks you to confirm through your client, naming the file, the role it belongs to, its size, upload time and ID. Declining or cancelling deletes nothing. A prompt is good for five minutes.
+
+This needs a client that speaks MCP 2026-07-28 and can show confirmation prompts. Other clients can use every other tool, but `delete_attachment` returns an error and deletes nothing; delete the file in the web app instead.
+
+## Skills
+
+The server publishes four skills: short instructions that tell an agent how to do a recurring job with these tools.
+
+| Skill | For |
+|---|---|
+| `search` | Finding people, and roles by company or title |
+| `notes` | Adding, correcting and withdrawing notes |
+| `attachments` | Adding and removing files on a role |
+| `actions` | Listing what is overdue, due and coming up |
+
+Everyone gets the same skills, and they hold none of your data. The tools work without them.
+
+**In Claude Code**, skills from an MCP server are in public beta. They need:
+
+- Claude Code 2.1.331 or later
+- a [supported model](https://code.claude.com/docs/en/mcp)
+- a direct connection to Anthropic
+- an eligible sign-in: API key and Console sign-ins do not load them
+
+They are listed as `job-tracker:<name>` (using the name you gave the server) and do not load in non-interactive `claude -p` runs.
 
 ## Connecting from Claude Code
 
@@ -65,4 +95,4 @@ Generate `YOUR_API_KEY` from the app's Settings panel → API Keys.
 
 ## Connecting from other MCP clients
 
-Any MCP client that supports the Streamable HTTP transport can connect using the same URL and Bearer token.
+Any MCP client that supports the Streamable HTTP transport can connect using the same URL and Bearer token. The server keeps no sessions and serves both MCP 2026-07-28 and 2025-era clients. Skills are offered only to 2026-07-28 clients, and `delete_attachment` works only with them.

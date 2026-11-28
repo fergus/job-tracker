@@ -1,0 +1,1142 @@
+[
+    {
+        "name": "add_contact_note",
+        "description": "Log an interaction with a contact -- messaged, replied, meeting held, agreed to follow up. This is the relationship's history; the contact's `notes` field is a standing description, not a log. Logging advances last_contacted_at automatically, so there is no second field to maintain.",
+        "args": {
+            "contact_id": {
+                "type": "integer",
+                "description": "Contact ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "content": {
+                "type": "string",
+                "description": "What happened, in your own words",
+                "minLength": 1,
+                "maxLength": 10000
+            },
+            "next_action": {
+                "description": "What that next touch is, e.g. chase the shortlist decision. Null clears it.",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 500
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "next_action_at": {
+                "type": [
+                    "string",
+                    "null"
+                ],
+                "description": "Calendar date of the next touch this interaction leaves you owing (YYYY-MM-DD), or null to clear it. Omit to leave the existing commitment alone. Set it here rather than in a second update_contact call."
+            },
+            "occurred_at": {
+                "type": "string",
+                "description": "Calendar date the interaction happened (YYYY-MM-DD). Defaults to today in the instance timezone -- set it when writing up something from a few days ago."
+            }
+        },
+        "required": [
+            "contact_id",
+            "content"
+        ]
+    },
+    {
+        "name": "add_note",
+        "description": "Add a stage note to a job application. Logging a chase is the moment you know when to chase next, so set next_action_at in the same call rather than following up with update_application.",
+        "args": {
+            "content": {
+                "type": "string",
+                "description": "Note content",
+                "minLength": 1,
+                "maxLength": 10000
+            },
+            "id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "next_action": {
+                "description": "What the next step is, or null to clear it. Omit to leave the existing wording alone.",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 500
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "next_action_at": {
+                "type": [
+                    "string",
+                    "null"
+                ],
+                "description": "Calendar date to follow up on this record (YYYY-MM-DD), or null to clear it. Omit to leave the existing follow-up date alone."
+            },
+            "stage": {
+                "type": "string",
+                "description": "Stage this note applies to",
+                "enum": [
+                    "interested",
+                    "applied",
+                    "responded",
+                    "interview",
+                    "offer",
+                    "accepted",
+                    "rejected"
+                ]
+            }
+        },
+        "required": [
+            "content",
+            "id",
+            "stage"
+        ]
+    },
+    {
+        "name": "convert_application_to_contact",
+        "description": "Convert a record that is actually a person into a contact, then remove the record. The original row, its notes, attachments and links are written to a backup table first, so the conversion is recoverable by hand. Use this for rows filed as applications that are really recruiters or referrers.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "The record to convert",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "contact_role": {
+                "type": "string",
+                "description": "Their role. Defaults to the record's role_title.",
+                "maxLength": 200
+            },
+            "email": {
+                "type": "string",
+                "description": "Email address",
+                "maxLength": 320
+            },
+            "employer": {
+                "type": "string",
+                "description": "Who they work for",
+                "maxLength": 200
+            },
+            "linkedin_url": {
+                "type": "string",
+                "description": "LinkedIn profile address (http or https)",
+                "maxLength": 500
+            },
+            "name": {
+                "type": "string",
+                "description": "Person's name. Defaults to the record's company_name.",
+                "maxLength": 200
+            },
+            "notes": {
+                "type": "string",
+                "description": "Extra notes. The record's own prose is carried across automatically.",
+                "maxLength": 10000
+            },
+            "phone": {
+                "type": "string",
+                "description": "Phone number",
+                "maxLength": 50
+            }
+        },
+        "required": [
+            "application_id"
+        ]
+    },
+    {
+        "name": "create_application",
+        "description": "Create a new job application.",
+        "args": {
+            "company_name": {
+                "type": "string",
+                "description": "Company name",
+                "minLength": 1,
+                "maxLength": 200
+            },
+            "company_website_url": {
+                "type": "string",
+                "description": "Company website URL",
+                "maxLength": 2000
+            },
+            "interview_notes": {
+                "type": "string",
+                "description": "Interview notes",
+                "maxLength": 10000
+            },
+            "job_description": {
+                "type": "string",
+                "description": "Job description",
+                "maxLength": 10000
+            },
+            "job_location": {
+                "type": "string",
+                "description": "Job location",
+                "maxLength": 500
+            },
+            "job_posting_url": {
+                "type": "string",
+                "description": "URL of the job posting",
+                "maxLength": 2000
+            },
+            "next_action": {
+                "description": "What the next step is, in a few words (e.g. 'Chase the panel date'). Pairs with next_action_at; each half is set independently. Closing the record clears both unless the user has turned that off in Settings.",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 500
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "next_action_at": {
+                "type": [
+                    "string",
+                    "null"
+                ],
+                "description": "Calendar date to follow up on this record (YYYY-MM-DD). Drives follow_up_state and the follow_up_state filter on list_applications."
+            },
+            "prep_work": {
+                "type": "string",
+                "description": "Prep work notes",
+                "maxLength": 10000
+            },
+            "record_type": {
+                "type": "string",
+                "description": "Application or lead (defaults to \"lead\" below applied). Records are always created open; close one afterwards with update_application.",
+                "enum": [
+                    "application",
+                    "lead"
+                ]
+            },
+            "role_title": {
+                "type": "string",
+                "description": "Job title",
+                "minLength": 1,
+                "maxLength": 200
+            },
+            "salary_max": {
+                "description": "Maximum salary",
+                "anyOf": [
+                    {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "salary_min": {
+                "description": "Minimum salary",
+                "anyOf": [
+                    {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "stage": {
+                "type": "string",
+                "description": "Starting stage (defaults to \"interested\"). A stage of applied or beyond makes the record an application whatever record_type says.",
+                "enum": [
+                    "interested",
+                    "applied",
+                    "responded",
+                    "interview",
+                    "offer"
+                ]
+            },
+            "status": {
+                "type": "string",
+                "description": "Removed. Passing it is an error: use stage, state, close_reason and record_type."
+            }
+        },
+        "required": [
+            "company_name",
+            "role_title"
+        ]
+    },
+    {
+        "name": "create_contact",
+        "description": "Create a contact. A contact can exist with no links, so record a person met before any specific role rather than leaving them in a note body.",
+        "args": {
+            "contact_role": {
+                "type": "string",
+                "description": "Their role, e.g. recruiter or hiring manager",
+                "maxLength": 200
+            },
+            "email": {
+                "type": "string",
+                "description": "Email address",
+                "maxLength": 320
+            },
+            "employer": {
+                "type": "string",
+                "description": "Who they work for",
+                "maxLength": 200
+            },
+            "linkedin_url": {
+                "type": "string",
+                "description": "LinkedIn profile address (http or https)",
+                "maxLength": 500
+            },
+            "name": {
+                "type": "string",
+                "description": "Person's name",
+                "minLength": 1,
+                "maxLength": 200
+            },
+            "next_action": {
+                "type": "string",
+                "description": "What that next touch is, e.g. call back about the Acme role",
+                "maxLength": 500
+            },
+            "next_action_at": {
+                "type": "string",
+                "description": "Calendar date you owe them the next touch (YYYY-MM-DD). Drives follow_up_state and the next_action_before filter on list_contacts."
+            },
+            "notes": {
+                "type": "string",
+                "description": "Free-text notes",
+                "maxLength": 10000
+            },
+            "phone": {
+                "type": "string",
+                "description": "Phone number",
+                "maxLength": 50
+            }
+        },
+        "required": [
+            "name"
+        ]
+    },
+    {
+        "name": "delete_attachment",
+        "description": "Permanently delete one attachment from a job application. There is no undo. The server asks the user to confirm the exact file, so do not ask them to confirm first; call it once the attachment ID is known (see list_attachments). Needs a client on MCP 2026-07-28 that can show a confirmation prompt.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "attachment_id": {
+                "type": "integer",
+                "description": "Attachment ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "application_id",
+            "attachment_id"
+        ]
+    },
+    {
+        "name": "delete_contact",
+        "description": "Delete a contact. Its links to records are removed with it; the records themselves are untouched. There is no undo -- prefer update_contact when the contact is merely wrong rather than unwanted.",
+        "args": {
+            "id": {
+                "type": "integer",
+                "description": "Contact ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "id"
+        ]
+    },
+    {
+        "name": "delete_contact_note",
+        "description": "Withdraw an interaction from a contact's log. This HIDES the interaction: it stops appearing anywhere in the product and cannot be read back, and there is NO undo -- nothing in this API brings a hidden note back. Treat it as final. The contact's last_contacted_at is left exactly where it is, so removing the evidence of contact does not rewind the relationship's freshness. If the interaction is wrong rather than unwanted, call update_contact_note instead. Returns the refreshed contact.",
+        "args": {
+            "contact_id": {
+                "type": "integer",
+                "description": "Contact ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "note_id": {
+                "type": "integer",
+                "description": "Interaction (contact note) ID to hide. This cannot be undone.",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "contact_id",
+            "note_id"
+        ]
+    },
+    {
+        "name": "delete_note",
+        "description": "Withdraw a stage note from an application. This HIDES the note: it stops appearing anywhere in the product and cannot be read back, and there is NO undo -- nothing in this API brings a hidden note back. Treat it as final. If the note is wrong rather than unwanted, call update_note instead.",
+        "args": {
+            "id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "note_id": {
+                "type": "integer",
+                "description": "Stage note ID to hide. This cannot be undone.",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "id",
+            "note_id"
+        ]
+    },
+    {
+        "name": "extract_job_description",
+        "description": "Extract structured data (skills, responsibilities, salary, etc.) from the existing job description text of an application.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "application_id"
+        ]
+    },
+    {
+        "name": "fetch_job_description",
+        "description": "Fetch a job description from the job_posting_url, store it on the application, and extract structured data.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "application_id"
+        ]
+    },
+    {
+        "name": "generate_document",
+        "description": "Generate a tailored document (cover letter, resume tailoring tips, or interview prep brief) for a job application.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "task": {
+                "type": "string",
+                "description": "Type of document to generate",
+                "enum": [
+                    "cover_letter",
+                    "resume_tailor",
+                    "interview_prep"
+                ]
+            }
+        },
+        "required": [
+            "application_id",
+            "task"
+        ]
+    },
+    {
+        "name": "get_application",
+        "description": "Get a job application by ID, returning the full record including job_description, extracted_jd, interview_notes, prep_work, notes, linked contacts, and attachment metadata. The intended pattern is: call list_applications (with sparse fields) to locate a record, then call get_application to fetch full detail.",
+        "args": {
+            "id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "id"
+        ]
+    },
+    {
+        "name": "get_application_context",
+        "description": "Get the full context for a job application: application details, notes, attachments with extracted text, and user profile.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "application_id"
+        ]
+    },
+    {
+        "name": "get_attachment_text",
+        "description": "Get the extracted plain text from a file attachment (PDF, DOCX, TXT, MD).",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "attachment_id": {
+                "type": "integer",
+                "description": "Attachment ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "application_id",
+            "attachment_id"
+        ]
+    },
+    {
+        "name": "get_contact",
+        "description": "Get one contact by ID, including every record they are linked to and the relation each link carries.",
+        "args": {
+            "id": {
+                "type": "integer",
+                "description": "Contact ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "id"
+        ]
+    },
+    {
+        "name": "get_today",
+        "description": "The Today queue: your overdue, due and upcoming actions (next seven days) across open job applications, leads and contacts, as one list. Use it for questions such as \"what is overdue\" or \"what is coming up\". Items are already ordered oldest date first; keep that order. kind is \"application\" or \"contact\" and id is that record's ID. Each item carries title, subtitle, next_action, next_action_at, follow_up_state (overdue | due | upcoming) and follow_up_days. Closed roles are left out even if they have a re-check date.",
+        "args": {},
+        "required": []
+    },
+    {
+        "name": "get_upload_url",
+        "description": "Get a one-time pre-signed upload URL for attaching a file to a job application. Use this for any file on disk, whatever its size. Returns a URL and curl command - upload the file directly to that URL with HTTP PUT (multipart field name: 'file'). The attachment is linked to the application immediately on successful upload. The URL is valid for 15 minutes.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "filename": {
+                "type": "string",
+                "description": "Original filename including extension (e.g. cover-letter.pdf)",
+                "minLength": 1
+            }
+        },
+        "required": [
+            "application_id",
+            "filename"
+        ]
+    },
+    {
+        "name": "get_user_profile",
+        "description": "Get the candidate profile (resume, career narrative, agent instructions) for the authenticated user.",
+        "args": {},
+        "required": []
+    },
+    {
+        "name": "link_contact",
+        "description": "Attach a contact to an application or lead, recording their relation to it. Both must belong to you.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application or lead ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "contact_id": {
+                "type": "integer",
+                "description": "Contact ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "relation": {
+                "type": "string",
+                "description": "How they relate to this record, e.g. recruiter or referrer",
+                "maxLength": 100
+            }
+        },
+        "required": [
+            "application_id",
+            "contact_id"
+        ]
+    },
+    {
+        "name": "list_applications",
+        "description": "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call; a closed record can carry a deliberately set re-check date, which this filter alone still returns. For the Today screen (open roles and contacts together), call get_today instead. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
+        "args": {
+            "close_reason": {
+                "type": "string",
+                "description": "Filter closed records by why they ended. 'unresolved' means the reason is not known.",
+                "enum": [
+                    "accepted",
+                    "rejected",
+                    "withdrawn",
+                    "role_closed",
+                    "lapsed",
+                    "not_pursued",
+                    "unresolved"
+                ]
+            },
+            "company_name": {
+                "type": "string",
+                "description": "Filter by company name (partial match)"
+            },
+            "fields": {
+                "type": "array",
+                "description": "Limit which fields are returned per record. Omit to return all fields. Suggested summary preset: [\"id\",\"company_name\",\"role_title\",\"stage\",\"state\",\"close_reason\",\"record_type\",\"job_location\",\"job_posting_url\",\"salary_min\",\"salary_max\",\"interested_at\",\"applied_at\",\"closed_at\",\"updated_at\",\"next_action_at\",\"next_action\",\"follow_up_state\"]",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "follow_up_state": {
+                "type": "array",
+                "description": "Only records whose follow-up date is in one of these states. Records with no follow-up date never match. Use [\"overdue\",\"due\"] for what needs chasing today.",
+                "items": {
+                    "type": "string",
+                    "enum": [
+                        "overdue",
+                        "due",
+                        "upcoming"
+                    ]
+                }
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of records to return (default 50, max 200)",
+                "maximum": 200,
+                "exclusiveMinimum": 0
+            },
+            "offset": {
+                "type": "integer",
+                "description": "Number of records to skip for pagination (default 0)",
+                "minimum": 0,
+                "maximum": 9007199254740991
+            },
+            "query": {
+                "type": "string",
+                "description": "Free-text search of company name and role title (partial match; letter case is ignored for A-Z only, so accented and other non-English letters must match the stored case). Use it to find a role by its title."
+            },
+            "record_type": {
+                "type": "string",
+                "description": "Filter by record kind. A lead is a role identified but never applied to; filter to 'application' for true pipeline counts.",
+                "enum": [
+                    "application",
+                    "lead"
+                ]
+            },
+            "state": {
+                "type": "string",
+                "description": "Filter by whether the record is still open. Use this for 'what is live'.",
+                "enum": [
+                    "open",
+                    "closed"
+                ]
+            },
+            "status": {
+                "type": "string",
+                "description": "Removed. Passing it is an error: use stage, state, close_reason and record_type."
+            },
+            "updated_since": {
+                "type": "string",
+                "description": "Return only records updated after this ISO 8601 datetime (useful for incremental refresh)"
+            }
+        },
+        "required": []
+    },
+    {
+        "name": "list_attachments",
+        "description": "List attachments for a job application (filename, size, type \u2014 no binary content).",
+        "args": {
+            "id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "id"
+        ]
+    },
+    {
+        "name": "list_connections",
+        "description": "List the user's imported LinkedIn connections, newest connection first. Pass company to answer 'who do I know at X' (matched on the normalised employer name, so 'Acme Pty Ltd' finds 'Acme'); pass query to search name, employer and job title. Connections are not contacts: use promote_connection to turn one into a contact worth tracking.",
+        "args": {
+            "company": {
+                "type": "string",
+                "description": "Employer to match, e.g. the company_name of a record",
+                "maxLength": 200
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Page size (default 50)",
+                "minimum": 1,
+                "maximum": 200
+            },
+            "offset": {
+                "type": "integer",
+                "description": "Rows to skip",
+                "minimum": 0,
+                "maximum": 9007199254740991
+            },
+            "query": {
+                "type": "string",
+                "description": "Substring over name, employer and position",
+                "maxLength": 200
+            }
+        },
+        "required": []
+    },
+    {
+        "name": "list_contacts",
+        "description": "List contacts (recruiters, referrers, hiring managers) with the records each is linked to, ordered by what is owed soonest. Each carries follow_up_state (overdue | due | upcoming) derived against the instance timezone, so you never recompute it. Use next_action_before to answer \"who do I owe a touch this week\".",
+        "args": {
+            "has_next_action": {
+                "type": "boolean",
+                "description": "true = only contacts with a next action set; false = only those without."
+            },
+            "next_action_before": {
+                "type": "string",
+                "description": "Only contacts whose next action falls on or before this calendar date (YYYY-MM-DD)."
+            },
+            "query": {
+                "type": "string",
+                "description": "Partial match on name, employer or role."
+            }
+        },
+        "required": []
+    },
+    {
+        "name": "promote_connection",
+        "description": "Turn a LinkedIn connection into a contact, optionally linking it to a record in one step. Promoting the same connection twice returns the same contact. Use this when the user decides to approach someone, not to bulk-import the network.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application or lead to link the new contact to",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "connection_id": {
+                "type": "integer",
+                "description": "Connection ID from list_connections",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "relation": {
+                "type": "string",
+                "description": "How they relate to that record, e.g. referrer",
+                "maxLength": 100
+            }
+        },
+        "required": [
+            "connection_id"
+        ]
+    },
+    {
+        "name": "unlink_contact",
+        "description": "Detach a contact from a record. The inverse of link_contact. To correct a link's relation, unlink then link again with the right value.",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application or lead ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "contact_id": {
+                "type": "integer",
+                "description": "Contact ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            }
+        },
+        "required": [
+            "application_id",
+            "contact_id"
+        ]
+    },
+    {
+        "name": "update_application",
+        "description": "Update fields on an existing job application.",
+        "args": {
+            "close_reason": {
+                "type": "string",
+                "description": "Why the record ended. Only valid on a closed record. Use 'not_pursued' for a role identified but never applied to, not 'rejected'.",
+                "enum": [
+                    "accepted",
+                    "rejected",
+                    "withdrawn",
+                    "role_closed",
+                    "lapsed",
+                    "not_pursued",
+                    "unresolved"
+                ]
+            },
+            "company_name": {
+                "type": "string",
+                "description": "Company name",
+                "minLength": 1,
+                "maxLength": 200
+            },
+            "company_website_url": {
+                "type": "string",
+                "description": "Company website URL",
+                "maxLength": 2000
+            },
+            "id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "interview_notes": {
+                "type": "string",
+                "description": "Interview notes",
+                "maxLength": 10000
+            },
+            "job_description": {
+                "type": "string",
+                "description": "Job description",
+                "maxLength": 10000
+            },
+            "job_location": {
+                "type": "string",
+                "description": "Job location",
+                "maxLength": 500
+            },
+            "job_posting_url": {
+                "type": "string",
+                "description": "URL of the job posting",
+                "maxLength": 2000
+            },
+            "next_action": {
+                "description": "What the next step is, in a few words, or null to clear it. Independent of next_action_at. A write carrying only next_action/next_action_at does not bump updated_at. Closing the record (state closed) clears both halves unless the user has turned that off in Settings.",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 500
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "next_action_at": {
+                "type": [
+                    "string",
+                    "null"
+                ],
+                "description": "Calendar date to follow up on this record (YYYY-MM-DD), or null to clear it. Set it to when you should chase again, e.g. after add_note. A date-only change does not bump updated_at."
+            },
+            "prep_work": {
+                "type": "string",
+                "description": "Prep work notes",
+                "maxLength": 10000
+            },
+            "record_type": {
+                "type": "string",
+                "description": "Whether this is a real application or an unpursued lead",
+                "enum": [
+                    "application",
+                    "lead"
+                ]
+            },
+            "role_title": {
+                "type": "string",
+                "description": "Job title",
+                "minLength": 1,
+                "maxLength": 200
+            },
+            "salary_max": {
+                "description": "Maximum salary",
+                "anyOf": [
+                    {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "salary_min": {
+                "description": "Minimum salary",
+                "anyOf": [
+                    {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "stage": {
+                "type": "string",
+                "description": "How far the record got. Closing does not change it.",
+                "enum": [
+                    "interested",
+                    "applied",
+                    "responded",
+                    "interview",
+                    "offer"
+                ]
+            },
+            "state": {
+                "type": "string",
+                "description": "Whether the record is still open. Closing requires close_reason; reopening clears it.",
+                "enum": [
+                    "open",
+                    "closed"
+                ]
+            },
+            "status": {
+                "type": "string",
+                "description": "Removed. Passing it is an error: use stage, state, close_reason and record_type."
+            }
+        },
+        "required": [
+            "id"
+        ]
+    },
+    {
+        "name": "update_contact",
+        "description": "Update a contact. Patch semantics: omitted fields are left unchanged, and an explicit null clears a field. Use this to enrich a contact created earlier -- notes, employer, email and phone are all correctable after creation.",
+        "args": {
+            "contact_role": {
+                "description": "Their role, e.g. recruiter or hiring manager",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 200
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "email": {
+                "description": "Email address",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 320
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "employer": {
+                "description": "Who they work for",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 200
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "id": {
+                "type": "integer",
+                "description": "Contact ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "linkedin_url": {
+                "description": "LinkedIn profile address (http or https). Null clears it.",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 500
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "name": {
+                "type": "string",
+                "description": "Person's name",
+                "minLength": 1,
+                "maxLength": 200
+            },
+            "next_action": {
+                "description": "What that next touch is, e.g. call back about the Acme role. Null clears it.",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 500
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "next_action_at": {
+                "type": [
+                    "string",
+                    "null"
+                ],
+                "description": "Calendar date you owe them the next touch (YYYY-MM-DD), or null to clear it. Drives follow_up_state and the next_action_before filter on list_contacts."
+            },
+            "notes": {
+                "description": "Free-text notes. Replaces the existing notes wholesale.",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 10000
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            },
+            "phone": {
+                "description": "Phone number",
+                "anyOf": [
+                    {
+                        "type": "string",
+                        "maxLength": 50
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            }
+        },
+        "required": [
+            "id"
+        ]
+    },
+    {
+        "name": "update_contact_note",
+        "description": "Correct an interaction already logged against a contact -- what it said, when it happened, or both. Patch semantics: an omitted field is left alone, and at least one of content or occurred_at must be given. Re-dating an interaction backwards will NOT move the contact's last_contacted_at backwards: freshness only ever advances, so withdrawing or re-dating evidence of contact cannot make a relationship look staler than it already looked. The next-action pair is never touched here -- move a commitment with update_contact or add_contact_note.",
+        "args": {
+            "contact_id": {
+                "type": "integer",
+                "description": "Contact ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "content": {
+                "type": "string",
+                "description": "What happened, corrected. Replaces the old text entirely. Omit to leave it alone.",
+                "minLength": 1,
+                "maxLength": 10000
+            },
+            "note_id": {
+                "type": "integer",
+                "description": "Interaction (contact note) ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "occurred_at": {
+                "type": "string",
+                "description": "Calendar date the interaction actually happened (YYYY-MM-DD). Omit to leave it alone. Moving it earlier does not rewind last_contacted_at."
+            }
+        },
+        "required": [
+            "contact_id",
+            "note_id"
+        ]
+    },
+    {
+        "name": "update_note",
+        "description": "Correct a stage note already written to an application. Replaces the note's content wholesale, and optionally re-files it under a different stage when it was logged against the wrong one. This is NOT a patch: content is required on every call, so re-filing a note under a different stage means reading it back first and resending its text unchanged. (update_contact_note, for interactions, is a true patch -- the two differ.) Use this rather than delete_note plus add_note when the note is merely wrong -- a deleted note cannot be brought back.",
+        "args": {
+            "content": {
+                "type": "string",
+                "description": "The note's new content. Replaces the old text entirely.",
+                "minLength": 1,
+                "maxLength": 10000
+            },
+            "id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "note_id": {
+                "type": "integer",
+                "description": "Stage note ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "stage": {
+                "type": "string",
+                "description": "Re-file the note under this stage. Omit to leave the stage alone.",
+                "enum": [
+                    "interested",
+                    "applied",
+                    "responded",
+                    "interview",
+                    "offer",
+                    "accepted",
+                    "rejected"
+                ]
+            }
+        },
+        "required": [
+            "content",
+            "id",
+            "note_id"
+        ]
+    },
+    {
+        "name": "upload_attachment",
+        "description": "Upload an attachment to a job application from base64-encoded content. Do not use this for a file on disk, even a small one: use get_upload_url, because sending a file as base64 means reproducing every byte and one slip corrupts it. Use this only when no HTTP upload can run, for example with no shell or an unreachable upload address. Only small files fit (under ~30KB).",
+        "args": {
+            "application_id": {
+                "type": "integer",
+                "description": "Application ID",
+                "maximum": 9007199254740991,
+                "exclusiveMinimum": 0
+            },
+            "file_content": {
+                "type": "string",
+                "description": "Base64-encoded file content",
+                "minLength": 1
+            },
+            "filename": {
+                "type": "string",
+                "description": "Original filename including extension (e.g. cover-letter.pdf)",
+                "minLength": 1
+            }
+        },
+        "required": [
+            "application_id",
+            "file_content",
+            "filename"
+        ]
+    }
+]

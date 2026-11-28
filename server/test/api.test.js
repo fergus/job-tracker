@@ -1235,17 +1235,17 @@ describe("MCP Server", () => {
 
     // Drives tools over the real Streamable HTTP transport, so argument
     // handling is the SDK's own rather than a handler called with trusted
-    // input. One session is shared: the MCP endpoint is rate limited.
+    // input. One handshake is shared: the MCP endpoint is rate limited.
     const mcpHeaders = () => ({
         Authorization: `Bearer ${apiKey}`,
         Accept: "application/json, text/event-stream",
         "Content-Type": "application/json",
     });
-    let sharedSession;
+    let handshakeDone = false;
     let rpcId = 100;
 
     async function rpc(method, params) {
-        if (!sharedSession) {
+        if (!handshakeDone) {
             const init = await mcpReq
                 .post("/")
                 .set(mcpHeaders())
@@ -1260,12 +1260,11 @@ describe("MCP Server", () => {
                     },
                 });
             assert.equal(init.status, 200);
-            sharedSession = init.headers["mcp-session-id"];
+            handshakeDone = true;
         }
         const res = await mcpReq
             .post("/")
             .set(mcpHeaders())
-            .set("Mcp-Session-Id", sharedSession)
             .send({ jsonrpc: "2.0", id: rpcId++, method, params });
         assert.equal(res.status, 200);
         const dataLine = res.text
@@ -1402,8 +1401,8 @@ describe("MCP Server", () => {
             .get("/")
             .set("Authorization", `Bearer ${apiKey}`);
 
-        // GET / with auth but no session ID returns 400; 429 means rate limited.
-        const notLimited = [400];
+        // An authenticated GET / is not allowed (405); 429 means rate limited.
+        const notLimited = [405];
         assert.ok(
             notLimited.includes(r1.status),
             `first request should not be rate limited (got ${r1.status})`,
@@ -1418,56 +1417,35 @@ describe("MCP Server", () => {
         delete process.env.RATE_LIMIT_MCP;
     });
 
-    test("supports multiple sequential session initializations", async () => {
-        const initBody = {
+    test("serves 2025-era requests without sessions", async () => {
+        const send = (body) =>
+            mcpReq.post("/").set(mcpHeaders()).send(body);
+        const init = await send({
             jsonrpc: "2.0",
             id: 1,
             method: "initialize",
             params: {
-                protocolVersion: "2024-11-05",
+                protocolVersion: "2025-06-18",
                 capabilities: {},
                 clientInfo: { name: "test", version: "1.0" },
             },
-        };
+        });
+        assert.equal(init.status, 200);
+        assert.equal(init.headers["mcp-session-id"], undefined);
 
-        const r1 = await mcpReq
-            .post("/")
-            .set("Authorization", `Bearer ${apiKey}`)
-            .set("Accept", "application/json, text/event-stream")
-            .set("Content-Type", "application/json")
-            .send(initBody);
+        const listed = await send({
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/list",
+            params: {},
+        });
+        assert.equal(listed.status, 200);
+        assert.match(listed.text, /"list_applications"/);
 
-        assert.equal(
-            r1.status,
-            200,
-            `first initialize should succeed, got: ${r1.body}`,
-        );
-        assert.ok(
-            r1.headers["mcp-session-id"],
-            "first session should have a session ID",
-        );
-
-        const r2 = await mcpReq
-            .post("/")
-            .set("Authorization", `Bearer ${apiKey}`)
-            .set("Accept", "application/json, text/event-stream")
-            .set("Content-Type", "application/json")
-            .send(initBody);
-
-        assert.equal(
-            r2.status,
-            200,
-            `second initialize should succeed, got: ${r2.body}`,
-        );
-        assert.ok(
-            r2.headers["mcp-session-id"],
-            "second session should have a session ID",
-        );
-        assert.notEqual(
-            r1.headers["mcp-session-id"],
-            r2.headers["mcp-session-id"],
-            "session IDs should be unique",
-        );
+        const get = await mcpReq
+            .get("/")
+            .set("Authorization", `Bearer ${apiKey}`);
+        assert.equal(get.status, 405);
     });
 
     test("get_application_context MCP tool returns assembled context", async () => {
@@ -1506,8 +1484,6 @@ describe("MCP Server", () => {
             .set("Content-Type", "application/json")
             .send(initBody);
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
-        assert.ok(sessionId);
 
         // Call the tool
         const toolBody = {
@@ -1523,7 +1499,6 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1567,7 +1542,6 @@ describe("MCP Server", () => {
             .set("Content-Type", "application/json")
             .send(initBody);
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         const toolBody = {
             jsonrpc: "2.0",
@@ -1582,7 +1556,6 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1640,7 +1613,6 @@ describe("MCP Server", () => {
                 .set("Content-Type", "application/json")
                 .send(initBody);
             assert.equal(init.status, 200);
-            const sessionId = init.headers["mcp-session-id"];
 
             const toolBody = {
                 jsonrpc: "2.0",
@@ -1658,7 +1630,6 @@ describe("MCP Server", () => {
             const toolRes = await mcpReq
                 .post("/")
                 .set("Authorization", `Bearer ${apiKey}`)
-                .set("Mcp-Session-Id", sessionId)
                 .set("Accept", "application/json, text/event-stream")
                 .set("Content-Type", "application/json")
                 .send(toolBody);
@@ -1715,7 +1686,6 @@ describe("MCP Server", () => {
             .set("Content-Type", "application/json")
             .send(initBody);
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         const fileContent = Buffer.from("resume text here").toString("base64");
         const toolBody = {
@@ -1734,7 +1704,6 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1778,7 +1747,6 @@ describe("MCP Server", () => {
             .set("Content-Type", "application/json")
             .send(initBody);
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         const toolBody = {
             jsonrpc: "2.0",
@@ -1796,7 +1764,6 @@ describe("MCP Server", () => {
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send(toolBody);
@@ -1834,12 +1801,10 @@ describe("MCP Server", () => {
                 },
             });
         assert.equal(init.status, 200);
-        const sessionId = init.headers["mcp-session-id"];
 
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send({
@@ -1870,7 +1835,7 @@ describe("MCP Server", () => {
     });
 
     test("get_upload_url MCP tool returns error for unknown application", async () => {
-        const init = await mcpReq
+        await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
             .set("Accept", "application/json, text/event-stream")
@@ -1885,12 +1850,10 @@ describe("MCP Server", () => {
                     clientInfo: { name: "test", version: "1.0" },
                 },
             });
-        const sessionId = init.headers["mcp-session-id"];
 
         const toolRes = await mcpReq
             .post("/")
             .set("Authorization", `Bearer ${apiKey}`)
-            .set("Mcp-Session-Id", sessionId)
             .set("Accept", "application/json, text/event-stream")
             .set("Content-Type", "application/json")
             .send({
@@ -1933,13 +1896,11 @@ describe("MCP Server", () => {
                     },
                 });
             assert.equal(init.status, 200);
-            const sessionId = init.headers["mcp-session-id"];
             let nextId = 2;
             return async (name, args) => {
                 const res = await mcpReq
                     .post("/")
                     .set("Authorization", `Bearer ${apiKey}`)
-                    .set("Mcp-Session-Id", sessionId)
                     .set("Accept", "application/json, text/event-stream")
                     .set("Content-Type", "application/json")
                     .send({
@@ -2638,6 +2599,53 @@ describe("File cleanup", () => {
             !fs.existsSync(filePath),
             "Attachment file should be deleted from disk",
         );
+    });
+
+    test("attachment delete is owner only, bumps updated_at and audits once", async () => {
+        const db = require("../db");
+        const app = await createApp();
+        const attachRes = await req
+            .post(`/api/applications/${app.id}/attachments`)
+            .attach("files", Buffer.from("keep me"), "keep.txt");
+        assert.equal(attachRes.status, 201);
+        const url = `/api/applications/${app.id}/attachments/${attachRes.body[0].id}`;
+        const row = () =>
+            db
+                .prepare("SELECT * FROM attachments WHERE id = ?")
+                .get(attachRes.body[0].id);
+        const audits = () =>
+            db
+                .prepare(
+                    "SELECT * FROM audit_log WHERE application_id = ? AND action = 'delete_attachment'",
+                )
+                .all(app.id);
+        db.prepare("UPDATE applications SET updated_at = ? WHERE id = ?").run(
+            "2000-01-01T00:00:00.000Z",
+            app.id,
+        );
+
+        const stranger = await req
+            .delete(url)
+            .set("X-Forwarded-Email", "attachment-stranger@example.com");
+        assert.equal(stranger.status, 404);
+        assert.deepEqual(stranger.body, { error: "Not found" });
+        assert.ok(row(), "another user's delete removes nothing");
+
+        assert.equal((await req.delete(url)).status, 200);
+        assert.equal(row(), undefined);
+        assert.equal(audits().length, 1);
+        assert.equal(audits()[0].source, "rest");
+        assert.notEqual(
+            db
+                .prepare("SELECT updated_at FROM applications WHERE id = ?")
+                .get(app.id).updated_at,
+            "2000-01-01T00:00:00.000Z",
+        );
+
+        const again = await req.delete(url);
+        assert.equal(again.status, 404);
+        assert.deepEqual(again.body, { error: "Attachment not found" });
+        assert.equal(audits().length, 1);
     });
 });
 

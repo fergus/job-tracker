@@ -1,20 +1,26 @@
 "use strict";
-const { randomUUID } = require("node:crypto");
 const fs = require("node:fs");
+const http = require("node:http");
+const { randomBytes } = require("node:crypto");
 const path = require("node:path");
 const express = require("express");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
 const {
-    StreamableHTTPServerTransport,
-} = require("@modelcontextprotocol/sdk/server/streamableHttp.js");
+    McpServer,
+    createMcpHandler,
+    createRequestStateCodec,
+    inputRequired,
+} = require("@modelcontextprotocol/server");
+const { loadSkills } = require("@modelcontextprotocol/server/ext/skills/node");
+const { toNodeHandler } = require("@modelcontextprotocol/node");
 const { z } = require("zod");
 const db = require("./db");
 const svc = require("./services/applications");
 const notesSvc = require("./services/notes");
 const contactsSvc = require("./services/contacts");
 const connectionsSvc = require("./services/connections");
+const { listToday } = require("./services/today");
 const { visibleStageNotes } = require("./services/stage-notes");
 const { resolveApiKey } = require("./lib/apiKeySecret");
 const { uploadsDir } = require("./lib/files");
@@ -24,6 +30,21 @@ const { generateDocument, VALID_TASKS } = require("./services/generation");
 const { logAuditEvent, READ_ONLY_TOOLS } = require("./services/audit");
 const { createUploadToken } = require("./lib/uploadTokens");
 const { emitChange } = require("./lib/events");
+
+const SKILLS_DIR = path.join(__dirname, "skills");
+
+// Signs what a delete_attachment prompt was about, so only the server's own
+// question can be answered. Module level because each request gets a new
+// server; a restart voids pending prompts.
+const deleteState = createRequestStateCodec({
+    key: randomBytes(32),
+    ttlSeconds: 300,
+    bind: (ctx) => ctx.http?.authInfo?.clientId ?? "",
+});
+
+function loadSkillCatalog(dir = SKILLS_DIR) {
+    return loadSkills(dir, { strict: true });
+}
 
 // Convert a ServiceError into MCP tool content so the LLM sees the message.
 function toolError(err) {
@@ -41,18 +62,35 @@ function toolError(err) {
     throw err;
 }
 
-function createMcpServer() {
-    const server = new McpServer({ name: "job-tracker", version: "1.0.0" });
+// Quotes a user-supplied name for a prompt, escaping anything that could add a
+// line or reorder the text and so pose as part of the question. JSON.stringify
+// alone leaves U+2028, U+0085 and the direction controls as they are.
+function quoteForPrompt(value) {
+    return JSON.stringify(value).replace(
+        /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu,
+        (c) => `\\u{${c.codePointAt(0).toString(16)}}`,
+    );
+}
 
-    // Wrap server.tool to audit mutating tool calls
-    const originalTool = server.tool.bind(server);
-    server.tool = (name, description, schema, handler) => {
+function createMcpServer(skills, era) {
+    const server = new McpServer(
+        { name: "job-tracker", version: "1.0.0" },
+        { requestState: { verify: deleteState.verify } },
+    );
+    skills?.attach(server);
+
+    // Every tool is registered through here so mutating calls get audited
+    const tool = (name, description, schema, handler) => {
         const isReadOnly = READ_ONLY_TOOLS.has(name);
-        return originalTool(name, description, schema, async (args, extra) => {
+        const config = { description, inputSchema: z.object(schema) };
+        return server.registerTool(name, config, async (args, ctx) => {
+            const extra = { authInfo: ctx.http?.authInfo, ctx };
             const userEmail = extra.authInfo?.clientId;
             const result = await handler(args, extra);
 
-            if (!isReadOnly && userEmail && !result?.isError) {
+            const changed =
+                !result?.isError && result?.resultType !== "input_required";
+            if (!isReadOnly && userEmail && changed) {
                 let applicationId = args.id || args.application_id || null;
                 let details = null;
 
@@ -79,6 +117,11 @@ function createMcpServer() {
                     details = {};
                 } else if (name === "fetch_job_description") {
                     details = {};
+                } else if (name === "delete_attachment") {
+                    const { attachment_id, filename } = JSON.parse(
+                        result.content[0].text,
+                    );
+                    details = { attachment_id, filename };
                 } else if (name === "update_note" || name === "delete_note") {
                     // The note id is the only thing that identifies which note
                     // was corrected or withdrawn; a delete hides the row, so
@@ -112,9 +155,35 @@ function createMcpServer() {
         });
     };
 
-    server.tool(
+    tool(
+        "get_today",
+        "The Today queue: your overdue, due and upcoming actions (next seven days) across open job applications, leads and contacts, as one list. Use it for questions such as \"what is overdue\" or \"what is coming up\". Items are already ordered oldest date first; keep that order. kind is \"application\" or \"contact\" and id is that record's ID. Each item carries title, subtitle, next_action, next_action_at, follow_up_state (overdue | due | upcoming) and follow_up_days. Closed roles are left out even if they have a re-check date.",
+        {},
+        async (_args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            try {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({ items: listToday(userEmail) }),
+                        },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    tool(
         "list_applications",
-        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call, and add state \"open\" to match the Today screen: a closed record can carry a deliberately set re-check date, which this filter alone still returns. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
+        "List job applications with optional filtering, pagination, and sparse field sets. Use this to locate records by ID, then call get_application(id) to fetch the full detail including job_description, extracted_jd, interview_notes, and prep_work. A record carries stage (how far it got), state (open or closed), close_reason (why it ended), and record_type (application or lead); filter on those. The legacy `status` field has been removed. Each record carries next_action_at (the follow-up date), next_action (what the follow-up is) and follow_up_state (overdue | due | upcoming, or null when no date is set) derived against the instance timezone, so you never recompute it. For \"what needs chasing\", filter follow_up_state to [\"overdue\",\"due\"] in one call; a closed record can carry a deliberately set re-check date, which this filter alone still returns. For the Today screen (open roles and contacts together), call get_today instead. Setting only next_action_at does not bump updated_at, so updated_since polling will not surface a date-only change -- use the follow_up_state filter to find follow-ups instead.",
         {
             status: z
                 .string()
@@ -126,6 +195,12 @@ function createMcpServer() {
                 .string()
                 .optional()
                 .describe("Filter by company name (partial match)"),
+            query: z
+                .string()
+                .optional()
+                .describe(
+                    "Free-text search of company name and role title (partial match; letter case is ignored for A-Z only, so accented and other non-English letters must match the stored case). Use it to find a role by its title.",
+                ),
             updated_since: z
                 .string()
                 .optional()
@@ -207,6 +282,7 @@ function createMcpServer() {
                     close_reason: args.close_reason,
                     record_type: args.record_type,
                     company_name: args.company_name,
+                    query: args.query,
                     updated_since: args.updated_since,
                     follow_up_state: args.follow_up_state,
                     limit,
@@ -242,7 +318,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_application",
         "Get a job application by ID, returning the full record including job_description, extracted_jd, interview_notes, prep_work, notes, linked contacts, and attachment metadata. The intended pattern is: call list_applications (with sparse fields) to locate a record, then call get_application to fetch full detail.",
         {
@@ -268,7 +344,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "create_application",
         "Create a new job application.",
         {
@@ -373,7 +449,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "update_application",
         "Update fields on an existing job application.",
         {
@@ -509,7 +585,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "add_note",
         "Add a stage note to a job application. Logging a chase is the moment you know when to chase next, so set next_action_at in the same call rather than following up with update_application.",
         {
@@ -573,7 +649,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "update_note",
         "Correct a stage note already written to an application. Replaces the note's content wholesale, and optionally re-files it under a different stage when it was logged against the wrong one. This is NOT a patch: content is required on every call, so re-filing a note under a different stage means reading it back first and resending its text unchanged. (update_contact_note, for interactions, is a true patch -- the two differ.) Use this rather than delete_note plus add_note when the note is merely wrong -- a deleted note cannot be brought back.",
         {
@@ -622,7 +698,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "delete_note",
         "Withdraw a stage note from an application. This HIDES the note: it stops appearing anywhere in the product and cannot be read back, and there is NO undo -- nothing in this API brings a hidden note back. Treat it as final. If the note is wrong rather than unwanted, call update_note instead.",
         {
@@ -657,7 +733,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "list_attachments",
         "List attachments for a job application (filename, size, type — no binary content).",
         {
@@ -683,7 +759,110 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
+        "delete_attachment",
+        "Permanently delete one attachment from a job application. There is no undo. The server asks the user to confirm the exact file, so do not ask them to confirm first; call it once the attachment ID is known (see list_attachments). Needs a client on MCP 2026-07-28 that can show a confirmation prompt.",
+        {
+            application_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Application ID"),
+            attachment_id: z
+                .number()
+                .int()
+                .positive()
+                .describe("Attachment ID"),
+        },
+        async (args, extra) => {
+            const userEmail = extra.authInfo?.clientId;
+            if (!userEmail)
+                return {
+                    content: [{ type: "text", text: "Unauthorized" }],
+                    isError: true,
+                };
+            const refuse = (text) => ({
+                content: [{ type: "text", text }],
+                isError: true,
+            });
+            // Fails closed: a 2025-era request has no way to carry the prompt.
+            if (era !== "modern") {
+                return refuse(
+                    "delete_attachment needs a client on MCP 2026-07-28 that can show a confirmation prompt. Nothing was deleted. The user can delete the file in the job tracker web app.",
+                );
+            }
+            const { application_id, attachment_id } = args;
+            try {
+                // Checked on every round: ownership may change while the user
+                // is deciding.
+                const attachment = svc.getAttachment(
+                    userEmail,
+                    application_id,
+                    attachment_id,
+                );
+                const state = extra.ctx.mcpReq.requestState();
+
+                if (!state) {
+                    const role = svc.getApplication(userEmail, application_id);
+                    return inputRequired({
+                        inputRequests: {
+                            confirm: inputRequired.elicit({
+                                message: `Permanently delete ${quoteForPrompt(attachment.original_filename)} from ${quoteForPrompt(role.company_name)} - ${quoteForPrompt(role.role_title)}? ${attachment.file_size} bytes, uploaded ${attachment.created_at}, attachment ID ${attachment.id}. This cannot be undone.`,
+                                requestedSchema: {
+                                    type: "object",
+                                    properties: {
+                                        confirm: {
+                                            type: "boolean",
+                                            title: "Yes, delete it",
+                                        },
+                                    },
+                                    required: ["confirm"],
+                                },
+                            }),
+                        },
+                        requestState: await deleteState.mint(
+                            { application_id, attachment_id },
+                            extra.ctx,
+                        ),
+                    });
+                }
+
+                const answer = extra.ctx.mcpReq.inputResponses?.confirm;
+                if (
+                    state.application_id !== application_id ||
+                    state.attachment_id !== attachment_id ||
+                    answer?.action !== "accept" ||
+                    answer.content?.confirm !== true
+                ) {
+                    return refuse(
+                        "The user did not confirm this delete. Nothing was deleted.",
+                    );
+                }
+
+                const deleted = svc.deleteAttachment(
+                    userEmail,
+                    application_id,
+                    attachment_id,
+                );
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({
+                                success: true,
+                                attachment_id: deleted.id,
+                                filename: deleted.original_filename,
+                            }),
+                        },
+                    ],
+                };
+            } catch (err) {
+                return toolError(err);
+            }
+        },
+    );
+
+    tool(
         "get_attachment_text",
         "Get the extracted plain text from a file attachment (PDF, DOCX, TXT, MD).",
         {
@@ -736,7 +915,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_user_profile",
         "Get the candidate profile (resume, career narrative, agent instructions) for the authenticated user.",
         {},
@@ -771,7 +950,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_application_context",
         "Get the full context for a job application: application details, notes, attachments with extracted text, and user profile.",
         {
@@ -837,7 +1016,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "generate_document",
         "Generate a tailored document (cover letter, resume tailoring tips, or interview prep brief) for a job application.",
         {
@@ -943,9 +1122,9 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "upload_attachment",
-        "Upload a small file attachment (under ~30KB) to a job application using base64-encoded content. For larger files use get_upload_url instead.",
+        "Upload an attachment to a job application from base64-encoded content. Do not use this for a file on disk, even a small one: use get_upload_url, because sending a file as base64 means reproducing every byte and one slip corrupts it. Use this only when no HTTP upload can run, for example with no shell or an unreachable upload address. Only small files fit (under ~30KB).",
         {
             application_id: z
                 .number()
@@ -986,9 +1165,9 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_upload_url",
-        "Get a one-time pre-signed upload URL for attaching a file to a job application. Use this for files larger than ~30KB. Returns a URL and curl command — upload the file directly to that URL with HTTP PUT (multipart field name: 'file'). The attachment is linked to the application immediately on successful upload. The URL is valid for 15 minutes.",
+        "Get a one-time pre-signed upload URL for attaching a file to a job application. Use this for any file on disk, whatever its size. Returns a URL and curl command - upload the file directly to that URL with HTTP PUT (multipart field name: 'file'). The attachment is linked to the application immediately on successful upload. The URL is valid for 15 minutes.",
         {
             application_id: z
                 .number()
@@ -1060,7 +1239,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "extract_job_description",
         "Extract structured data (skills, responsibilities, salary, etc.) from the existing job description text of an application.",
         {
@@ -1132,7 +1311,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "fetch_job_description",
         "Fetch a job description from the job_posting_url, store it on the application, and extract structured data.",
         {
@@ -1221,7 +1400,7 @@ function createMcpServer() {
     // existed, a recruiter got filed as a job application, which inflated the
     // pipeline and left the referral network unrepresentable.
 
-    server.tool(
+    tool(
         "list_contacts",
         "List contacts (recruiters, referrers, hiring managers) with the records each is linked to, ordered by what is owed soonest. Each carries follow_up_state (overdue | due | upcoming) derived against the instance timezone, so you never recompute it. Use next_action_before to answer \"who do I owe a touch this week\".",
         {
@@ -1264,7 +1443,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "get_contact",
         "Get one contact by ID, including every record they are linked to and the relation each link carries.",
         { id: z.number().int().positive().describe("Contact ID") },
@@ -1288,7 +1467,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "create_contact",
         "Create a contact. A contact can exist with no links, so record a person met before any specific role rather than leaving them in a note body.",
         {
@@ -1339,7 +1518,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "link_contact",
         "Attach a contact to an application or lead, recording their relation to it. Both must belong to you.",
         {
@@ -1380,7 +1559,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "list_connections",
         "List the user's imported LinkedIn connections, newest connection first. Pass company to answer 'who do I know at X' (matched on the normalised employer name, so 'Acme Pty Ltd' finds 'Acme'); pass query to search name, employer and job title. Connections are not contacts: use promote_connection to turn one into a contact worth tracking.",
         {
@@ -1417,7 +1596,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "promote_connection",
         "Turn a LinkedIn connection into a contact, optionally linking it to a record in one step. Promoting the same connection twice returns the same contact. Use this when the user decides to approach someone, not to bulk-import the network.",
         {
@@ -1468,7 +1647,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "update_contact",
         "Update a contact. Patch semantics: omitted fields are left unchanged, and an explicit null clears a field. Use this to enrich a contact created earlier -- notes, employer, email and phone are all correctable after creation.",
         {
@@ -1537,7 +1716,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "delete_contact",
         "Delete a contact. Its links to records are removed with it; the records themselves are untouched. There is no undo -- prefer update_contact when the contact is merely wrong rather than unwanted.",
         { id: z.number().int().positive().describe("Contact ID") },
@@ -1561,7 +1740,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "unlink_contact",
         "Detach a contact from a record. The inverse of link_contact. To correct a link's relation, unlink then link again with the right value.",
         {
@@ -1596,7 +1775,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "convert_application_to_contact",
         "Convert a record that is actually a person into a contact, then remove the record. The original row, its notes, attachments and links are written to a backup table first, so the conversion is recoverable by hand. Use this for rows filed as applications that are really recruiters or referrers.",
         {
@@ -1654,7 +1833,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "add_contact_note",
         "Log an interaction with a contact -- messaged, replied, meeting held, agreed to follow up. This is the relationship's history; the contact's `notes` field is a standing description, not a log. Logging advances last_contacted_at automatically, so there is no second field to maintain.",
         {
@@ -1711,7 +1890,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "update_contact_note",
         "Correct an interaction already logged against a contact -- what it said, when it happened, or both. Patch semantics: an omitted field is left alone, and at least one of content or occurred_at must be given. Re-dating an interaction backwards will NOT move the contact's last_contacted_at backwards: freshness only ever advances, so withdrawing or re-dating evidence of contact cannot make a relationship look staler than it already looked. The next-action pair is never touched here -- move a commitment with update_contact or add_contact_note.",
         {
@@ -1763,7 +1942,7 @@ function createMcpServer() {
         },
     );
 
-    server.tool(
+    tool(
         "delete_contact_note",
         "Withdraw an interaction from a contact's log. This HIDES the interaction: it stops appearing anywhere in the product and cannot be read back, and there is NO undo -- nothing in this API brings a hidden note back. Treat it as final. The contact's last_contacted_at is left exactly where it is, so removing the evidence of contact does not rewind the relationship's freshness. If the interaction is wrong rather than unwanted, call update_contact_note instead. Returns the refreshed contact.",
         {
@@ -1851,50 +2030,66 @@ function startMcpServer(port) {
         next();
     });
 
-    // Session map: sessionId → StreamableHTTPServerTransport
-    const sessions = new Map();
-
-    app.all("/", async (req, res) => {
-        try {
-            const sessionId = req.headers["mcp-session-id"];
-
-            if (sessionId) {
-                // Route to existing session
-                const transport = sessions.get(sessionId);
-                if (!transport)
-                    return res.status(404).json({ error: "Session not found" });
-                await transport.handleRequest(req, res, req.body);
-            } else if (req.method === "POST") {
-                // New session (Initialize handshake) — each session needs its own McpServer
-                // because McpServer can only connect to one transport at a time.
-                const mcpServer = createMcpServer();
-                const transport = new StreamableHTTPServerTransport({
-                    sessionIdGenerator: () => randomUUID(),
-                    onsessioninitialized: (sid) => sessions.set(sid, transport),
-                    onsessionclosed: async (sid) => {
-                        sessions.delete(sid);
-                        try {
-                            await mcpServer.close();
-                        } catch {}
-                    },
-                });
-                await mcpServer.connect(transport);
-                await transport.handleRequest(req, res, req.body);
-            } else {
-                res.status(400).json({ error: "No session ID provided" });
-            }
-        } catch (err) {
-            console.error("[mcp] unhandled error:", err);
-            if (!res.headersSent)
-                res.status(500).json({ error: "Internal server error" });
+    // One server per request. New-revision clients get everything; 2025-era
+    // clients are served without sessions.
+    let skills;
+    const handler = createMcpHandler(({ era }) => createMcpServer(skills, era), {
+        onerror: (err) => console.error("[mcp] handler error:", err),
+    });
+    const nodeHandler = toNodeHandler(handler, {
+        onerror: (err) => console.error("[mcp] unhandled error:", err),
+    });
+    // handler.close() cuts off running calls along with subscription streams,
+    // so on shutdown it has to wait until every ordinary request has ended.
+    let closing = false;
+    const running = new Set();
+    const closeHandlerWhenIdle = () => {
+        if (!closing || running.size > 0) return;
+        handler
+            .close()
+            .catch((err) =>
+                console.error("[mcp] error closing handler:", err.message),
+            );
+    };
+    app.all("/", (req, res) => {
+        if (req.body?.method !== "subscriptions/listen") {
+            running.add(res);
+            res.once("close", () => {
+                running.delete(res);
+                closeHandlerWhenIdle();
+            });
         }
+        nodeHandler(req, res, req.body);
     });
 
-    const httpServer = app.listen(port, "0.0.0.0", () => {
-        console.log(`MCP server running on http://localhost:${port}`);
-    });
+    const httpServer = http.createServer(app);
+
+    // A subscription stream stays open until the handler closes it, so closing
+    // only the HTTP server would hang while a client is subscribed.
+    const closeHttpServer = httpServer.close.bind(httpServer);
+    httpServer.close = (callback) => {
+        closing = true;
+        const result = closeHttpServer(callback);
+        closeHandlerWhenIdle();
+        return result;
+    };
+
+    loadSkillCatalog()
+        .then((catalog) => {
+            skills = catalog;
+            if (closing) return;
+            httpServer.listen(port, "0.0.0.0", () => {
+                console.log(`MCP server running on http://localhost:${port}`);
+            });
+        })
+        .catch((err) => httpServer.emit("error", err));
 
     return httpServer;
 }
 
-module.exports = { startMcpServer, createMcpServer, toolError };
+module.exports = {
+    startMcpServer,
+    createMcpServer,
+    loadSkillCatalog,
+    toolError,
+};

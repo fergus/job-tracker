@@ -1,8 +1,8 @@
-# Upgrade `openai` 7.45.1 → 7.62.0 (server + client)
+# Upgrade `openai` 7.45.1 → 7.65.0 (server + client)
 
 - **Priority:** p3
 - **Created:** 2026-11-06
-- **Updated:** 2026-11-20 (latest now 7.62.0)
+- **Updated:** 2026-11-28 (latest now 7.65.0)
 - **Category:** Maintenance (npm, server + client)
 
 ## Problem
@@ -24,15 +24,15 @@ same change so the two copies do not drift apart.
 ## Current
 
 - `openai`: 7.45.1 (declared `^7.45.1`) in `server/` and `client/`
-- Latest: **7.62.0**
+- Latest: **7.65.0**
 - No advisories currently attached to `openai` itself; this is a
   keep-current item, not a security fix.
 
 ## Proposed Solution
 
 ```bash
-cd server  && npm install openai@7.62.0
-cd ../client && npm install openai@7.62.0
+cd server  && npm install openai@7.65.0
+cd ../client && npm install openai@7.65.0
 ```
 
 Then verify the surfaces that actually call the SDK, since minor releases of
@@ -52,7 +52,7 @@ Manual checks worth doing beyond the test suite:
 
 ## Acceptance Criteria
 
-- [ ] `npm ls openai` reports 7.62.0 in **both** `server/` and `client/`
+- [ ] `npm ls openai` reports 7.65.0 in **both** `server/` and `client/`
 - [ ] `cd server && npm test` passes
 - [ ] `npm run build:client` succeeds from the repo root
 - [ ] One document generation completes against a real application record
